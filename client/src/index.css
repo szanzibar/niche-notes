@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "@fontsource/space-grotesk/400.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
+
+/* ─── Design tokens ─────────────────────────────────────────────────────────
+   To change the accent color, update --accent and --accent-dark here.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --accent: #FF4F3B;
+  --accent-dark: #D93A28;
+
+  --bg: #FAFAF8;
+  --surface: #FFFFFF;
+  --ink: #111111;
+  --ink-muted: #555555;
+  --border: #111111;
+  --shadow: 4px 4px 0 #111111;
+}
+
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-border: var(--border);
+  --font-family-sans: "Space Grotesk", system-ui, sans-serif;
+  --shadow-brutal: var(--shadow);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); }
