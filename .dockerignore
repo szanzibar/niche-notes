@@ -1,0 +1,13 @@
+.git
+.expert
+docs
+electron
+client/node_modules
+client/android
+client/dist
+server/_build
+server/deps
+server/data
+server/priv/static
+server/test
+**/.DS_Store

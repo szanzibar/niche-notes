@@ -3,18 +3,17 @@ defmodule NicheNotesWeb.DevAuthController do
 
   alias NicheNotes.Accounts
 
-  # Instantly signs in as a local dev user — no Pocket ID required.
-  # Only reachable in dev (router gates it with Mix.env() == :dev).
-  def login(conn, _params) do
+  # Dev and test only. `/auth/login?as=wife` signs in a second user so sharing can be tried locally.
+  def login(conn, params) do
+    name = params["as"] || "dev"
+
     {:ok, user} =
       Accounts.find_or_create_user(%{
-        "sub" => "dev-user-1",
-        "name" => "Dev User",
-        "email" => "dev@localhost"
+        "sub" => "dev-" <> name,
+        "name" => String.capitalize(name),
+        "email" => name <> "@localhost"
       })
 
-    conn
-    |> put_session(:user_id, user.id)
-    |> redirect(to: "/")
+    conn |> put_session(:user_id, user.id) |> redirect(to: "/")
   end
 end

@@ -3,11 +3,9 @@ defmodule NicheNotesWeb.AuthController do
 
   alias NicheNotes.Accounts
 
-  @oidc_config Application.compile_env(:niche_notes, :oidc)
-
   def login(conn, _params) do
     {:ok, %{url: url, session_params: session_params}} =
-      Assent.Strategy.OIDC.authorize_url(@oidc_config)
+      Assent.Strategy.OIDC.authorize_url(oidc_config())
 
     conn
     |> put_session(:oidc_session_params, session_params)
@@ -15,8 +13,7 @@ defmodule NicheNotesWeb.AuthController do
   end
 
   def callback(conn, params) do
-    session_params = get_session(conn, :oidc_session_params)
-    config = Keyword.put(@oidc_config, :session_params, session_params)
+    config = Keyword.put(oidc_config(), :session_params, get_session(conn, :oidc_session_params))
 
     with {:ok, %{user: claims}} <- Assent.Strategy.OIDC.callback(config, params),
          {:ok, user} <- Accounts.find_or_create_user(claims) do
@@ -26,15 +23,13 @@ defmodule NicheNotesWeb.AuthController do
       |> redirect(to: "/")
     else
       {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: inspect(reason)})
+        conn |> put_status(:bad_request) |> json(%{error: inspect(reason)})
     end
   end
 
   def logout(conn, _params) do
-    conn
-    |> clear_session()
-    |> redirect(to: "/")
+    conn |> clear_session() |> send_resp(:no_content, "")
   end
+
+  defp oidc_config, do: Application.fetch_env!(:niche_notes, :oidc)
 end

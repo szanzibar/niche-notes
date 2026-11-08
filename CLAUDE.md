@@ -1,121 +1,62 @@
-# niche-notes — Claude Context
+# niche-notes
 
-## What this is
+A self-hosted, offline-first notes app for a family of two or three, replacing Amplenote. The family jots notes and lists on their phones and edits the same shopping list at the same time. Requirements are in [docs/spec.md](docs/spec.md), the schema in [docs/data-model.md](docs/data-model.md), decisions in [docs/adr/](docs/adr/), and the checklist in [docs/todo.md](docs/todo.md).
 
-A self-hosted, offline-first collaborative notes and tasks app for family use (2-3 people).
-Replacing Amplenote. See `docs/spec.md` for full requirements.
+## How we work here
 
-## Core Value: Simplicity
+The architecture and writing standards in `~/.claude/CLAUDE.md` apply in full. Two of them weigh even more here:
 
-**Simplicity above all else.** This is the primary design constraint.
+- **Family scale.** Two or three users and a few thousand notes. A mechanism that only pays off at SaaS scale is wrong here, so name the ceiling in a one-line comment and move on.
+- **MVP first.** We ship the smallest version the family uses daily, then add what real use asks for. A feature that is not in docs/spec.md does not get built, and scaffolding for a later feature gets cut.
 
-- Write the simplest code that works. Prefer boring, readable solutions over clever ones.
-- Don't add abstractions until they're needed by at least two real cases.
-- Don't add error handling, features, or config for hypothetical future requirements.
-- When in doubt, do less. A smaller codebase is a better codebase.
-- This serves 2-3 family members. Don't architect for scale we'll never need.
-- No premature optimization. No over-engineering. No defensive coding against scenarios that can't happen.
+Read the task and every file it touches before writing code. For anything beyond a small fix, propose a short plan first.
 
-## Tech Stack
+## Stack
 
-### Backend (`server/`)
-- Elixir 1.17+ / OTP 27, Phoenix 1.7
-- Phoenix Channels for WebSocket real-time sync
-- Ecto + PostgreSQL 16
-- Assent for OIDC auth (Pocket ID integration)
-- Plug.Session for cookie sessions
+Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, not here.
 
-### Frontend (`client/`)
-- React 18 + TypeScript, Vite
-- Capacitor 6 (Android APK, Electron desktop)
-- TipTap v2 (WYSIWYG editor)
-- Y.js + y-indexeddb (offline-first CRDT for rich notes)
-- Dexie.js (offline task queue)
-- Tailwind CSS + Radix UI (headless accessible primitives)
-- Zustand (client state), TanStack Query (server state)
+- `server/`: Elixir and Phoenix with Ecto on SQLite. Phoenix Channels relay and persist Y.js updates. Assent handles OIDC login against Pocket ID, and the session is a cookie.
+- `client/`: React with TypeScript and Vite. TipTap for editing, Y.js for the document model and sync, Dexie for the local update log, Tailwind and Radix UI for the interface.
+- `electron/` and `client/android/`: shells that load the app from the server. Nothing app-specific lives in them.
+- Deployment: one Docker container with a volume for the SQLite file. Phoenix serves the built client from `server/priv/static`.
 
-### Deployment
-- Docker Compose: `db` (Postgres) + `app` (Phoenix serves React build)
-- Android: sideloaded APK
-- Desktop: Electron via Capacitor
-
-## Common Commands
+## Commands
 
 ```bash
-# Backend
-cd server
-mix deps.get
-mix ecto.setup
-mix phx.server          # http://localhost:4000
-
-# Frontend
-cd client
-npm install
-npm run dev             # http://localhost:5173
-
-# Docker
-docker compose up -d    # starts db + app in production mode
-docker compose down
-
-# Database
-mix ecto.migrate
-mix ecto.rollback
-
-# Capacitor (after npm run build)
-npx cap sync
-npx cap open android    # opens Android Studio
-npx cap open electron   # opens Electron
+./dev.sh                     # migrate, Phoenix on :4000, Vite on :5173
+cd server && mix test        # also mix compile --warnings-as-errors, mix format
+cd client && npm run build   # tsc then vite, writes to server/priv/static
 ```
 
-## Project Structure
+In dev, `/auth/login` signs in a local user without Pocket ID, and `/auth/login?as=<name>` signs in another.
+
+## Architecture rules
+
+- **Y.js is the sync layer.** Each note is a Y.Doc, and so is each user's tree. Edits apply locally first, then the channel relays the binary update and stores it. The server never reads a document. See [ADR 001](docs/adr/001-yjs-everywhere.md).
+- **The device holds everything the UI needs.** Offline is the normal state, so a screen that has to wait for the server before it can act is a bug. Sharing is the one exception.
+- **The server stays thin.** Auth, one socket, an update log, and who may open which doc. Logic goes in the client, where the data is. The protocol is in [docs/data-model.md](docs/data-model.md).
+- **Content is shared, placement is private.** A note's text has one owner and a share list. Where it sits in a tree is each person's own business. See [ADR 004](docs/adr/004-sharing-is-content-not-placement.md).
+
+## Layout
 
 ```
-niche-notes/
-├── CLAUDE.md           # ← you are here
-├── docker-compose.yml
-├── server/             # Elixir Phoenix app
-│   └── lib/
-│       ├── niche_notes/         # domain contexts
-│       └── niche_notes_web/     # web layer (channels, controllers, router)
-├── client/             # React + Capacitor
-│   └── src/
-│       ├── components/
-│       ├── pages/
-│       ├── sync/        # Y.js provider, task offline queue
-│       ├── native/      # Capacitor plugin abstractions
-│       └── stores/
-└── docs/
-    ├── spec.md
-    ├── data-model.md
-    └── adr/
+server/lib/niche_notes/        Accounts, Docs, schemas, release migrator
+server/lib/niche_notes_web/    router, controllers, channels, auth plug
+client/src/sync/               local store, channels, tree helpers, React hooks
+client/src/components/         tree, note editor, toolbar, dialogs
+client/src/lib/                API client and types
+electron/                      desktop shell
+docs/                          spec, data model, ADRs, todo
 ```
 
-## Architecture Decisions
+## Design system
 
-**Why Phoenix Channels (not LiveView):** Offline-first requires the app to work disconnected. LiveView requires a live server connection.
+Neo-brutalist: bold and direct, not the rounded gray card look.
 
-**Why Y.js (not custom sync):** CRDT handles concurrent offline edits automatically. The Phoenix Channel is just a relay + persistence layer — no CRDT logic needed server-side.
-
-**Why Capacitor (not PWA, not Flutter):** PWA Background Sync is unreliable. Flutter can't use Y.js or TipTap. Capacitor wraps our React app in a native container, giving us native SQLite, local notifications, and app distribution — while keeping one JS codebase.
-
-**Why Radix UI + Tailwind (not shadcn/ui):** shadcn/ui is overused and visually associated with AI-generated apps. Radix gives us accessible headless primitives; we style everything ourselves with our neo-brutalist design system.
-
-**Why local notifications only (not server push):** The app is offline-first and has all task data locally. `@capacitor/local-notifications` schedules OS alarms directly — no Firebase, no ntfy, no external services.
-
-## UI Design System
-
-Direction: **Neo-brutalist** — bold, direct, not the typical rounded-gray-card AI aesthetic.
-
-- Borders: solid 2px `#111` on interactive elements
-- Shadows: solid offset `4px 4px 0 #111` — not blurred
-- Radius: square (0px) or a single consistent small value (4px), never mixed
-- Colors: off-white `#FAFAF8` base, near-black `#111` text, one bold accent (TBD)
-- Typography: Space Grotesk — not Inter
-- No gradients, no glass, no transparency, no skeleton loaders
-
-## Key Files to Read for Context
-
-- `docs/spec.md` — full feature requirements
-- `docs/data-model.md` — database schema
-- `server/lib/niche_notes_web/channels/` — sync architecture
-- `client/src/sync/` — Y.js provider and task sync
+- Borders are solid 2px `#111`. Shadows are solid offsets, `4px 4px 0 #111`, never blurred.
+- Corners are square, or one small radius used everywhere.
+- Off-white `#FAFAF8` base, near-black `#111` text, coral red `#FF4F3B` accent.
+- Space Grotesk for type.
+- No gradients, glass, transparency or skeleton loaders.
+- Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `text-ink`, `text-ink-muted`, `bg-accent`, `border-border`, `shadow-brutal`).
+- Radix UI headless primitives, styled by hand. Not shadcn/ui.

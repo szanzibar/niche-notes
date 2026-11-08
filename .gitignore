@@ -1,0 +1,9 @@
+.DS_Store
+.env
+*.log
+.expert/
+node_modules/
+server/data/
+server/priv/static/
+client/dist/
+electron/dist/

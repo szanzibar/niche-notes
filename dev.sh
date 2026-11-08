@@ -1,22 +1,10 @@
 #!/usr/bin/env bash
+# Phoenix on :4000 and Vite on :5173. Open http://localhost:5173; /auth/login signs in a dev user,
+# and /auth/login?as=wife signs in a second one for trying sharing.
 set -e
-
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-# Start Postgres (waits until healthy before returning)
-docker compose -f "$ROOT/docker-compose.dev.yml" up -d --wait
+(cd "$ROOT/server" && mix ecto.create --quiet && mix ecto.migrate --quiet && exec mix phx.server) &
+trap 'kill 0' EXIT
 
-# Migrate (create DB first if it doesn't exist yet)
-cd "$ROOT/server"
-mix ecto.create --quiet 2>/dev/null || true
-mix ecto.migrate --quiet
-
-# Start Phoenix in the background
-mix phx.server &
-PHOENIX_PID=$!
-
-# Kill Phoenix when this script exits (Ctrl+C or error)
-trap 'kill $PHOENIX_PID 2>/dev/null' EXIT
-
-# Start Vite in the foreground
 cd "$ROOT/client" && npm run dev

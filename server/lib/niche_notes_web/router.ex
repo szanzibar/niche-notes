@@ -4,7 +4,6 @@ defmodule NicheNotesWeb.Router do
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
-    plug :protect_from_forgery
     plug :put_secure_browser_headers
   end
 
@@ -14,38 +13,29 @@ defmodule NicheNotesWeb.Router do
     plug NicheNotesWeb.Plugs.RequireAuth
   end
 
-  # Auth routes (no auth required)
   scope "/auth", NicheNotesWeb do
     pipe_through :browser
 
-    # In dev, /auth/login bypasses OIDC so the app works without Pocket ID.
-    # The client redirects here on 401, so this makes the dev loop seamless.
-    if Mix.env() == :dev do
-      get "/login", DevAuthController, :login
-    else
+    if Mix.env() == :prod do
       get "/login", AuthController, :login
+    else
+      get "/login", DevAuthController, :login
     end
 
     get "/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
   end
 
-  # JSON API
   scope "/api", NicheNotesWeb do
     pipe_through :api
 
     get "/me", MeController, :show
-
-    resources "/notebooks", NotebookController, except: [:new, :edit]
-    get "/notebooks/:id/members", NotebookController, :members
-    post "/notebooks/:id/members", NotebookController, :add_member
-    delete "/notebooks/:id/members/:user_id", NotebookController, :remove_member
-
-    resources "/notebooks/:notebook_id/notes", NoteController, except: [:new, :edit]
-    resources "/notebooks/:notebook_id/tasks", TaskController, except: [:new, :edit]
+    get "/users", UserController, :index
+    get "/shares", ShareController, :index
+    post "/docs/:doc_id/shares", ShareController, :create
+    delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
   end
 
-  # Serve the React SPA for all other routes
   scope "/", NicheNotesWeb do
     pipe_through :browser
 

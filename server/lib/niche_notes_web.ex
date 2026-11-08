@@ -17,7 +17,8 @@ defmodule NicheNotesWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths,
+    do: ~w(assets icons index.html sw.js manifest.webmanifest favicon.svg robots.txt)
 
   def router do
     quote do
@@ -43,7 +44,6 @@ defmodule NicheNotesWeb do
       unquote(verified_routes())
     end
   end
-
 
   def verified_routes do
     quote do

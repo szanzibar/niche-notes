@@ -3,13 +3,9 @@
 @import "@fontsource/space-grotesk/500.css";
 @import "@fontsource/space-grotesk/700.css";
 
-/* ─── Design tokens ─────────────────────────────────────────────────────────
-   To change the accent color, update --accent and --accent-dark here.
-   ───────────────────────────────────────────────────────────────────────── */
 :root {
   --accent: #FF4F3B;
   --accent-dark: #D93A28;
-
   --bg: #FAFAF8;
   --surface: #FFFFFF;
   --ink: #111111;
@@ -26,23 +22,46 @@
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-border: var(--border);
-  --font-family-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
   --shadow-brutal: var(--shadow);
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  background-color: var(--bg);
+  background: var(--bg);
   color: var(--ink);
   font-family: "Space Grotesk", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); }
+/* Editor body. TipTap renders into .editor-body (see NoteView). */
+.editor-body {
+  outline: none;
+  min-height: 100%;
+  padding: 1rem 1.25rem 4rem;
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+.editor-body > * + * { margin-top: 0.5em; }
+.editor-body h1 { font-size: 1.6rem; font-weight: 700; line-height: 1.25; }
+.editor-body h2 { font-size: 1.3rem; font-weight: 700; line-height: 1.3; }
+.editor-body ul { list-style: disc; padding-left: 1.5rem; }
+.editor-body ol { list-style: decimal; padding-left: 1.5rem; }
+.editor-body li > p { margin: 0; }
+.editor-body ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.editor-body ul[data-type="taskList"] li { display: flex; gap: 0.6rem; align-items: flex-start; }
+.editor-body ul[data-type="taskList"] li > label { flex: 0 0 auto; margin-top: 0.3rem; }
+.editor-body ul[data-type="taskList"] li > div { flex: 1 1 auto; min-width: 0; }
+.editor-body ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; color: var(--ink-muted); }
+.editor-body input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--accent); }
+.editor-body blockquote { border-left: 4px solid var(--border); padding-left: 1rem; color: var(--ink-muted); }
+.editor-body code { background: var(--bg); padding: 0 0.25rem; font-family: ui-monospace, monospace; font-size: 0.95em; }
+.editor-body a { color: var(--accent); text-decoration: underline; }
+.editor-body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--ink-muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

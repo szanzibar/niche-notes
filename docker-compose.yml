@@ -1,37 +1,17 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: niche_notes
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: niche_notes_prod
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U niche_notes"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     ports:
       - "4000:4000"
+    volumes:
+      - data:/data
     environment:
-      DATABASE_URL: "ecto://niche_notes:${DB_PASSWORD}@db/niche_notes_prod"
+      PHX_HOST: ${PHX_HOST}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       POCKET_ID_URL: ${POCKET_ID_URL}
-      PHX_HOST: ${PHX_HOST}
-      PORT: 4000
 
 volumes:
-  postgres_data:
+  data:

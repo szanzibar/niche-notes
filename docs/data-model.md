@@ -1,100 +1,46 @@
-# niche-notes — Data Model
+# Data model
+
+SQLite, one file. The server stores who owns what and a log of Y.js updates. It never reads a document.
 
 ## Tables
 
-### users
-Synced from Pocket ID on first login. One row per family member.
+- **users** — one row per person, created on first Pocket ID login: `id`, `sub` (OIDC subject, unique), `name`, `email`.
+- **docs** — a Y.js document: `id` (uuid, chosen by the client), `owner_id`. A user's tree has `id == owner_id` and is created with the user. Every other doc is a note.
+- **doc_shares** — `doc_id`, `user_id`, unique together. One row grants full access to one note.
+- **doc_updates** — `id` (autoincrement, the sequence number), `doc_id`, `update` (Y.js binary). Append only. One row per edit batch; compaction is a later feature.
 
-| Field | Type | Notes |
-|---|---|---|
-| id | uuid | PK |
-| sub | text | UNIQUE — OIDC subject claim from Pocket ID |
-| name | text | Display name |
-| email | text | Optional, from OIDC claims |
-| inserted_at | timestamptz | |
-| updated_at | timestamptz | |
+Access rule, used by every channel join and share endpoint: a user may open a doc if they own it or a share row names them.
 
-### notebooks
-Top-level container. Either a "notes" or "tasks" type.
+## Documents
 
-| Field | Type | Notes |
-|---|---|---|
-| id | uuid | PK |
-| title | text | Display name |
-| type | text | `"notes"` or `"tasks"` |
-| owner_id | uuid | FK → users |
-| inserted_at | timestamptz | |
-| updated_at | timestamptz | |
+**Tree doc**, one per user, id = user id.
+- `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number }`. `order` is the creation time, so newest sorts first.
 
-### notebook_members
-Per-notebook sharing. Owner is NOT in this table — ownership is via `notebooks.owner_id`.
+**Note doc**
+- `meta`: Y.Map with `title: string` and `deleted: boolean`.
+- `content`: Y.XmlFragment bound to the TipTap editor.
 
-| Field | Type | Notes |
-|---|---|---|
-| id | uuid | PK |
-| notebook_id | uuid | FK → notebooks |
-| user_id | uuid | FK → users |
-| role | text | `"viewer"` or `"editor"` |
-| inserted_at | timestamptz | |
+Deleting a note sets `deleted`, so it syncs like any edit and vanishes for everyone shared on it. The rows stay on disk.
 
-### notes
-Rich text notes. Content stored as Y.js CRDT binary state.
+## Sync protocol
 
-| Field | Type | Notes |
-|---|---|---|
-| id | uuid | PK |
-| notebook_id | uuid | FK → notebooks (type must be "notes") |
-| title | text | |
-| ydoc_state | bytea | Latest Y.js document state (merged binary). Clients merge this with their local state on connect. |
-| content_text | text | Plaintext snapshot for search (extracted from Y.js doc on save) |
-| inserted_at | timestamptz | |
-| updated_at | timestamptz | |
+Socket at `/socket`, authenticated by the session cookie.
 
-### tasks
-Structured tasks in a task notebook.
+**`doc:<id>` channel**
+- Join with `{ since }`. Reply `{ updates: [[seq, base64], ...], seq }`: every update after `since`, and the last `seq` sent (or `since` if none). A doc that does not exist is created, owned by the joiner. A doc the joiner cannot access refuses the join.
+- Push `update` `{ update: base64 }`. Reply `{ seq }`. The server stores it and broadcasts `update` `{ seq, update }` to the other clients on the topic.
 
-| Field | Type | Notes |
-|---|---|---|
-| id | uuid | PK |
-| notebook_id | uuid | FK → notebooks (type must be "tasks") |
-| title | text | |
-| notes | text | Optional description (plain text) |
-| completed_at | timestamptz | null = incomplete. Set when user checks off the task. |
-| due_at | timestamptz | Optional due date/time |
-| rrule | text | RFC 5545 recurrence rule string, e.g. `FREQ=DAILY` or `FREQ=WEEKLY;BYDAY=MO,WE,FR` |
-| next_occurrence_at | timestamptz | Precomputed next occurrence date (for sorting/display). Computed client-side using rrule JS library, stored on server. |
-| inserted_at | timestamptz | |
-| updated_at | timestamptz | |
+**`user:<id>` channel**, own id only. The server pushes `shares_changed` when a share involving the user changes, and the client refetches `/api/shares`.
 
-## Notes on Sync
+**Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`.
 
-### Rich notes (Y.js CRDT)
-- `ydoc_state` is a binary blob — the merged Y.js document state
-- When a client connects to a note's Phoenix Channel, the server sends the current `ydoc_state`
-- Client merges server state with its local Y.js doc (Y.js handles conflict resolution)
-- When the client makes edits, it sends binary Y.js update deltas to the channel
-- Server merges the delta into `ydoc_state` and broadcasts the delta to other clients
-- Clients receiving the broadcast apply the delta to their local doc
+## REST
 
-### Tasks (optimistic + broadcast)
-- No CRDT — simpler last-write-wins per field
-- Client sends create/update/delete to Phoenix Channel
-- Server applies and broadcasts to notebook members
-- Offline: mutations queued locally with status `"pending"`, replayed on reconnect in order
-- Conflict resolution: `updated_at` timestamp, last writer wins per field
+Cookie session, JSON.
 
-## Indexes
-
-```sql
--- Fast notebook member lookups
-CREATE INDEX ON notebook_members (notebook_id);
-CREATE INDEX ON notebook_members (user_id);
-
--- Fast note listing
-CREATE INDEX ON notes (notebook_id);
-
--- Fast task listing, sorted by due date
-CREATE INDEX ON tasks (notebook_id);
-CREATE INDEX ON tasks (notebook_id, completed_at) WHERE completed_at IS NULL;
-CREATE INDEX ON tasks (next_occurrence_at) WHERE next_occurrence_at IS NOT NULL;
-```
+- `GET /api/me`
+- `GET /api/users` — everyone, for the share picker
+- `GET /api/shares` — every share on a doc the user owns or is named on: `doc_id`, `user_id`, `owner_id`
+- `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc
+- `DELETE /api/docs/:id/shares/:user_id` — owner only
+- `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`

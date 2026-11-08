@@ -11,9 +11,7 @@ defmodule NicheNotesWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  socket "/socket", NicheNotesWeb.UserSocket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: false
+  socket "/socket", NicheNotesWeb.UserSocket, websocket: true, longpoll: false
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -24,14 +22,11 @@ defmodule NicheNotesWeb.Endpoint do
     at: "/",
     from: :niche_notes,
     gzip: not code_reloading?,
-    only: NicheNotesWeb.static_paths(),
-    raise_on_missing_only: code_reloading?
+    only: NicheNotesWeb.static_paths()
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do
-    socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
-    plug Phoenix.LiveReloader
     plug Phoenix.CodeReloader
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :niche_notes
   end
