@@ -39,6 +39,7 @@ import {
 } from '../sync/tree'
 import { Button } from './Button'
 import { PinIcon } from './icons'
+import { OfflineTag } from './OfflineTag'
 import { SettingsDialog } from './SettingsDialog'
 
 const ROOT = 'root'
@@ -166,6 +167,7 @@ export function Tree({ selected }: { selected?: string }) {
             </button>
           )}
         </div>
+        <OfflineTag />
         <Button variant="primary" onClick={() => navigate(`/n/${createNote(null)}`)}>
           + New
         </Button>
@@ -223,10 +225,6 @@ export function Tree({ selected }: { selected?: string }) {
         </section>
       )}
       <footer className="flex items-center gap-3 border-t-2 border-border px-4 py-2 text-sm">
-        <span
-          className={`inline-block h-2.5 w-2.5 border-2 border-border ${s.online ? 'bg-green-500' : 'bg-bg'}`}
-          title={s.online ? 'Online' : 'Offline'}
-        />
         <span className="flex-1 truncate">{s.me!.name}</span>
         <SettingsDialog />
         <button type="button" className="underline" onClick={signOut}>

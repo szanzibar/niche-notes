@@ -26,11 +26,13 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 - [x] APK installs and runs on Steven's phone (2026-11-10)
 - [x] On the phone with assetlinks live: no address bar, offline start after the first launch, bottom toolbar with the keyboard (2026-11-10)
 - [x] `.github/workflows/android.yml` builds on a push to `main` that touches `android/`, or by hand, and publishes the APK as release `android-<commit count>`
-- [ ] Steven adds the secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PROPERTIES`, then runs the workflow once by hand
+- [x] Secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PROPERTIES` added (2026-11-10)
+- [ ] Run the Android APK workflow once by hand for the first release
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
 ## Later
 
-- Android home-screen widget, first v2 item. Native code in `android/` next to the launcher. It needs two things the TWA does not have: its own login (the session cookie lives in Chrome, so a browser-based handoff that trades a one-time code for a token) and plain data to show, since the server stores only Y.js bytes. The client would publish a plain rendition of the chosen notes to the server; ticking from the widget would go back the same way.
+- Android home-screen widget, first v2 item. Native code in `android/` next to the launcher. The server reads the note with y_ex and applies a tick as an ordinary Y.js update (ADR 001 amendment; proved on real data 2026-11-10). The widget needs its own sign-in, since the session cookie lives in Chrome: the app hands it a one-time code.
+- Dates on tasks, then reminders and a one-way feed of dated tasks into Google Calendar. Google Tasks sync is not wanted.
 - Markdown export

@@ -27,6 +27,7 @@ import {
 } from '../sync/tree'
 import { Button } from './Button'
 import { LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
+import { OfflineTag } from './OfflineTag'
 import { ShareDialog } from './ShareDialog'
 import { ListTabs } from './lists'
 import { Toolbar } from './Toolbar'
@@ -161,6 +162,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         <header className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
           {back}
           <span className="min-w-0 flex-1 truncate text-lg font-bold">{titleOf(id)}</span>
+          <OfflineTag />
           {phoneControls}
           <div className={actionRow}>
             {sharedBy}
@@ -192,6 +194,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           onChange={(e) => meta.set('title', e.target.value)}
           onKeyDown={toBody}
         />
+        <OfflineTag />
         {phoneControls}
         <div className={actionRow}>
           {mine ? <ShareDialog id={id} /> : sharedBy}

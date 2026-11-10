@@ -40,7 +40,8 @@ export const store = {
   // Docs the server refused since startup. The tree prunes their placements.
   lost: new Set<string>(),
   collapsed: new Set<string>(),
-  online: false,
+  // Unknown until the first connection attempt settles, so a launch doesn't flash Offline.
+  online: null as boolean | null,
 }
 
 let socket: Socket

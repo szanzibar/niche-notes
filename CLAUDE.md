@@ -39,9 +39,9 @@ In dev, `/auth/login` signs in a local user without Pocket ID, and `/auth/login?
 
 ## Architecture rules
 
-- **Y.js is the sync layer.** Each note is a Y.Doc, and so is each user's tree. Edits apply locally first, then the channel relays the binary update and stores it. The server never reads a document. See [ADR 001](docs/adr/001-yjs-everywhere.md).
+- **Y.js is the sync layer.** Each note is a Y.Doc, and so is each user's tree. Edits apply locally first, then the channel relays the binary update and stores it. The server may read and edit a document too, as one more Y.js client whose edits land in the same log. See [ADR 001](docs/adr/001-yjs-everywhere.md).
 - **The device holds everything the UI needs.** Offline is the normal state, so a screen that has to wait for the server before it can act is a bug. Sharing is the one exception.
-- **The server stays thin.** Auth, one socket, an update log, and who may open which doc. Logic goes in the client, where the data is. The protocol is in [docs/data-model.md](docs/data-model.md).
+- **Local first, server for what no device can do.** Everything a person does in the app runs on the device. The server holds auth, sharing and the update log, plus work that has to happen while every app is closed or that talks to another service, such as widgets, reminders and calendar sync. The protocol is in [docs/data-model.md](docs/data-model.md).
 - **Content is shared, placement is private.** A note's text has one owner and a share list. Where it sits in a tree is each person's own business. See [ADR 004](docs/adr/004-sharing-is-content-not-placement.md).
 
 ## Layout

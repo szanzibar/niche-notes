@@ -35,7 +35,7 @@ async function sharedChecklist(browser: Browser, lines: string[]) {
   await expect(bob.locator('.editor-body')).toContainText(lines[lines.length - 1])
   for (const page of [alice, bob]) {
     await page.context().setOffline(true)
-    await expect(page.getByTitle('Offline')).toBeVisible()
+    await expect(page.locator('main').getByText('Offline', { exact: true })).toBeVisible()
   }
   return { alice, bob }
 }
@@ -43,7 +43,7 @@ async function sharedChecklist(browser: Browser, lines: string[]) {
 async function reconnect(...pages: Page[]) {
   for (const page of pages) {
     await page.context().setOffline(false)
-    await expect(page.getByTitle('Online')).toBeVisible()
+    await expect(page.getByText('Offline', { exact: true })).toHaveCount(0)
   }
 }
 

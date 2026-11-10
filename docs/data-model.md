@@ -1,6 +1,6 @@
 # Data model
 
-SQLite, one file. The server stores who owns what and a log of Y.js updates. It never reads a document.
+SQLite, one file. The server stores who owns what and a log of Y.js updates. It reads a document only for work no device can do, as one more Y.js client (ADR 001).
 
 ## Tables
 
