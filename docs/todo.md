@@ -27,12 +27,12 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 - [x] On the phone with assetlinks live: no address bar, offline start after the first launch, bottom toolbar with the keyboard (2026-11-10)
 - [x] `.github/workflows/android.yml` builds on a push to `main` that touches `android/`, or by hand, and publishes the APK as release `android-<commit count>`
 - [x] Secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PROPERTIES` added (2026-11-10)
-- [ ] Run the Android APK workflow once by hand for the first release
+- [x] First release built and published by the workflow on a push to main (2026-11-10)
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
 ## Later
 
-- Android home-screen widget, first v2 item. Native code in `android/` next to the launcher. The server reads the note with y_ex and applies a tick as an ordinary Y.js update (ADR 001 amendment; proved on real data 2026-11-10). The widget needs its own sign-in, since the session cookie lives in Chrome: the app hands it a one-time code.
+- Android home-screen widgets, first v2 item: several at once, each showing a note you pick, read-only, a tap opens the note in the app. Native code in `android/` next to the launcher. The server reads the note with y_ex and applies a tick as an ordinary Y.js update (ADR 001 amendment; proved on real data 2026-11-10). The widget needs its own sign-in, since the session cookie lives in Chrome: the app hands it a one-time code.
 - Dates on tasks, then reminders and a one-way feed of dated tasks into Google Calendar. Google Tasks sync is not wanted.
 - Markdown export
