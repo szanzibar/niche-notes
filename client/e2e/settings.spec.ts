@@ -35,3 +35,16 @@ test('appearance follows the device until told otherwise', async ({ browser }) =
   await page.reload()
   await expect.poll(() => background(page)).toBe('rgb(20, 20, 20)')
 })
+
+test('density scales the whole interface and sticks', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  const rootSize = () => page.evaluate(() => getComputedStyle(document.documentElement).fontSize)
+  expect(await rootSize()).toBe('16px')
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Compact' }).click()
+  await expect.poll(rootSize).toBe('14px')
+  await page.getByRole('button', { name: 'Large' }).click()
+  await expect.poll(rootSize).toBe('18px')
+  await page.reload()
+  await expect.poll(rootSize).toBe('18px')
+})

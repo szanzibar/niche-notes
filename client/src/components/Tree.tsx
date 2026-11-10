@@ -142,18 +142,30 @@ export function Tree({ selected }: { selected?: string }) {
       }}
     >
       <RootDropZone active={hint?.id === ROOT}>
-        <input
-          type="search"
-          placeholder="Search notes"
-          aria-label="Search notes"
-          className="min-w-0 flex-1 bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setCursor(0)
-          }}
-          onKeyDown={onSearchKey}
-        />
+        <div className="relative flex min-w-0 flex-1 items-center">
+          <input
+            type="search"
+            placeholder="Search notes"
+            aria-label="Search notes"
+            className="w-full bg-transparent pr-8 text-lg font-bold outline-none placeholder:text-ink-muted"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setCursor(0)
+            }}
+            onKeyDown={onSearchKey}
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              className="absolute right-0 h-8 w-8 text-lg leading-none"
+              onClick={() => setQuery('')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <Button variant="primary" onClick={() => navigate(`/n/${createNote(null)}`)}>
           + New
         </Button>

@@ -20,11 +20,18 @@ const THEMES: [string, string | undefined][] = [
   ['Dark', 'dark'],
 ]
 
+const DENSITIES: [string, string | undefined][] = [
+  ['Compact', 'compact'],
+  ['Default', undefined],
+  ['Large', 'large'],
+]
+
 export function SettingsDialog() {
   const prefs = settings()
   useY(prefs)
   const accent = (prefs.get('accent') as string | undefined) ?? ACCENTS[0][1]
   const theme = prefs.get('theme') as string | undefined
+  const density = prefs.get('density') as string | undefined
 
   return (
     <Dialog.Root>
@@ -35,7 +42,10 @@ export function SettingsDialog() {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 border-2 border-border bg-surface p-5 shadow-brutal">
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-1/2 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 border-2 border-border bg-surface p-5 shadow-brutal"
+        >
           <Dialog.Title className="mb-3 text-lg font-bold">Settings</Dialog.Title>
           <p className="mb-2 font-medium">Highlight color</p>
           <div className="flex flex-wrap gap-3">
@@ -60,6 +70,19 @@ export function SettingsDialog() {
                 variant={theme === value ? 'primary' : 'default'}
                 aria-pressed={theme === value}
                 onClick={() => (value ? prefs.set('theme', value) : prefs.delete('theme'))}
+              >
+                {name}
+              </Button>
+            ))}
+          </div>
+          <p className="mb-2 mt-5 font-medium">Density</p>
+          <div className="flex flex-wrap gap-2">
+            {DENSITIES.map(([name, value]) => (
+              <Button
+                key={name}
+                variant={density === value ? 'primary' : 'default'}
+                aria-pressed={density === value}
+                onClick={() => (value ? prefs.set('density', value) : prefs.delete('density'))}
               >
                 {name}
               </Button>

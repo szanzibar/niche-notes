@@ -5,7 +5,7 @@ import { Placeholder } from '@tiptap/extensions'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { ySyncPluginKey } from '@tiptap/y-tiptap'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as Y from 'yjs'
 import { useDoc, useStore, useY } from '../sync/hooks'
@@ -21,11 +21,12 @@ import {
   ownerName,
   purgeNote,
   restoreNote,
+  shareCount,
   titleOf,
   togglePin,
 } from '../sync/tree'
 import { Button } from './Button'
-import { LeaveIcon, PinIcon, TrashIcon } from './icons'
+import { LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
 import { ShareDialog } from './ShareDialog'
 import { ListTabs } from './lists'
 import { Toolbar } from './Toolbar'
@@ -66,6 +67,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   useY(nodes())
   const titleRef = useRef<HTMLInputElement>(null)
   const deleted = inTrash(id)
+  const [more, setMore] = useState(false)
 
   const editor = useEditor(
     {
@@ -112,33 +114,65 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
   }
   const leave = () => navigate('/')
+  const pinLabel = isPinned(id) ? 'Unpin' : 'Pin'
+  const removeLabel = mine ? 'Delete' : 'Leave'
+  const remove = () => {
+    if (mine) deleteNote(id)
+    else leaveNote(id)
+    leave()
+  }
   const back = (
     <button type="button" className="px-2 py-1 text-xl md:hidden" onClick={leave} aria-label="Back">
       ←
     </button>
   )
 
+  const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
+  // On a phone the title needs the width, so the action row drops under it and the dots reveal it.
+  const phoneControls = (
+    <>
+      {(!mine || shareCount(id) > 0) && (
+        <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted md:hidden">
+          <UsersIcon />
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label="More"
+        aria-expanded={more}
+        className="h-10 w-10 shrink-0 text-2xl leading-none md:hidden"
+        onClick={() => setMore(!more)}
+      >
+        ⋯
+      </button>
+    </>
+  )
+  const actionRow = `${more ? 'flex' : 'hidden'} w-full items-center justify-end gap-2 md:flex md:w-auto`
+
   if (deleted) {
+    const canAct = mine || hasLeft(id)
+    const final = mine ? 'Delete forever' : 'Leave for good'
+    const purge = () => {
+      void purgeNote(id)
+      leave()
+    }
     return (
       <>
-        <header className="flex items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+        <header className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
           {back}
           <span className="min-w-0 flex-1 truncate text-lg font-bold">{titleOf(id)}</span>
-          {!mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>}
-          {(mine || hasLeft(id)) && (
-            <>
-              <Button onClick={() => restoreNote(id)}>Restore</Button>
-              <Button
-                disabled={!s.online}
-                onClick={() => {
-                  void purgeNote(id)
-                  leave()
-                }}
-              >
-                {mine ? 'Delete forever' : 'Leave for good'}
-              </Button>
-            </>
-          )}
+          {phoneControls}
+          <div className={actionRow}>
+            {sharedBy}
+            {canAct && (
+              <>
+                <Button onClick={() => restoreNote(id)}>Restore</Button>
+                <Button disabled={!s.online} onClick={purge}>
+                  {final}
+                </Button>
+              </>
+            )}
+          </div>
         </header>
         {/* Sunken and muted: readable, clearly not for writing. */}
         <EditorContent editor={editor} className="flex-1 overflow-y-auto bg-sunken text-ink-muted" />
@@ -148,7 +182,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
 
   return (
     <>
-      <header className="flex items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+      <header className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
         {back}
         <input
           ref={titleRef}
@@ -158,31 +192,16 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           onChange={(e) => meta.set('title', e.target.value)}
           onKeyDown={toBody}
         />
-        {mine ? <ShareDialog id={id} /> : <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>}
-        <IconButton label={isPinned(id) ? 'Unpin' : 'Pin'} onClick={() => togglePin(id)}>
-          <PinIcon filled={isPinned(id)} />
-        </IconButton>
-        {mine ? (
-          <IconButton
-            label="Delete"
-            onClick={() => {
-              deleteNote(id)
-              leave()
-            }}
-          >
-            <TrashIcon />
+        {phoneControls}
+        <div className={actionRow}>
+          {mine ? <ShareDialog id={id} /> : sharedBy}
+          <IconButton label={pinLabel} onClick={() => togglePin(id)}>
+            <PinIcon filled={isPinned(id)} />
           </IconButton>
-        ) : (
-          <IconButton
-            label="Leave"
-            onClick={() => {
-              leaveNote(id)
-              leave()
-            }}
-          >
-            <LeaveIcon />
+          <IconButton label={removeLabel} onClick={remove}>
+            {mine ? <TrashIcon /> : <LeaveIcon />}
           </IconButton>
-        )}
+        </div>
       </header>
       <EditorContent editor={editor} className="flex-1 overflow-y-auto" />
       <Toolbar editor={editor} />

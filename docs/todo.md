@@ -1,29 +1,34 @@
 # niche-notes — checklist
 
-## V1 core, local
+## V1 core, local — complete 2026-11-09
 
-Built 2026-11-08. QOL rounds 2026-11-09: title focus, Enter/Tab to body, + on rows, drag and drop with sibling and child zones, ownership labels, persistent undo, live unshare, server-first pushes, trash bin with 30-day purge, live carets, drag overlay with an indentation-aware drop line, trash pinned to the panel bottom, mixed checkbox and bullet nesting, snapshot compaction of the update log, read-only view of trashed notes, list buttons that act on the cursor's own level, search with keyboard navigation, pins, shared notes landing at the top of the recipient's tree, touch drag handles, settings with a highlight color, opening a note focuses its text, a conflict spec that replays two people shopping offline, compaction decided by the server (busy or a day idle), moved notes land where the drop line showed. Every major flow has a Playwright test in `client/e2e`; run `npm run e2e` from `client/`.
+Built 2026-11-08, polished through 2026-11-09 from Steven's in-app task list: title focus, Enter/Tab to body, + on rows, drag and drop with sibling and child drop lines and a touch grip, ownership labels, persistent undo, live unshare, server-first pushes, trash with Restore, Delete forever, Leave and a 30-day client-side sweep, live carets, snapshot compaction decided by the server, read-only trashed notes, list buttons that act on the cursor's own level, search over everything including the trash, pins, shared notes landing at the top of the recipient's tree, settings for highlight color, appearance and density, a phone header whose dots reveal the action row, and a conflict spec that replays two people shopping offline. Every flow has a Playwright test in `client/e2e` (`npm run e2e` from `client/`); the server has ExUnit tests (`mix test` from `server/`).
 
 Steven keeps the running task list in the app itself, in the note "niche note task list". Read it with `node scripts/note.mjs show "task list"` from `client/` and tick items with `check` when they are done.
 
-- [ ] Steven and spouse use it daily from `./dev.sh` and list what's missing or awkward
-- [ ] Try the phone layout in a narrow browser window: tree, note, toolbar, drag with a long press
-- [ ] Decide on the next rough edges from real use before touching the apps
+## Before the apps
 
-## After v1: apps and deployment
+The Android and desktop apps load the web app from the server, so they are useless until the server has an address, and every build bakes that address in.
 
-None of this needs Android Studio. Builds run in CI or a container.
+- [ ] Commit and push what is uncommitted; the build workflows need the repo on GitHub
+- [ ] Pick the host and domain for the server and for Pocket ID; everything below takes the URL from one place
+- [ ] Deploy once: fill `.env`, register the OIDC client in Pocket ID, `docker compose up -d` behind TLS, sign in as each family member
+- [ ] Prove the production login path in a plain browser before any shell: Pocket ID redirect, passkey, cookie session
+- [ ] An app icon (one 1024 px square) for the Android mipmaps and the desktop installers
 
-- [ ] GitHub Action: `./gradlew assembleDebug` in `client/android` with JDK 17 and the Android SDK action, upload the APK
-- [ ] GitHub Action: electron-builder on a macOS runner for the dmg and a Windows runner for the installer
-- [ ] Set the server and Pocket ID hosts in `client/capacitor.config.ts` and `electron/config.json`
-- [ ] Deploy: fill `.env`, register the OIDC client in Pocket ID, `docker compose up -d` behind TLS
-- [ ] Sign in once as each family member so they show up in the share picker
-- [ ] Passkey login inside the Android WebView and inside Electron
+## Apps: local builds first, then the same scripts in Actions
+
+Each target gets one script that runs the same way on a laptop and in CI, so the workflow only calls it.
+
+- [ ] `scripts/build-android.sh`: `./gradlew assembleRelease` inside a Docker image with JDK 17 and the Android SDK, server URL and Pocket ID host passed in, signed with a keystore we generate once and keep as a secret
+- [ ] `electron/`: `electron-builder --mac` locally for the dmg; the Windows installer is built on a Windows runner because electron-builder needs Wine to cross-build it from macOS
+- [ ] Passkey login inside the Android WebView (`allowNavigation` must include the Pocket ID host) and inside Electron
 - [ ] Phone keyboard with the bottom toolbar on a real device
+- [ ] GitHub Actions on a tag: the Android script in its container, electron-builder on macOS and Windows runners, artifacts attached to the release
+- [ ] Decide on signing: Android keystore yes; macOS notarization only if Steven has an Apple developer account, otherwise right-click to open; Windows unsigned
 
 ## Later
 
 - Markdown export
 - Share a note with its current children
-- Search
+- Remember the cursor position per note

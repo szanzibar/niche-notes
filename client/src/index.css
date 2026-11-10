@@ -31,6 +31,9 @@ html[data-theme="dark"] { color-scheme: dark; }
   --shadow-brutal: var(--shadow);
 }
 
+/* The search box has its own clear button, shown whenever there is text. */
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+
 body {
   margin: 0;
   background: var(--bg);

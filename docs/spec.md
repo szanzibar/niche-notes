@@ -15,7 +15,8 @@ Amplenote is a paid subscription, its sync has lost data, and it is cluttered. W
 - **Offline first.** Everything except sharing works without a connection: create, edit, move and delete, including notes shared with you. Changes merge when the connection returns.
 - **Real time.** Two people editing one note see each other's keystrokes, and each other's cursor with a name on it.
 - **Trash, not confirmations.** Delete is one tap. The note goes to a Trash section at the bottom of the tree, where it can be read but not edited, restored, or deleted forever. Anything in the trash for thirty days is deleted for good, by the client the next time it starts, so no server job is involved.
-- **Settings.** A highlight color from a palette, and light, dark or follow-the-device appearance. Both follow the user to every device.
+- **Settings.** A highlight color from a palette, light, dark or follow-the-device appearance, and a compact, default or large density. All follow the user to every device.
+- **Phone layout.** The note header keeps the title, shows a people icon when the note is shared either way, and the dots reveal the usual action row under the title. The search box always shows a clear button while it has text.
 - **Native.** An Android app, macOS and Windows apps, and the web app, all loading the same build from the server.
 - **Self-hosted.** One Docker container and one SQLite file. Login through Pocket ID passkeys. A person can be shared with once they have logged in.
 

@@ -15,6 +15,10 @@ test('search matches titles and text as you type, and arrow keys open a result',
 
   await box.fill('zzz')
   await expect(page.getByText('No matches')).toBeVisible()
+  await page.getByRole('button', { name: 'Clear search' }).click()
+  await expect(box).toHaveValue('')
+  await expect(page.getByRole('button', { name: 'Clear search' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Hardware' })).toBeVisible()
 
   // A title match outranks a text match.
   await box.fill('a')
