@@ -12,10 +12,10 @@ The Android and desktop apps load the web app from the server, so they are usele
 
 The server is a home server: a push to `main` makes GitHub Actions publish `ghcr.io/szanzibar/niche-notes:latest`, and `the server's directory` holds only `docker-compose.yml`, `.env` and `data/`. Watchtower pulls new images on its daily pass; `docker compose pull && docker compose up -d` does it now. Caddy terminates TLS for `notes.example.com` and proxies to the container on 127.0.0.1:4040. The hourly backup snapshots the SQLite file into `_db_dumps` like the other backups, and the live file is excluded from rclone.
 
-- [x] Caddy entry, backup hook, compose and `.env` on the server (2026-11-10); a locally built image runs there until the first published one lands
-- [ ] Push to GitHub (the Mac's GitHub key is passphrase-protected, so Steven does it), wait for the Publish Container run, make the package public under the repo's Packages so the server can pull without a login, then pull and up on the server
-- [ ] Put the Pocket ID client id and secret into `the server's directory/.env` and `docker compose up -d`
-- [ ] Prove the production login path in a plain browser before any shell: Pocket ID redirect, passkey, cookie session; then sign in as each family member
+- [x] Caddy entry, backup hook, compose and `.env` on the server (2026-11-10)
+- [x] First image published by the Publish Container workflow, package made public, the server pulls it (2026-11-10)
+- [x] Pocket ID client registered and the production login proven in a browser: redirect, passkey, cookie session, name arrives in the ID token (2026-11-10)
+- [ ] Steven's wife signs in once, so she exists to share with
 - [ ] An app icon (one 1024 px square) for the Android mipmaps and the desktop installers
 
 ## Apps: local builds first, then the same scripts in Actions
