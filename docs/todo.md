@@ -23,7 +23,8 @@ The server is a home server: a push to `main` makes GitHub Actions publish `ghcr
 Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site under our icon, because Pocket ID refuses passkeys from a WebView. `android/build.sh` runs gradle in `ghcr.io/cirruslabs/android-sdk:36`, signed with `android/release.keystore` and `android/keystore.properties`, both outside git. The signing certificate's fingerprint is published in `client/public/.well-known/assetlinks.json`; Chrome only drops its address bar once that file is live on the server.
 
 - [ ] Back up `android/release.keystore` and `android/keystore.properties` in the password manager; a lost key means a new app identity and no in-place updates
-- [ ] Deploy (the assetlinks file ships with the client build), install the APK on Steven's phone, prove: no address bar, passkey login, works offline after the first launch, bottom toolbar with the keyboard
+- [x] APK installs and runs on Steven's phone (2026-11-10)
+- [ ] With the assetlinks deploy live, check on the phone: no address bar, offline start after the first launch, bottom toolbar with the keyboard
 - [ ] GitHub Actions on a `v*` tag: the same gradle command in the same image, keystore and passwords from secrets, APK attached to the release
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
