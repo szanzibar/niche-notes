@@ -14,7 +14,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'inline',
       manifest: {
-        name: 'niche-notes',
+        name: 'Niche Notes',
         short_name: 'Notes',
         start_url: '/',
         display: 'standalone',
