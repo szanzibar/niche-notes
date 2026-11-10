@@ -17,7 +17,7 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 
 - `server/`: Elixir and Phoenix with Ecto on SQLite. Phoenix Channels relay and persist Y.js updates. Assent handles OIDC login against Pocket ID, and the session is a cookie.
 - `client/`: React with TypeScript and Vite. TipTap for editing, Y.js for the document model and sync, Dexie for the local update log, Tailwind and Radix UI for the interface.
-- `android/`: a Trusted Web Activity, so Chrome renders the server's app under our icon; a WebView cannot log in with Pocket ID passkeys (ADR 002). `electron/`: desktop shell, login unresolved. Nothing app-specific lives in either.
+- `android/`: a Trusted Web Activity, so Chrome renders the server's app under our icon; a WebView cannot log in with Pocket ID passkeys (ADR 002). On the desktop the browser installs the PWA. Native code goes in `android/` only for what the web cannot do, such as widgets.
 - Deployment: a push to `main` publishes `ghcr.io/szanzibar/niche-notes:latest` from GitHub Actions; the server runs it with `docker-compose.yml`, an `.env` and a `data/` directory for the SQLite file. Phoenix serves the built client from `server/priv/static`.
 
 ## Commands
@@ -53,7 +53,6 @@ client/src/sync/               local store, channels, tree helpers, React hooks
 client/src/components/         tree, note editor, toolbar, dialogs
 client/src/lib/                API client and types
 android/                       Trusted Web Activity launcher, build.sh runs gradle in the Android SDK image
-electron/                      desktop shell
 icon/                          vector app icon and the script that renders every size
 docs/                          spec, data model, ADRs, todo
 ```

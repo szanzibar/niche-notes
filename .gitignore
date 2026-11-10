@@ -6,7 +6,6 @@ node_modules/
 server/data/
 server/priv/static/
 client/dist/
-electron/dist/
 client/test-results/
 client/playwright-report/
 /data/

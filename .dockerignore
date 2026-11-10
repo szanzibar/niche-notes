@@ -1,7 +1,6 @@
 .git
 .expert
 docs
-electron
 client/node_modules
 android
 client/dist

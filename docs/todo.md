@@ -26,10 +26,11 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 - [ ] Deploy (the assetlinks file ships with the client build), install the APK on Steven's phone, prove: no address bar, passkey login, works offline after the first launch, bottom toolbar with the keyboard
 - [ ] GitHub Actions on a `v*` tag: the same gradle command in the same image, keystore and passwords from secrets, APK attached to the release
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
-- [ ] Decide the desktop: Electron needs Apple-signed entitlements for passkeys (and Windows is unverified), so the choice is an Apple developer account, a browser-based login handoff, or the installed PWA from Chrome or Edge
+- [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
 ## Later
 
+- Android home-screen widget, first v2 item. Native code in `android/` next to the launcher. It needs two things the TWA does not have: its own login (the session cookie lives in Chrome, so a browser-based handoff that trades a one-time code for a token) and plain data to show, since the server stores only Y.js bytes. The client would publish a plain rendition of the chosen notes to the server; ticking from the widget would go back the same way.
 - Markdown export
 - Share a note with its current children
 - Remember the cursor position per note
