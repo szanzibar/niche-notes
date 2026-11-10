@@ -3,7 +3,7 @@
 docs
 electron
 client/node_modules
-client/android
+android
 client/dist
 server/_build
 server/deps

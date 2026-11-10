@@ -18,7 +18,7 @@ defmodule NicheNotesWeb do
   """
 
   def static_paths,
-    do: ~w(assets icons index.html sw.js manifest.webmanifest favicon.svg robots.txt)
+    do: ~w(assets icons .well-known index.html sw.js manifest.webmanifest favicon.svg robots.txt)
 
   def router do
     quote do

@@ -7,7 +7,7 @@ render() { rsvg-convert --export-id "$1" -w "$2" -h "$2" icon.svg -o "$3"; }
 render tile 192 ../client/public/icons/icon-192.png
 render tile 512 ../client/public/icons/icon-512.png
 
-res=../client/android/app/src/main/res
+res=../android/app/src/main/res
 for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
   dir=$res/mipmap-${d%%:*} px=${d##*:}
   render tile "$px" "$dir/ic_launcher.png"

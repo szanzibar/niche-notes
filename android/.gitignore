@@ -1,0 +1,7 @@
+.gradle/
+build/
+local.properties
+*.apk
+# The signing key and its passwords. Lose them and the next build is a different app to Android.
+*.keystore
+keystore.properties

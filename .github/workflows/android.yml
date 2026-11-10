@@ -1,0 +1,40 @@
+name: Android APK
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    # The same image android/build.sh uses locally.
+    container: ghcr.io/cirruslabs/android-sdk:36
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Signing key from secrets
+        working-directory: android
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          echo "$KEYSTORE_PROPERTIES" > keystore.properties
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PROPERTIES: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES }}
+
+      - name: Build
+        working-directory: android
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VERSION_CODE=$(git rev-list --count HEAD) VERSION_NAME=$(git describe --tags --always) ./gradlew --no-daemon assembleRelease
+          mv app/build/outputs/apk/release/app-release.apk niche-notes-${{ github.ref_name }}.apk
+
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/niche-notes-*.apk

@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.nichenotes",
+    "sha256_cert_fingerprints": ["6A:5D:A4:F3:91:D1:FB:E8:A0:C6:41:4A:24:53:A7:66:05:A5:BD:C8:2D:B5:6F:C1:EB:87:74:5D:50:BB:98:CE"]
+  }
+}]

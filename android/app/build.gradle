@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Signing comes from keystore.properties next to this project, which stays out of git. Without it the APK is unsigned.
+def keystore = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystore.load(it) }
+
+android {
+    namespace 'app.nichenotes'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'app.nichenotes'
+        minSdk 24
+        targetSdk 36
+        // Android installs an update only over a lower versionCode, so it is the commit count (see build.sh).
+        versionCode = Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName = System.getenv('VERSION_NAME') ?: 'dev'
+    }
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile rootProject.file(keystore.storeFile)
+                storePassword keystore.storePassword
+                keyAlias keystore.keyAlias
+                keyPassword keystore.keyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystoreFile.exists() ? signingConfigs.release : null
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}

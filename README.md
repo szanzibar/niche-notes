@@ -29,7 +29,9 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
 
 All three shells load the app from your server, so a deploy updates every device.
 
-- **Android.** Edit `url` and `allowNavigation` in `client/capacitor.config.ts`, then
-  `cd client && npm run build && npx cap sync && npx cap open android` and build the APK in Android Studio.
+- **Android.** A Trusted Web Activity: Chrome renders the server's app under the launcher icon, which is the
+  only way Pocket ID passkeys work in an Android app. `android/build.sh` builds the signed APK inside the Android
+  SDK Docker image. Put the signing certificate's SHA-256 into `client/public/.well-known/assetlinks.json` and
+  the server URL into `android/app/src/main/AndroidManifest.xml`.
 - **macOS and Windows.** Edit `electron/config.json`, then `cd electron && npm install && npm run build:mac` or `npm run build:win`.
   Installers land in `electron/dist/`.

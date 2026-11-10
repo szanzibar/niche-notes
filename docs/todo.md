@@ -18,16 +18,15 @@ The server is a home server: a push to `main` makes GitHub Actions publish `ghcr
 - [ ] Steven's wife signs in once, so she exists to share with
 - [x] App icon: `icon/icon.svg` is the vector source and `icon/render.sh` writes the PWA icons, the Android mipmaps and `electron/build/icon.png` (2026-11-10)
 
-## Apps: local builds first, then the same scripts in Actions
+## Apps: local builds first, then the same in Actions
 
-Each target gets one script that runs the same way on a laptop and in CI, so the workflow only calls it.
+Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site under our icon, because Pocket ID refuses passkeys from a WebView. `android/build.sh` runs gradle in `ghcr.io/cirruslabs/android-sdk:36`, signed with `android/release.keystore` and `android/keystore.properties`, both outside git. The signing certificate's fingerprint is published in `client/public/.well-known/assetlinks.json`; Chrome only drops its address bar once that file is live on the server.
 
-- [ ] `scripts/build-android.sh`: `./gradlew assembleRelease` inside a Docker image with JDK 17 and the Android SDK, server URL and Pocket ID host passed in, signed with a keystore we generate once and keep as a secret
-- [ ] `electron/`: `electron-builder --mac` locally for the dmg; the Windows installer is built on a Windows runner because electron-builder needs Wine to cross-build it from macOS
-- [ ] Passkey login inside the Android WebView (`allowNavigation` must include the Pocket ID host) and inside Electron
-- [ ] Phone keyboard with the bottom toolbar on a real device
-- [ ] GitHub Actions on a tag: the Android script in its container, electron-builder on macOS and Windows runners, artifacts attached to the release
-- [ ] Decide on signing: Android keystore yes; macOS notarization only if Steven has an Apple developer account, otherwise right-click to open; Windows unsigned
+- [ ] Back up `android/release.keystore` and `android/keystore.properties` in the password manager; a lost key means a new app identity and no in-place updates
+- [ ] Deploy (the assetlinks file ships with the client build), install the APK on Steven's phone, prove: no address bar, passkey login, works offline after the first launch, bottom toolbar with the keyboard
+- [ ] GitHub Actions on a `v*` tag: the same gradle command in the same image, keystore and passwords from secrets, APK attached to the release
+- [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
+- [ ] Decide the desktop: Electron needs Apple-signed entitlements for passkeys (and Windows is unverified), so the choice is an Apple developer account, a browser-based login handoff, or the installed PWA from Chrome or Edge
 
 ## Later
 
