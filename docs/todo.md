@@ -22,10 +22,11 @@ The server is a home server: a push to `main` makes GitHub Actions publish `ghcr
 
 Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site under our icon, because Pocket ID refuses passkeys from a WebView. `android/build.sh` runs gradle in `ghcr.io/cirruslabs/android-sdk:36`, signed with `android/release.keystore` and `android/keystore.properties`, both outside git. The signing certificate's fingerprint is published in `client/public/.well-known/assetlinks.json`; Chrome only drops its address bar once that file is live on the server.
 
-- [ ] Back up `android/release.keystore` and `android/keystore.properties` in the password manager; a lost key means a new app identity and no in-place updates
+- [x] `android/release.keystore` and `android/keystore.properties` backed up in the password manager (2026-11-10)
 - [x] APK installs and runs on Steven's phone (2026-11-10)
-- [ ] With the assetlinks deploy live, check on the phone: no address bar, offline start after the first launch, bottom toolbar with the keyboard
-- [ ] GitHub Actions on a `v*` tag: the same gradle command in the same image, keystore and passwords from secrets, APK attached to the release
+- [x] On the phone with assetlinks live: no address bar, offline start after the first launch, bottom toolbar with the keyboard (2026-11-10)
+- [x] `.github/workflows/android.yml` builds on a push to `main` that touches `android/`, or by hand, and publishes the APK as release `android-<commit count>`
+- [ ] Steven adds the secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PROPERTIES`, then runs the workflow once by hand
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
@@ -33,5 +34,3 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 
 - Android home-screen widget, first v2 item. Native code in `android/` next to the launcher. It needs two things the TWA does not have: its own login (the session cookie lives in Chrome, so a browser-based handoff that trades a one-time code for a token) and plain data to show, since the server stores only Y.js bytes. The client would publish a plain rendition of the chosen notes to the server; ticking from the widget would go back the same way.
 - Markdown export
-- Share a note with its current children
-- Remember the cursor position per note

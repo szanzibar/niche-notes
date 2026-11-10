@@ -14,9 +14,9 @@ android {
         applicationId 'app.nichenotes'
         minSdk 24
         targetSdk 36
-        // Android installs an update only over a lower versionCode, so it is the commit count (see build.sh).
-        versionCode = Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
-        versionName = System.getenv('VERSION_NAME') ?: 'dev'
+        // Android installs an update only over a lower versionCode, so VERSION is the commit count.
+        versionCode = Integer.parseInt(System.getenv('VERSION') ?: '1')
+        versionName = System.getenv('VERSION') ?: 'dev'
     }
     signingConfigs {
         release {

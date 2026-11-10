@@ -30,6 +30,7 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
 - **Android.** A Trusted Web Activity: Chrome renders the server's app under the launcher icon, which is the
   only way Pocket ID passkeys work in an Android app. `android/build.sh` builds the signed APK inside the Android
   SDK Docker image. Put the signing certificate's SHA-256 into `client/public/.well-known/assetlinks.json` and
-  the server URL into `android/app/src/main/AndroidManifest.xml`.
+  the server URL into `android/app/src/main/AndroidManifest.xml`. A push to `main` that touches `android/`
+  publishes the signed APK as a GitHub release, using the keystore from two repository secrets.
 - **Desktop.** Open the site in Chrome or Edge and choose Install. Passkeys, offline and notifications work there
   as in the browser.

@@ -1,9 +1,14 @@
 name: Android APK
 
+# The APK only wraps the site, so a web change never needs a new one.
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,13 +33,19 @@ jobs:
           KEYSTORE_PROPERTIES: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES }}
 
       - name: Build
+        id: build
         working-directory: android
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          VERSION_CODE=$(git rev-list --count HEAD) VERSION_NAME=$(git describe --tags --always) ./gradlew --no-daemon assembleRelease
-          mv app/build/outputs/apk/release/app-release.apk niche-notes-${{ github.ref_name }}.apk
+          export VERSION=$(git rev-list --count HEAD)
+          ./gradlew --no-daemon assembleRelease
+          mv app/build/outputs/apk/release/app-release.apk niche-notes-$VERSION.apk
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Attach to the release
+      - name: Publish as a release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: android-${{ steps.build.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Niche Notes ${{ steps.build.outputs.version }}
           files: android/niche-notes-*.apk
