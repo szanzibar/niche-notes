@@ -18,7 +18,7 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 - `server/`: Elixir and Phoenix with Ecto on SQLite. Phoenix Channels relay and persist Y.js updates. Assent handles OIDC login against Pocket ID, and the session is a cookie.
 - `client/`: React with TypeScript and Vite. TipTap for editing, Y.js for the document model and sync, Dexie for the local update log, Tailwind and Radix UI for the interface.
 - `electron/` and `client/android/`: shells that load the app from the server. Nothing app-specific lives in them.
-- Deployment: one Docker container with a volume for the SQLite file. Phoenix serves the built client from `server/priv/static`.
+- Deployment: a push to `main` publishes `ghcr.io/szanzibar/niche-notes:latest` from GitHub Actions; the server runs it with `docker-compose.yml`, an `.env` and a `data/` directory for the SQLite file. Phoenix serves the built client from `server/priv/static`.
 
 ## Commands
 
@@ -27,7 +27,6 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 cd server && mix test        # also mix compile --warnings-as-errors, mix format
 cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
-./deploy.sh                  # push to the home server and rebuild the container there
 ```
 
 Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one.

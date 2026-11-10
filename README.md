@@ -10,8 +10,8 @@ mkdir data               # the container runs as uid 1000 and needs to own it
 docker compose up -d     # serves on 127.0.0.1:$PORT, put a TLS proxy in front
 ```
 
-The database is `data/niche_notes.db`, owned by your user, so any SQLite backup tool on the host
-can snapshot it. `./deploy.sh` pushes the committed tree to the home server and rebuilds there.
+The image is published by GitHub Actions on every push to `main`. The database is `data/niche_notes.db`,
+owned by your user, so any SQLite backup tool on the host can snapshot it.
 
 In Pocket ID, register an OIDC client with redirect URI `https://<PHX_HOST>/auth/callback`.
 

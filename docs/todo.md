@@ -10,11 +10,11 @@ Steven keeps the running task list in the app itself, in the note "niche note ta
 
 The Android and desktop apps load the web app from the server, so they are useless until the server has an address, and every build bakes that address in.
 
-The server is a home server, the same box as the other services. `the server's directory` is a git checkout that accepts pushes (`receive.denyCurrentBranch updateInstead`), so `./deploy.sh` is a push plus `docker compose up -d --build` over ssh; GitHub is not in the loop. Caddy terminates TLS for `notes.example.com` and proxies to the container on 127.0.0.1:4040. The SQLite file lives in `the server's directory/data`; the hourly backup snapshots it into `_db_dumps` like the other backups, and the live file is excluded from rclone.
+The server is a home server: a push to `main` makes GitHub Actions publish `ghcr.io/szanzibar/niche-notes:latest`, and `the server's directory` holds only `docker-compose.yml`, `.env` and `data/`. Watchtower pulls new images on its daily pass; `docker compose pull && docker compose up -d` does it now. Caddy terminates TLS for `notes.example.com` and proxies to the container on 127.0.0.1:4040. The hourly backup snapshots the SQLite file into `_db_dumps` like the other backups, and the live file is excluded from rclone.
 
-- [x] Committed and deployed to the server on 2026-11-10 with the Caddy entry and the backup hook
-- [ ] Push to GitHub: the Mac's GitHub key is passphrase-protected, so Steven runs `git push origin main`
-- [ ] Register the OIDC client in Pocket ID (`auth.example.com`), put its id and secret into `the server's directory/.env`, `docker compose up -d`
+- [x] Caddy entry, backup hook, compose and `.env` on the server (2026-11-10); a locally built image runs there until the first published one lands
+- [ ] Push to GitHub (the Mac's GitHub key is passphrase-protected, so Steven does it), wait for the Publish Container run, make the package public under the repo's Packages so the server can pull without a login, then pull and up on the server
+- [ ] Put the Pocket ID client id and secret into `the server's directory/.env` and `docker compose up -d`
 - [ ] Prove the production login path in a plain browser before any shell: Pocket ID redirect, passkey, cookie session; then sign in as each family member
 - [ ] An app icon (one 1024 px square) for the Android mipmaps and the desktop installers
 
