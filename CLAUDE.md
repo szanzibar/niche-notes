@@ -53,6 +53,7 @@ client/src/sync/               local store, channels, tree helpers, React hooks
 client/src/components/         tree, note editor, toolbar, dialogs
 client/src/lib/                API client and types
 electron/                      desktop shell
+icon/                          vector app icon and the script that renders every size
 docs/                          spec, data model, ADRs, todo
 ```
 

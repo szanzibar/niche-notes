@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Source for every app icon. icon/render.sh exports the groups below by id. -->
+  <defs>
+    <g id="lines" fill="#111111">
+      <rect x="212" y="280" width="600" height="88"/>
+      <rect x="212" y="468" width="600" height="88"/>
+      <rect x="212" y="656" width="400" height="88"/>
+    </g>
+    <rect id="canvas" width="1024" height="1024" fill="none"/>
+    <clipPath id="circle"><circle cx="512" cy="512" r="512"/></clipPath>
+  </defs>
+
+  <!-- Full bleed: PWA icons and the legacy Android launcher. Lines sit inside the maskable safe circle. -->
+  <g id="tile">
+    <rect width="1024" height="1024" fill="#FF4F3B"/>
+    <use xlink:href="#lines"/>
+  </g>
+
+  <g id="round" clip-path="url(#circle)">
+    <use xlink:href="#tile"/>
+  </g>
+
+  <!-- Android adaptive foreground: the launcher shows the middle 72 of 108 dp, so the lines shrink to match the tile. -->
+  <g id="foreground">
+    <use xlink:href="#canvas"/>
+    <use xlink:href="#lines" transform="translate(512 512) scale(0.6667) translate(-512 -512)"/>
+  </g>
+
+  <!-- Desktop: Apple's 824 px rounded tile on a 1024 canvas, with the app's border and hard shadow. -->
+  <g id="mac">
+    <use xlink:href="#canvas"/>
+    <rect x="144" y="144" width="824" height="824" rx="185" fill="#111111"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="#FF4F3B" stroke="#111111" stroke-width="24"/>
+    <use xlink:href="#lines" transform="translate(512 512) scale(0.805) translate(-512 -512)"/>
+  </g>
+</svg>

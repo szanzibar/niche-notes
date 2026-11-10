@@ -16,7 +16,7 @@ The server is a home server: a push to `main` makes GitHub Actions publish `ghcr
 - [x] First image published by the Publish Container workflow, package made public, the server pulls it (2026-11-10)
 - [x] Pocket ID client registered and the production login proven in a browser: redirect, passkey, cookie session, name arrives in the ID token (2026-11-10)
 - [ ] Steven's wife signs in once, so she exists to share with
-- [ ] An app icon (one 1024 px square) for the Android mipmaps and the desktop installers
+- [x] App icon: `icon/icon.svg` is the vector source and `icon/render.sh` writes the PWA icons, the Android mipmaps and `electron/build/icon.png` (2026-11-10)
 
 ## Apps: local builds first, then the same scripts in Actions
 
