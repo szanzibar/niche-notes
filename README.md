@@ -6,12 +6,12 @@ A self-hosted, offline-first notes app for a family. One Docker container, one S
 
 ```bash
 cp .env.example .env     # fill in the values
-docker compose up -d     # serves on :4000, put a TLS proxy in front
+mkdir data               # the container runs as uid 1000 and needs to own it
+docker compose up -d     # serves on 127.0.0.1:$PORT, put a TLS proxy in front
 ```
 
-Data lives in the `data` volume as `/data/niche_notes.db`. Back it up with
-`docker compose exec app sqlite3 /data/niche_notes.db ".backup /data/backup.db"` and copy the file out,
-or run Litestream against the same path.
+The database is `data/niche_notes.db`, owned by your user, so any SQLite backup tool on the host
+can snapshot it. `./deploy.sh` pushes the committed tree to the home server and rebuilds there.
 
 In Pocket ID, register an OIDC client with redirect URI `https://<PHX_HOST>/auth/callback`.
 
