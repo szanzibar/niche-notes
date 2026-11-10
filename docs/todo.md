@@ -31,8 +31,18 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
+## v2: widgets
+
+Several home-screen widgets, each showing a whole note Steven picks, read-only; a tap opens the note in the app. The picker is the tree on `/widget/:id`, where choosing a note hands it to the app through an `intent://` link. The server reads notes with y_ex (ADR 001 amendment, proved on real data 2026-11-10). Android 12 is the minimum.
+
+- [x] Picker hand-off: the tree in pick mode, `WidgetActivity` for adding, reconfiguring and receiving the pick, the widget showing the picked title (2026-11-10)
+- [ ] Steven tries the hand-off on his phone: add a widget, pick a note, tap the widget to open it, reconfigure it
+- [ ] Server: y_ex turns a note into title and lines; a widget token from the session; an endpoint a widget reads its note from
+- [ ] The widget shows the whole note as a scrolling list, refreshes every 30 minutes and from a button
+- [ ] ADR for how widgets sign in
+- Later: instant refresh through Firebase Cloud Messaging, if 30 minutes feels stale
+
 ## Later
 
-- Android home-screen widgets, first v2 item: several at once, each showing a note you pick, read-only, a tap opens the note in the app. Native code in `android/` next to the launcher. The server reads the note with y_ex and applies a tick as an ordinary Y.js update (ADR 001 amendment; proved on real data 2026-11-10). The widget needs its own sign-in, since the session cookie lives in Chrome: the app hands it a one-time code.
 - Dates on tasks, then reminders and a one-way feed of dated tasks into Google Calendar. Google Tasks sync is not wanted.
 - Markdown export

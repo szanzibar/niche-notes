@@ -55,5 +55,31 @@
                 <data android:scheme="https" android:host="notes.example.com" />
             </intent-filter>
         </activity>
+
+        <receiver android:name=".NoteWidget" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/note_widget" />
+        </receiver>
+
+        <activity
+            android:name=".WidgetActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="nichenotes" android:host="widget" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

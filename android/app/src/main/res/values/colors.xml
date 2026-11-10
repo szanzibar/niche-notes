@@ -2,4 +2,6 @@
 <resources>
     <color name="bar">#FAFAF8</color>
     <color name="bar_dark">#141414</color>
+    <color name="widget_surface">#FFFFFF</color>
+    <color name="widget_ink">#111111</color>
 </resources>

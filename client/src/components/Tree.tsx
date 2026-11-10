@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
@@ -60,9 +60,22 @@ class HandleSensor extends TouchSensor {
   ]
 }
 
+// The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it.
+function useOpenNote() {
+  const navigate = useNavigate()
+  const widget = useMatch('/widget/:id')?.params.id
+  return (id: string) => {
+    if (!widget) return navigate(`/n/${id}`)
+    const query = new URLSearchParams({ id: widget, note: id, title: titleOf(id) })
+    window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;package=app.nichenotes;end`
+  }
+}
+
 export function Tree({ selected }: { selected?: string }) {
   const s = useStore()
   const navigate = useNavigate()
+  const openNote = useOpenNote()
+  const picking = useMatch('/widget/:id') != null
   useY(nodes())
   const roots = children(null)
   const trash = trashed()
@@ -78,6 +91,14 @@ export function Tree({ selected }: { selected?: string }) {
     for (const id of s.lost) removeFromTree(id)
     s.lost.clear()
   })
+
+  // The app comes to the front with the choice, so the next launch is the normal tree again.
+  useEffect(() => {
+    if (!picking) return
+    const leave = () => document.hidden && navigate('/', { replace: true })
+    document.addEventListener('visibilitychange', leave)
+    return () => document.removeEventListener('visibilitychange', leave)
+  }, [picking, navigate])
 
   const sensors = useSensors(
     useSensor(HandleSensor),
@@ -118,7 +139,7 @@ export function Tree({ selected }: { selected?: string }) {
   const onSearchKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') setCursor(Math.min(cursor + 1, hits.length - 1))
     else if (e.key === 'ArrowUp') setCursor(Math.max(cursor - 1, 0))
-    else if (e.key === 'Enter' && hits[cursor]) navigate(`/n/${hits[cursor].id}`)
+    else if (e.key === 'Enter' && hits[cursor]) openNote(hits[cursor].id)
     else if (e.key === 'Escape') setQuery('')
     else return
     e.preventDefault()
@@ -142,6 +163,11 @@ export function Tree({ selected }: { selected?: string }) {
         setDragging(null)
       }}
     >
+      {picking && (
+        <p className="border-b-2 border-border bg-accent px-4 py-2 text-sm font-bold text-white">
+          Tap a note to show it in the widget
+        </p>
+      )}
       <RootDropZone active={hint?.id === ROOT}>
         <div className="relative flex min-w-0 flex-1 items-center">
           <input
@@ -184,7 +210,7 @@ export function Tree({ selected }: { selected?: string }) {
                     type="button"
                     className={`flex w-full flex-col px-4 py-2 text-left ${i === cursor ? 'bg-bg outline-2 -outline-offset-2 outline-accent' : 'hover:bg-bg'}`}
                     onMouseEnter={() => setCursor(i)}
-                    onClick={() => navigate(`/n/${hit.id}`)}
+                    onClick={() => openNote(hit.id)}
                   >
                     <span className="flex w-full items-baseline gap-2">
                       <span className="truncate font-medium">{titleOf(hit.id)}</span>
@@ -300,6 +326,7 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
 
 function Row({ id, depth, selected, hint }: { id: string; depth: number; selected?: string; hint: Hint | null }) {
   const navigate = useNavigate()
+  const openNote = useOpenNote()
   const s = useStore()
   useY(meta(id))
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
@@ -345,7 +372,7 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
           type="button"
           aria-current={active ? 'page' : undefined}
           className="flex min-w-0 flex-1 touch-manipulation items-baseline gap-2 py-3 text-left"
-          onClick={() => navigate(`/n/${id}`)}
+          onClick={() => openNote(id)}
         >
           <span className="truncate font-medium">{titleOf(id)}</span>
           {isPinned(id) && <PinIcon filled className="h-3.5 w-3.5 shrink-0 self-center" />}

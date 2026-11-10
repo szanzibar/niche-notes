@@ -12,7 +12,8 @@ android {
     compileSdk 36
     defaultConfig {
         applicationId 'app.nichenotes'
-        minSdk 24
+        // Android 12 gives widgets a scrolling list without a separate list service.
+        minSdk 31
         targetSdk 36
         // Android installs an update only over a lower versionCode, so VERSION is the commit count.
         versionCode = Integer.parseInt(System.getenv('VERSION') ?: '1')
