@@ -20,6 +20,7 @@ export const api = {
   shares: () => request<{ shares: Share[] }>('/shares'),
   share: (docId: string, userId: string) =>
     request<void>(`/docs/${docId}/shares`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }),
+  deleteDoc: (docId: string) => request<void>(`/docs/${docId}`, { method: 'DELETE' }),
   unshare: (docId: string, userId: string) =>
     request<void>(`/docs/${docId}/shares/${userId}`, { method: 'DELETE' }),
   logout: () => fetch('/auth/logout', { method: 'DELETE' }),

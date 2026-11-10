@@ -9,7 +9,9 @@ interface Session {
   user: User
   token: string
 }
+import { useY } from './sync/hooks'
 import { start } from './sync/store'
+import { purgeExpired, settings } from './sync/tree'
 
 export default function App() {
   const [me, setMe] = useState<User | null>(null)
@@ -27,7 +29,12 @@ export default function App() {
         if (err.message === 'unauthenticated' || !cached) throw err
         return JSON.parse(cached) as Session
       })
-      .then(({ user, token }) => start(user, token).then(() => setMe(user)))
+      .then(({ user, token }) =>
+        start(user, token).then(() => {
+          setMe(user)
+          void purgeExpired()
+        }),
+      )
       .catch(() => {})
   }, [])
 
@@ -41,6 +48,16 @@ export default function App() {
 
 function Shell() {
   const noteId = useMatch('/n/:id')?.params.id
+  const prefs = settings()
+  useY(prefs)
+  const accent = prefs.get('accent') as string | undefined
+  const theme = prefs.get('theme') as string | undefined
+  useEffect(() => {
+    if (accent) document.documentElement.style.setProperty('--accent', accent)
+    else document.documentElement.style.removeProperty('--accent')
+    if (theme) document.documentElement.dataset.theme = theme
+    else delete document.documentElement.dataset.theme
+  }, [accent, theme])
   return (
     <div className="h-dvh md:grid md:grid-cols-[320px_1fr]">
       <aside

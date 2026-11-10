@@ -27,8 +27,8 @@ defmodule NicheNotesWeb.ShareController do
     me = conn.assigns.current_user_id
 
     case Docs.unshare(doc_id, me, user_id) do
-      :ok ->
-        shares_changed([me, user_id])
+      {:ok, owner_id} ->
+        shares_changed([owner_id, user_id])
         send_resp(conn, :no_content, "")
 
       {:error, :forbidden} ->

@@ -4,6 +4,9 @@
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
+# A config change needs a Phoenix restart, and a stale Vite would push the new one to another port.
+lsof -ti :4000 -ti :5173 | xargs kill 2>/dev/null || true
+
 (cd "$ROOT/server" && mix ecto.create --quiet && mix ecto.migrate --quiet && exec mix phx.server) &
 trap 'kill 0' EXIT
 

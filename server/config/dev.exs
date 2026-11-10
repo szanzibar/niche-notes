@@ -1,7 +1,7 @@
 import Config
 
 config :niche_notes, NicheNotes.Repo,
-  database: Path.expand("../data/dev.db", __DIR__),
+  database: System.get_env("DATABASE_PATH") || Path.expand("../data/dev.db", __DIR__),
   pool_size: 5,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true

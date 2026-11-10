@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
-import { Socket } from 'phoenix'
+import { Socket, type Channel } from 'phoenix'
+import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { api } from '../lib/api'
 import type { Share, User } from '../lib/types'
@@ -13,6 +14,7 @@ interface UpdateRow {
 interface DocRow {
   id: string
   seq: number
+  owner?: string
 }
 interface KvRow {
   key: string
@@ -26,11 +28,26 @@ const db = new Dexie('niche-notes') as Dexie & {
 }
 db.version(1).stores({ updates: '++id, doc', docs: 'id', kv: 'key' })
 
-export const store = { me: null as User | null, shares: [] as Share[], online: false }
+// The server says when to fold a doc's log into one snapshot. This local limit catches a device
+// whose own log keeps growing after another device already folded the server's.
+const LOG_LIMIT = 50
+
+export const store = {
+  me: null as User | null,
+  shares: [] as Share[],
+  users: [] as User[],
+  owners: new Map<string, string>(),
+  // Docs the server refused since startup. The tree prunes their placements.
+  lost: new Set<string>(),
+  collapsed: new Set<string>(),
+  online: false,
+}
 
 let socket: Socket
 const docs = new Map<string, Y.Doc>()
 const opening = new Map<string, Promise<Y.Doc>>()
+const channels = new Map<string, Channel>()
+const awarenesses = new Map<string, Awareness>()
 const listeners = new Set<() => void>()
 
 export function subscribe(listener: () => void) {
@@ -48,53 +65,124 @@ export function getDoc(id: string) {
   return docs.get(id)
 }
 
-let started = false
+export function noteIds() {
+  return [...docs.keys()].filter((id) => id !== store.me!.id)
+}
 
-export async function start(me: User, token: string) {
-  if (started) return
-  started = true
+export function getAwareness(id: string) {
+  return awarenesses.get(id)!
+}
+
+export function toggleCollapsed(id: string) {
+  if (!store.collapsed.delete(id)) store.collapsed.add(id)
+  notify()
+}
+
+export function expand(id: string) {
+  if (store.collapsed.delete(id)) notify()
+}
+
+let starting: Promise<void> | undefined
+
+// Every caller gets the same promise, so nothing renders before the tree doc is loaded.
+export function start(me: User, token: string) {
+  return (starting ??= run(me, token))
+}
+
+async function run(me: User, token: string) {
   store.me = me
 
   socket = new Socket('/socket', { params: { token } })
   socket.onOpen(() => {
     store.online = true
     notify()
+    void refreshSharing()
   })
   socket.onClose(() => {
     store.online = false
     notify()
   })
   socket.connect()
+  // Phones switch networks often. Follow the browser instead of waiting for the TCP stack to notice.
+  window.addEventListener('offline', () => {
+    store.online = false
+    notify()
+    socket.disconnect()
+  })
+  window.addEventListener('online', () => socket.connect())
+  window.addEventListener('beforeunload', () => {
+    for (const awareness of awarenesses.values()) removeAwarenessStates(awareness, [awareness.doc.clientID], 'unload')
+  })
 
   const userChannel = socket.channel(`user:${me.id}`)
-  userChannel.on('shares_changed', () => void refreshShares())
+  userChannel.on('shares_changed', () => void refreshSharing())
   userChannel.join()
+
+  for (const row of await db.docs.toArray()) {
+    if (row.owner) store.owners.set(row.id, row.owner)
+  }
 
   const tree = await openDoc(me.id)
   const nodes = tree.getMap('nodes')
-  const openAll = () => nodes.forEach((_node, id) => void openDoc(id))
-  nodes.observe(openAll)
-  openAll()
+  nodes.observe(() => nodes.forEach((_node, id) => void openDoc(id)))
+  await Promise.all([...nodes.keys()].map((id) => openDoc(id)))
 
   store.shares = ((await db.kv.get('shares'))?.value as Share[] | undefined) ?? []
+  store.users = ((await db.kv.get('users'))?.value as User[] | undefined) ?? []
   openShared()
-  void refreshShares()
+  void refreshSharing()
 }
 
-export async function refreshShares() {
+export async function refreshSharing() {
   try {
-    store.shares = (await api.shares()).shares
+    const [{ shares }, { users }] = await Promise.all([api.shares(), api.users()])
+    store.shares = shares
+    store.users = users
   } catch {
     return
   }
-  await db.kv.put({ key: 'shares', value: store.shares })
+  await db.kv.bulkPut([
+    { key: 'shares', value: store.shares },
+    { key: 'users', value: store.users },
+  ])
+  for (const [id, owner] of store.owners) {
+    if (owner !== store.me!.id && !store.shares.some((s) => s.doc_id === id)) lose(id)
+  }
   openShared()
   notify()
 }
 
+// Someone else's note that we can no longer open. The tree prunes its placement.
+function lose(id: string) {
+  forget(id)
+  store.lost.add(id)
+  notify()
+}
+
+function forget(id: string) {
+  channels.get(id)?.leave()
+  channels.delete(id)
+  docs.delete(id)
+  opening.delete(id)
+  awarenesses.delete(id)
+}
+
+// After the server purged a note: drop every local trace of it.
+export async function purgeLocal(id: string) {
+  forget(id)
+  await db.updates.where('doc').equals(id).delete()
+  await db.docs.delete(id)
+  notify()
+}
+
+// A note shared with us lands at the top of our tree, so there is no separate place to look for it.
 function openShared() {
+  const nodes = docs.get(store.me!.id)!.getMap('nodes')
+  let order = Date.now()
   for (const share of store.shares) {
-    if (share.owner_id !== store.me!.id) void openDoc(share.doc_id)
+    if (share.owner_id === store.me!.id) continue
+    void openDoc(share.doc_id)
+    if (!nodes.has(share.doc_id)) nodes.set(share.doc_id, { parent: null, order: order++ })
   }
 }
 
@@ -113,58 +201,124 @@ export function openDoc(id: string): Promise<Y.Doc> {
 
 async function load(id: string): Promise<Y.Doc> {
   const doc = new Y.Doc()
+  const awareness = new Awareness(doc)
+  awarenesses.set(id, awareness)
+  // Title and deleted flag drive the tree, so any change redraws it.
+  doc.getMap('meta').observe(notify)
   const rows = await db.updates.where('doc').equals(id).toArray()
   const seen = new Set<number>()
   for (const row of rows) {
     Y.applyUpdate(doc, row.update, 'local')
     if (row.seq != null) seen.add(row.seq)
   }
+  let logged = rows.length
   let since = (await db.docs.get(id))?.seq ?? 0
-  const inflight = new Set<number>()
+  const inflight = new Set<Promise<number>>()
   const channel = socket.channel(`doc:${id}`, () => ({ since }))
+  channels.set(id, channel)
 
-  const push = (rowId: number, update: Uint8Array) => {
-    inflight.add(rowId)
+  const push = (saved: Promise<number>, update: Uint8Array) => {
+    inflight.add(saved)
     channel
       .push('update', { update: toBase64(update) })
-      .receive('ok', ({ seq }: { seq: number }) => {
+      .receive('ok', async ({ seq }: { seq: number }) => {
         seen.add(seq)
-        inflight.delete(rowId)
-        void db.updates.update(rowId, { seq })
+        inflight.delete(saved)
+        await db.updates.update(await saved, { seq })
       })
-      .receive('error', () => inflight.delete(rowId))
-      .receive('timeout', () => inflight.delete(rowId))
+      .receive('error', () => inflight.delete(saved))
+      .receive('timeout', () => inflight.delete(saved))
   }
 
-  const fromServer = async (seq: number, encoded: string) => {
-    if (seen.has(seq)) return
-    seen.add(seq)
-    const update = fromBase64(encoded)
-    Y.applyUpdate(doc, update, 'remote')
-    await db.updates.add({ doc: id, seq, update })
+  const fromServer = async (batch: [number, string][]) => {
+    const fresh = batch
+      .filter(([seq]) => !seen.has(seq))
+      .map(([seq, encoded]) => ({ doc: id, seq, update: fromBase64(encoded) }))
+    if (fresh.length === 0) return
+    for (const row of fresh) seen.add(row.seq)
+    // One transaction, so a note opened on a new device appears whole instead of replaying every keystroke.
+    Y.applyUpdate(doc, Y.mergeUpdates(fresh.map((row) => row.update)), 'remote')
+    logged += fresh.length
+    await db.updates.bulkAdd(fresh)
   }
 
-  doc.on('update', async (update: Uint8Array, origin: unknown) => {
+  // The whole state as one update stands in for every row up to `since`, which we hold in full.
+  const compact = () => {
+    const upto = since
+    const update = Y.encodeStateAsUpdate(doc)
+    channel.push('snapshot', { update: toBase64(update), upto }).receive('ok', async () => {
+      await db.transaction('rw', db.updates, async () => {
+        await db.updates
+          .where('doc')
+          .equals(id)
+          .filter((row) => row.seq != null && row.seq <= upto)
+          .delete()
+        await db.updates.add({ doc: id, seq: upto, update })
+      })
+      logged = await db.updates.where('doc').equals(id).count()
+    })
+  }
+
+  // Send before the local write lands, so a reload right after a keystroke loses nothing the server can give back.
+  doc.on('update', (update: Uint8Array, origin: unknown) => {
     if (origin === 'remote' || origin === 'local') return
-    const rowId = await db.updates.add({ doc: id, seq: null, update })
-    if (channel.state === 'joined') push(rowId, update)
+    logged += 1
+    const saved = db.updates.add({ doc: id, seq: null, update })
+    if (channel.state === 'joined') push(saved, update)
   })
 
-  channel.on('update', ({ seq, update }: { seq: number; update: string }) => void fromServer(seq, update))
+  channel.on('update', ({ seq, update }: { seq: number; update: string }) => void fromServer([[seq, update]]))
+
+  channel.on('awareness', ({ update }: { update: string }) =>
+    applyAwarenessUpdate(awareness, fromBase64(update), 'remote'),
+  )
+  awareness.on(
+    'update',
+    ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
+      if (origin === 'remote' || channel.state !== 'joined') return
+      const update = encodeAwarenessUpdate(awareness, [...added, ...updated, ...removed])
+      channel.push('awareness', { update: toBase64(update) })
+    },
+  )
 
   // Runs on every (re)join. `since` only advances here, because this reply is the one
   // place we know we hold every update up to a number.
-  channel.join().receive('ok', async ({ updates, seq }: { updates: [number, string][]; seq: number }) => {
-    for (const [s, u] of updates) await fromServer(s, u)
-    since = seq
-    await db.docs.put({ id, seq })
-    const unsent = await db.updates
-      .where('doc')
-      .equals(id)
-      .filter((row) => row.seq == null && !inflight.has(row.id))
-      .toArray()
-    for (const row of unsent) push(row.id, row.update)
-  })
+  channel
+    .join()
+    .receive(
+      'ok',
+      async ({
+        updates,
+        seq,
+        owner_id,
+        compact: fold,
+      }: {
+        updates: [number, string][]
+        seq: number
+        owner_id: string
+        compact: boolean
+      }) => {
+        store.owners.set(id, owner_id)
+        await fromServer(updates)
+        since = seq
+        await db.docs.put({ id, seq, owner: owner_id })
+        if (since > 0 && (fold || logged > LOG_LIMIT)) compact()
+        const inflightIds = new Set(await Promise.all(inflight))
+        const unsent = await db.updates
+          .where('doc')
+          .equals(id)
+          .filter((row) => row.seq == null && !inflightIds.has(row.id))
+          .toArray()
+        for (const row of unsent) push(Promise.resolve(row.id), row.update)
+        if (awareness.getLocalState()) {
+          channel.push('awareness', { update: toBase64(encodeAwarenessUpdate(awareness, [doc.clientID])) })
+        }
+        notify()
+      },
+    )
+    .receive('error', ({ reason }: { reason: string }) => {
+      if (reason === 'forbidden') lose(id)
+    })
 
   docs.set(id, doc)
   notify()

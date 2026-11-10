@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// The e2e suite runs its own Phoenix on another port.
+const phoenix = `localhost:${process.env.PHOENIX_PORT ?? 4000}`
+
 export default defineConfig({
   plugins: [
     react(),
@@ -32,9 +35,9 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': 'http://localhost:4000',
-      '/auth': 'http://localhost:4000',
-      '/socket': { target: 'ws://localhost:4000', ws: true },
+      '/api': `http://${phoenix}`,
+      '/auth': `http://${phoenix}`,
+      '/socket': { target: `ws://${phoenix}`, ws: true },
     },
   },
   build: {

@@ -1,5 +1,7 @@
 import type { Editor } from '@tiptap/react'
+import type { ListType } from './lists'
 import { useEffect, useReducer } from 'react'
+import { listPosition, toggleList } from './lists'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
@@ -12,18 +14,20 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   }, [editor])
   if (!editor) return null
 
-  const listItem = editor.isActive('taskItem') ? 'taskItem' : 'listItem'
+  const { item, list } = listPosition(editor)
+  const listItem = item ?? 'listItem'
   const chain = () => editor.chain().focus()
+  const toggle = (type: ListType) => toggleList(editor, type)
 
   return (
     <div className="flex shrink-0 gap-1 overflow-x-auto border-t-2 border-border bg-surface px-2 py-2">
-      <Tool label="Checklist" active={editor.isActive('taskList')} onClick={() => chain().toggleTaskList().run()}>
+      <Tool label="Checklist" active={list === 'taskList'} onClick={() => toggle('taskList')}>
         ☑
       </Tool>
-      <Tool label="Bullet list" active={editor.isActive('bulletList')} onClick={() => chain().toggleBulletList().run()}>
+      <Tool label="Bullet list" active={list === 'bulletList'} onClick={() => toggle('bulletList')}>
         •
       </Tool>
-      <Tool label="Numbered list" active={editor.isActive('orderedList')} onClick={() => chain().toggleOrderedList().run()}>
+      <Tool label="Numbered list" active={list === 'orderedList'} onClick={() => toggle('orderedList')}>
         1.
       </Tool>
       <Tool label="Outdent" onClick={() => chain().liftListItem(listItem).run()}>
@@ -72,6 +76,7 @@ function Tool({
     <button
       type="button"
       aria-label={label}
+      aria-pressed={active}
       title={label}
       // Keep the editor focused and the keyboard open while tapping the bar.
       onMouseDown={(e) => e.preventDefault()}

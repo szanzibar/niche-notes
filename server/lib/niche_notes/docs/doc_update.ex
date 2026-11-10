@@ -6,5 +6,6 @@ defmodule NicheNotes.Docs.DocUpdate do
   schema "doc_updates" do
     belongs_to :doc, NicheNotes.Docs.Doc
     field :update, :binary
+    timestamps(updated_at: false, type: :utc_datetime)
   end
 end

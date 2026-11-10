@@ -26,7 +26,14 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 ./dev.sh                     # migrate, Phoenix on :4000, Vite on :5173
 cd server && mix test        # also mix compile --warnings-as-errors, mix format
 cd client && npm run build   # tsc then vite, writes to server/priv/static
+cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
 ```
+
+Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one.
+
+Steven keeps the running task list inside the app, in the note "niche note task list". Read it with
+`node scripts/note.mjs show "task list"` from `client/` against the dev server, and tick finished items with
+`node scripts/note.mjs check "task list" "<words from the line>"`.
 
 In dev, `/auth/login` signs in a local user without Pocket ID, and `/auth/login?as=<name>` signs in another.
 
@@ -55,7 +62,7 @@ Neo-brutalist: bold and direct, not the rounded gray card look.
 
 - Borders are solid 2px `#111`. Shadows are solid offsets, `4px 4px 0 #111`, never blurred.
 - Corners are square, or one small radius used everywhere.
-- Off-white `#FAFAF8` base, near-black `#111` text, coral red `#FF4F3B` accent.
+- Off-white `#FAFAF8` base, near-black `#111` text, coral red `#FF4F3B` accent. Dark mode flips the neutrals through `light-dark()` on the same tokens; the accent is the user's setting.
 - Space Grotesk for type.
 - No gradients, glass, transparency or skeleton loaders.
 - Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `text-ink`, `text-ink-muted`, `bg-accent`, `border-border`, `shadow-brutal`).

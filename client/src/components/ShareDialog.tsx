@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { User } from '../lib/types'
 import { useStore } from '../sync/hooks'
-import { refreshShares } from '../sync/store'
+import { refreshSharing } from '../sync/store'
 import { Button } from './Button'
 
 export function ShareDialog({ id }: { id: string }) {
@@ -21,7 +21,7 @@ export function ShareDialog({ id }: { id: string }) {
 
   const sharedWith = new Set(s.shares.filter((x) => x.doc_id === id).map((x) => x.user_id))
   const toggle = (user: User) =>
-    (sharedWith.has(user.id) ? api.unshare(id, user.id) : api.share(id, user.id)).then(refreshShares)
+    (sharedWith.has(user.id) ? api.unshare(id, user.id) : api.share(id, user.id)).then(refreshSharing)
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -37,7 +37,7 @@ export function ShareDialog({ id }: { id: string }) {
               {s.online ? 'Nobody else has signed in yet.' : 'Sharing needs a connection.'}
             </p>
           )}
-          <ul className="flex flex-col gap-2">
+          <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
             {users.map((user) => (
               <li key={user.id} className="flex items-center justify-between gap-3">
                 <span className="truncate font-medium">{user.name}</span>

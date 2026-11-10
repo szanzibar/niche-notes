@@ -1,39 +1,29 @@
-# niche-notes — v1 checklist
+# niche-notes — checklist
 
-## Server
-- [x] Swap Postgres for SQLite, drop dead scaffold deps
-- [x] Tables: users, docs, doc_shares, doc_updates
-- [x] Tree doc created with the user
-- [x] `doc:<id>` channel: join with since, create on first join, update relay
-- [x] `user:<id>` channel: shares_changed
-- [x] `/api/users`, `/api/shares`, share add and remove
-- [x] Dev login as named test users
-- [x] Tests: access refused, join returns updates since, first join creates, share grants access
-- [x] Dockerfile and single-container compose, release migrates on boot
+## V1 core, local
 
-## Client
-- [x] Local store: Dexie updates table, Y.Doc registry, channel per doc, outbox flush on join
-- [x] Tree page: nested notes, new note, move to, delete or remove, Shared with me, online dot, sign out
-- [x] Note page: title, TipTap body, toolbar, share dialog
-- [x] Checked items crossed out
-- [x] Responsive: list and note side by side on desktop, one at a time on phones
-- [x] Service worker and manifest
+Built 2026-11-08. QOL rounds 2026-11-09: title focus, Enter/Tab to body, + on rows, drag and drop with sibling and child zones, ownership labels, persistent undo, live unshare, server-first pushes, trash bin with 30-day purge, live carets, drag overlay with an indentation-aware drop line, trash pinned to the panel bottom, mixed checkbox and bullet nesting, snapshot compaction of the update log, read-only view of trashed notes, list buttons that act on the cursor's own level, search with keyboard navigation, pins, shared notes landing at the top of the recipient's tree, touch drag handles, settings with a highlight color, opening a note focuses its text, a conflict spec that replays two people shopping offline, compaction decided by the server (busy or a day idle), moved notes land where the drop line showed. Every major flow has a Playwright test in `client/e2e`; run `npm run e2e` from `client/`.
 
-## Native
-- [x] Capacitor Android project pointing at the server
-- [x] Electron shell with mac and Windows build config
+Steven keeps the running task list in the app itself, in the note "niche note task list". Read it with `node scripts/note.mjs show "task list"` from `client/` and tick items with `check` when they are done.
 
-## Still to do by hand
+- [ ] Steven and spouse use it daily from `./dev.sh` and list what's missing or awkward
+- [ ] Try the phone layout in a narrow browser window: tree, note, toolbar, drag with a long press
+- [ ] Decide on the next rough edges from real use before touching the apps
+
+## After v1: apps and deployment
+
+None of this needs Android Studio. Builds run in CI or a container.
+
+- [ ] GitHub Action: `./gradlew assembleDebug` in `client/android` with JDK 17 and the Android SDK action, upload the APK
+- [ ] GitHub Action: electron-builder on a macOS runner for the dmg and a Windows runner for the installer
+- [ ] Set the server and Pocket ID hosts in `client/capacitor.config.ts` and `electron/config.json`
 - [ ] Deploy: fill `.env`, register the OIDC client in Pocket ID, `docker compose up -d` behind TLS
 - [ ] Sign in once as each family member so they show up in the share picker
-- [ ] Android: set the server and Pocket ID hosts in `client/capacitor.config.ts`, build the APK in Android Studio, try passkey login in the WebView
-- [ ] Desktop: set the url in `electron/config.json`, `npm run build:mac` / `build:win`, try passkey login in Electron
-- [ ] Try the phone keyboard with the bottom toolbar on a real device
+- [ ] Passkey login inside the Android WebView and inside Electron
+- [ ] Phone keyboard with the bottom toolbar on a real device
 
 ## Later
+
 - Markdown export
 - Share a note with its current children
-- Manual ordering and drag and drop
-- Compaction of doc_updates and of the local table
 - Search
-- Trash view and undelete
