@@ -12,19 +12,19 @@ test('edits made offline arrive when back online, and the other side catches up'
   await row(bob, 'Plan').click()
   await expect(bob.locator('.editor-body')).toContainText('start')
 
-  // The tag sits in both headers, since a phone shows only one of them.
-  const tags = alice.getByText('Offline', { exact: true })
-  await expect(tags).toHaveCount(0)
+  // The icon sits in both headers, since a phone shows only one of them.
+  const icons = alice.getByRole('img', { name: 'Offline' })
+  await expect(icons).toHaveCount(0)
   await alice.context().setOffline(true)
-  await expect(alice.locator('aside').getByText('Offline', { exact: true })).toBeVisible()
-  await expect(alice.locator('main').getByText('Offline', { exact: true })).toBeVisible()
+  await expect(alice.locator('aside').getByRole('img', { name: 'Offline' })).toBeVisible()
+  await expect(alice.locator('main').getByRole('img', { name: 'Offline' })).toBeVisible()
   await typeAtEnd(alice, ' offline-edit')
   await newNote(alice, 'Written offline')
   await typeAtEnd(bob, ' online-edit')
   await expect(bob.locator('.editor-body')).not.toContainText('offline-edit')
 
   await alice.context().setOffline(false)
-  await expect(tags).toHaveCount(0)
+  await expect(icons).toHaveCount(0)
   await expect(bob.locator('.editor-body')).toContainText('offline-edit')
   await row(alice, 'Plan').click()
   await expect(alice.locator('.editor-body')).toContainText('online-edit')

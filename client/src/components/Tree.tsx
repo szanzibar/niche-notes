@@ -39,7 +39,7 @@ import {
 } from '../sync/tree'
 import { Button } from './Button'
 import { PinIcon } from './icons'
-import { OfflineTag } from './OfflineTag'
+import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
 
 const ROOT = 'root'
@@ -167,7 +167,7 @@ export function Tree({ selected }: { selected?: string }) {
             </button>
           )}
         </div>
-        <OfflineTag />
+        <OfflineIcon />
         <Button variant="primary" onClick={() => navigate(`/n/${createNote(null)}`)}>
           + New
         </Button>
