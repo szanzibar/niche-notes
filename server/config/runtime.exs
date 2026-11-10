@@ -21,5 +21,7 @@ if config_env() == :prod do
     client_secret: System.fetch_env!("OIDC_CLIENT_SECRET"),
     base_url: System.fetch_env!("POCKET_ID_URL"),
     redirect_uri: "https://#{host}/auth/callback",
+    # Pocket ID only puts name and email in the ID token when asked.
+    authorization_params: [scope: "profile email"],
     http_adapter: {Assent.HTTPAdapter.Req, []}
 end

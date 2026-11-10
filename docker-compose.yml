@@ -2,16 +2,18 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # The host user owns ./data, so backups can read the SQLite file without root.
+    user: "1000:1000"
     ports:
-      - "4000:4000"
+      - "127.0.0.1:${PORT:-4000}:4000"
     volumes:
-      - data:/data
+      - ./data:/data
     environment:
       PHX_HOST: ${PHX_HOST}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       POCKET_ID_URL: ${POCKET_ID_URL}
-
-volumes:
-  data:
+    labels:
+      # Built here, not pulled, so Watchtower has nothing to update.
+      com.centurylinklabs.watchtower.enable: "false"

@@ -38,7 +38,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates sqlite3 \
   && rm -rf /var/lib/apt/lists/*
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8 MIX_ENV="prod"
+# The release writes its runtime config under RELEASE_TMP, so any uid can start it.
+ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8 MIX_ENV="prod" RELEASE_TMP=/tmp
 WORKDIR /app
 RUN chown nobody /app && mkdir /data && chown nobody /data
 COPY --from=builder --chown=nobody:root /app/_build/prod/rel/niche_notes ./

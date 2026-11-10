@@ -27,6 +27,7 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 cd server && mix test        # also mix compile --warnings-as-errors, mix format
 cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
+./deploy.sh                  # push to the home server and rebuild the container there
 ```
 
 Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one.
