@@ -47,7 +47,7 @@ test('on a touch screen every row shows a drag handle', async ({ browser }) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)
-  await page.getByRole('button', { name: '+ New' }).click()
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
   await page.keyboard.type('Phone')
   await page.getByRole('button', { name: 'Back' }).click()

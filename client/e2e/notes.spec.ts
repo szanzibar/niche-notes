@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { newNote, row, signIn, uid } from './helpers'
 
 test('a new note starts in the title, Enter moves to the body, and it survives a reload', async ({ browser }) => {
@@ -12,14 +12,56 @@ test('a new note starts in the title, Enter moves to the body, and it survives a
   await expect(page.locator('.editor-body')).toContainText('milk')
 })
 
-test('opening a note puts the cursor at the end of its text, ready to type', async ({ browser }) => {
-  const page = await signIn(browser, `alice-${uid()}`)
-  await newNote(page, 'Journal', 'one')
-  await newNote(page, 'Other')
+test('a note this device has not opened yet opens at the end of its text, ready to type', async ({ browser }) => {
+  const name = `alice-${uid()}`
+  await newNote(await signIn(browser, name), 'Journal', 'one')
+  const page = await signIn(browser, name)
   await row(page, 'Journal').click()
   await expect(page.locator('.editor-body')).toBeFocused()
   await page.keyboard.type(' two')
   await expect(page.locator('.editor-body')).toContainText('one two')
+})
+
+test('a note reopens where this device left the cursor, even after a reload and a line added above it', async ({
+  browser,
+}) => {
+  // The editor takes a click or an arrow key a moment later. A new saved cursor shows it has.
+  const saved = (p: Page) =>
+    p.evaluate(() => Object.entries(localStorage).find(([key]) => key.startsWith('cursor:'))?.[1])
+  const name = `alice-${uid()}`
+  const page = await signIn(browser, name)
+  await newNote(page, 'Long', 'top')
+  for (const line of ['first', 'second']) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(line)
+  }
+  const typed = await saved(page)
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('End')
+  await expect.poll(() => saved(page)).not.toBe(typed)
+  await page.goto('/')
+
+  const phone = await signIn(browser, name)
+  await row(phone, 'Long').click()
+  await expect(phone.locator('.editor-body p')).toHaveText(['top', 'first', 'second'])
+  const opened = await saved(phone)
+  await phone.locator('.editor-body p').first().click()
+  await phone.keyboard.press('End')
+  await expect.poll(() => saved(phone)).not.toBe(opened)
+  await phone.keyboard.press('Enter')
+  await phone.keyboard.type('zero')
+
+  // Search finds the new line once it has reached this device.
+  const search = page.getByPlaceholder('Search notes')
+  await expect(async () => {
+    await search.fill('')
+    await search.fill('zero')
+    await page.getByRole('option').filter({ hasText: 'Long' }).click({ timeout: 500 })
+  }).toPass()
+  await expect(page.locator('.editor-body')).toBeFocused()
+  await page.keyboard.type('!')
+  // The phone's caret and name sit on its own line.
+  await expect(page.locator('.editor-body p')).toHaveText(['top', /zero/, 'first!', 'second'])
 })
 
 test('Tab from the title goes to the body, not to Share', async ({ browser }) => {

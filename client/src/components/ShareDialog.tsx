@@ -4,7 +4,8 @@ import { api } from '../lib/api'
 import type { User } from '../lib/types'
 import { useStore } from '../sync/hooks'
 import { refreshSharing } from '../sync/store'
-import { Button } from './Button'
+import { Button, IconButton } from './Button'
+import { UserPlusIcon, UsersIcon } from './icons'
 
 export function ShareDialog({ id }: { id: string }) {
   const s = useStore()
@@ -26,7 +27,16 @@ export function ShareDialog({ id }: { id: string }) {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button>{sharedWith.size > 0 ? `Shared with ${sharedWith.size}` : 'Share'}</Button>
+        {sharedWith.size > 0 ? (
+          <IconButton label={`Shared with ${sharedWith.size}`} className="px-1 text-accent">
+            <UsersIcon />
+            <span className="font-bold">{sharedWith.size}</span>
+          </IconButton>
+        ) : (
+          <IconButton label="Share">
+            <UserPlusIcon />
+          </IconButton>
+        )}
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40" />

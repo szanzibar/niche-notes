@@ -70,3 +70,28 @@ test('Tab indents the bullet the cursor is on, not the checkbox above it', async
   await expect(body(page).locator('ul:not([data-type]) ul:not([data-type]) > li')).toHaveText('b2')
   await expect(body(page).locator('input[type="checkbox"]')).toHaveCount(2)
 })
+
+test('Move up and Move down swap a line, and what is nested under it, with its neighbor', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'One', 'Two', 'Child')
+  await tool(page, 'Indent').click()
+  await page.keyboard.press('Enter')
+  await tool(page, 'Outdent').click()
+  await page.keyboard.type('Three')
+  const lines = body(page).locator('li p')
+
+  await body(page).getByText('Two', { exact: true }).click()
+  await tool(page, 'Move up').click()
+  await expect(lines).toHaveText(['Two', 'Child', 'One', 'Three'])
+  await expect(body(page).locator('li li p')).toHaveText('Child')
+
+  await tool(page, 'Move down').click()
+  await tool(page, 'Move down').click()
+  await tool(page, 'Move down').click()
+  await expect(lines).toHaveText(['One', 'Three', 'Two', 'Child'])
+
+  // The cursor stays on the line it moved.
+  await page.keyboard.press('End')
+  await page.keyboard.type('!')
+  await expect(lines).toHaveText(['One', 'Three', 'Two!', 'Child'])
+})

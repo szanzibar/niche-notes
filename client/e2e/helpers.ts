@@ -14,7 +14,7 @@ export async function signIn(browser: Browser, name: string) {
 }
 
 export async function newNote(page: Page, title: string, body?: string) {
-  await page.getByRole('button', { name: '+ New' }).click()
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
   await page.keyboard.type(title)
   if (body) {

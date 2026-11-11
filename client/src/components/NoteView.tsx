@@ -1,10 +1,11 @@
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import Highlight from '@tiptap/extension-highlight'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { ySyncPluginKey } from '@tiptap/y-tiptap'
+import { absolutePositionToRelativePosition, relativePositionToAbsolutePosition, ySyncPluginKey } from '@tiptap/y-tiptap'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as Y from 'yjs'
@@ -25,7 +26,7 @@ import {
   titleOf,
   togglePin,
 } from '../sync/tree'
-import { Button } from './Button'
+import { Button, IconButton } from './Button'
 import { LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
 import { OfflineIcon } from './OfflineIcon'
 import { ShareDialog } from './ShareDialog'
@@ -76,6 +77,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         StarterKit.configure({ undoRedo: false }),
         TaskList,
         TaskItem.configure({ nested: true }),
+        Highlight,
         ListTabs,
         Placeholder.configure({ placeholder: 'Write…' }),
         Collaboration.configure({
@@ -98,12 +100,35 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     editor?.setEditable(!deleted)
   }, [editor, deleted])
 
-  // Opening a note means writing in it: an empty title first, otherwise the end of the text.
+  // Opening a note means writing in it: an empty title first, otherwise where this device left the
+  // cursor, or the end of the text.
   useEffect(() => {
     if (!editor || deleted) return
-    if (!titleRef.current?.value) titleRef.current?.focus()
-    else editor.commands.focus('end')
-  }, [editor, deleted])
+    if (!titleRef.current?.value) {
+      titleRef.current?.focus()
+      return
+    }
+    const { binding } = ySyncPluginKey.getState(editor.state)!
+    const saved = localStorage.getItem(`cursor:${id}`)
+    const pos = saved
+      ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
+      : null
+    editor.commands.focus(pos ?? 'end')
+  }, [editor, deleted, id, doc])
+
+  // Anchored to the text, so someone else's edit above the cursor doesn't move where it reopens.
+  useEffect(() => {
+    if (!editor) return
+    const save = () => {
+      const { binding } = ySyncPluginKey.getState(editor.state)!
+      const pos = absolutePositionToRelativePosition(editor.state.selection.from, binding.type, binding.mapping)
+      localStorage.setItem(`cursor:${id}`, JSON.stringify(Y.relativePositionToJSON(pos)))
+    }
+    editor.on('selectionUpdate', save)
+    return () => {
+      editor.off('selectionUpdate', save)
+    }
+  }, [editor, id])
 
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
 
@@ -199,7 +224,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         <div className={actionRow}>
           {mine ? <ShareDialog id={id} /> : sharedBy}
           <IconButton label={pinLabel} onClick={() => togglePin(id)}>
-            <PinIcon filled={isPinned(id)} />
+            <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
           </IconButton>
           <IconButton label={removeLabel} onClick={remove}>
             {mine ? <TrashIcon /> : <LeaveIcon />}
@@ -209,19 +234,5 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       <EditorContent editor={editor} className="flex-1 overflow-y-auto" />
       <Toolbar editor={editor} />
     </>
-  )
-}
-
-function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className="flex h-10 w-10 shrink-0 items-center justify-center"
-      onClick={onClick}
-    >
-      {children}
-    </button>
   )
 }

@@ -11,7 +11,7 @@ const phone = async (browser: Browser, name: string) => {
 
 test('on a phone the header keeps the title, and the dots reveal the usual actions', async ({ browser }) => {
   const page = await phone(browser, `alice-${uid()}`)
-  await page.getByRole('button', { name: '+ New' }).click()
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
   await page.keyboard.type('A rather long title for a phone screen')
 
@@ -33,7 +33,7 @@ test('a shared note shows a people icon beside the dots, for both sides', async 
   const b = `bob-${uid()}`
   const bob = await phone(browser, b)
   const alice = await phone(browser, a)
-  await alice.getByRole('button', { name: '+ New' }).click()
+  await alice.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(alice.getByPlaceholder('Title')).toBeFocused()
   await alice.keyboard.type('Groceries')
   await alice.getByRole('button', { name: 'More' }).click()

@@ -1,4 +1,5 @@
 import type { Node } from '@tiptap/pm/model'
+import { TextSelection } from '@tiptap/pm/state'
 import { Extension, type Editor } from '@tiptap/react'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
@@ -45,6 +46,29 @@ export function toggleList(editor: Editor, type: ListType) {
   else if (list && list !== type) convertList(editor, depth!, type)
   // TipTap lifts a line out of its own list type, and wraps a plain line.
   else editor.chain().focus().toggleList(type, ITEM[type]).run()
+}
+
+// Swaps the line, with everything nested under it, with its neighbor in the same list or the note.
+// A move is a delete and an insert, so an edit someone makes inside that line at the same moment is lost.
+export function moveLine(editor: Editor, dir: -1 | 1) {
+  const { $from, from, to } = editor.state.selection
+  const depth = listPosition(editor).depth ?? 1
+  const parent = $from.node(depth - 1)
+  const index = $from.index(depth - 1)
+  if (index + dir < 0 || index + dir >= parent.childCount) return
+  const line = parent.child(index)
+  const other = parent.child(index + dir)
+  const start = $from.before(depth) - (dir < 0 ? other.nodeSize : 0)
+  const shift = dir * other.nodeSize
+  editor
+    .chain()
+    .focus()
+    .command(({ tr }) => {
+      tr.replaceWith(start, start + line.nodeSize + other.nodeSize, dir < 0 ? [line, other] : [other, line])
+      tr.setSelection(TextSelection.create(tr.doc, from + shift, to + shift))
+      return true
+    })
+    .run()
 }
 
 // TipTap's own Tab handlers each indent their own item type, which grabs the parent line when a

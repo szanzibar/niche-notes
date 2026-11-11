@@ -65,6 +65,8 @@ Neo-brutalist: bold and direct, not the rounded gray card look.
 - Corners are square, or one small radius used everywhere.
 - Off-white `#FAFAF8` base, near-black `#111` text, coral red `#FF4F3B` accent. Dark mode flips the neutrals through `light-dark()` on the same tokens; the accent is the user's setting.
 - Space Grotesk for type.
+- Icons over words. A button shows an icon, with its name as `aria-label` and `title` (`IconButton`). Words only where no icon reads clearly, such as Restore or Delete forever.
+- The accent marks what is on or chosen: a pinned or shared note, an active tool, the selection, a highlight.
 - No gradients, glass, transparency or skeleton loaders.
 - Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `text-ink`, `text-ink-muted`, `bg-accent`, `border-border`, `shadow-brutal`).
 - Radix UI headless primitives, styled by hand. Not shadcn/ui.

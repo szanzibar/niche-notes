@@ -17,6 +17,7 @@
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@tiptap/extension-collaboration": "^3.33.0",
     "@tiptap/extension-collaboration-caret": "^3.33.0",
+    "@tiptap/extension-highlight": "^3.33.0",
     "@tiptap/extension-list": "^3.33.0",
     "@tiptap/extensions": "^3.33.0",
     "@tiptap/react": "^3.33.0",

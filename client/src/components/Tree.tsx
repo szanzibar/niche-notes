@@ -36,8 +36,8 @@ import {
   titleOf,
   trashed,
 } from '../sync/tree'
-import { Button } from './Button'
-import { PinIcon } from './icons'
+import { Button, IconButton } from './Button'
+import { LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
 
@@ -196,8 +196,14 @@ export function Tree({ selected }: { selected?: string }) {
           )}
         </div>
         <OfflineIcon />
-        <Button variant="primary" onClick={() => navigate(`/n/${createNote(null)}`)}>
-          + New
+        <Button
+          variant="primary"
+          aria-label="New note"
+          title="New note"
+          className="w-10 px-0!"
+          onClick={() => navigate(`/n/${createNote(null)}`)}
+        >
+          <PlusIcon />
         </Button>
       </RootDropZone>
       <nav className="flex-1 overflow-x-hidden overflow-y-auto">
@@ -234,30 +240,31 @@ export function Tree({ selected }: { selected?: string }) {
           </>
         )}
       </nav>
-      {trash.length > 0 && (
-        <section className="shrink-0 border-t-2 border-border">
-          <button
-            type="button"
-            className="w-full px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted"
-            onClick={() => setTrashOpen(!trashOpen)}
-          >
-            Trash ({trash.length})
-          </button>
-          {trashOpen && (
-            <div className="max-h-56 overflow-y-auto">
-              {trash.map((id) => (
-                <TrashRow key={id} id={id} selected={selected} />
-              ))}
-            </div>
-          )}
+      {trashOpen && trash.length > 0 && (
+        <section className="max-h-64 shrink-0 overflow-y-auto border-t-2 border-border">
+          <p className="px-4 pt-2 text-xs font-bold uppercase tracking-wide text-ink-muted">Trash</p>
+          {trash.map((id) => (
+            <TrashRow key={id} id={id} selected={selected} />
+          ))}
         </section>
       )}
-      <footer className="flex items-center gap-3 border-t-2 border-border px-4 py-2 text-sm">
+      <footer className="flex items-center gap-1 border-t-2 border-border py-1 pl-4 pr-2 text-sm">
         <span className="flex-1 truncate">{s.me!.name}</span>
+        {trash.length > 0 && (
+          <IconButton
+            label={`Trash (${trash.length})`}
+            aria-expanded={trashOpen}
+            className={`px-1 ${trashOpen ? 'text-accent' : ''}`}
+            onClick={() => setTrashOpen(!trashOpen)}
+          >
+            <TrashIcon />
+            <span className="font-bold">{trash.length}</span>
+          </IconButton>
+        )}
         <SettingsDialog />
-        <button type="button" className="underline" onClick={signOut}>
-          Sign out
-        </button>
+        <IconButton label="Sign out" onClick={signOut}>
+          <LeaveIcon />
+        </IconButton>
       </footer>
       {createPortal(
         <DragOverlay dropAnimation={null}>
@@ -375,7 +382,9 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
           onClick={() => openNote(id)}
         >
           <span className="truncate font-medium">{titleOf(id)}</span>
-          {isPinned(id) && <PinIcon filled className="h-3.5 w-3.5 shrink-0 self-center" />}
+          {isPinned(id) && (
+            <PinIcon filled className={`h-3.5 w-3.5 shrink-0 self-center ${active ? '' : 'text-accent'}`} />
+          )}
           {tag && <span className={`shrink-0 text-xs ${active ? 'text-white/80' : 'text-ink-muted'}`}>{tag}</span>}
         </button>
         <button

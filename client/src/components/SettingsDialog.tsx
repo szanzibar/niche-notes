@@ -1,7 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useY } from '../sync/hooks'
 import { settings } from '../sync/tree'
-import { Button } from './Button'
+import { Button, IconButton } from './Button'
+import { SettingsIcon } from './icons'
 
 // Dark enough for white text on a selected row, and bright enough to show against a dark background.
 const ACCENTS = [
@@ -36,9 +37,9 @@ export function SettingsDialog() {
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <button type="button" className="underline">
-          Settings
-        </button>
+        <IconButton label="Settings">
+          <SettingsIcon />
+        </IconButton>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40" />
