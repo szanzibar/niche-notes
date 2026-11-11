@@ -104,3 +104,24 @@ test('notes someone shared reorder like any other', async ({ browser }) => {
   titles = await rowTitles(bob)
   expect(titles).toEqual(['One', 'Two', 'Three'])
 })
+
+test('a launch draws the tree with saved titles, without waiting for the notes', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Draft')
+  await page.getByPlaceholder('Title').fill('Final')
+  await newNote(page, 'Old')
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  // Lets the saved titles land before the reload.
+  await page.waitForTimeout(500)
+  // The rows of the first draw, before any note has loaded.
+  await page.addInitScript(() => {
+    new MutationObserver((_, observer) => {
+      const rows = document.querySelectorAll('aside [aria-roledescription="draggable"] > span:first-child')
+      if (rows.length === 0) return
+      sessionStorage.setItem('firstRows', JSON.stringify([...rows].map((r) => r.textContent)))
+      observer.disconnect()
+    }).observe(document, { childList: true, subtree: true })
+  })
+  await page.reload()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('firstRows'))).toBe('["Final"]')
+})

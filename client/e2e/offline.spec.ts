@@ -33,3 +33,33 @@ test('edits made offline arrive when back online, and the other side catches up'
   const aliceAgain = await signIn(browser, a)
   await expect(row(aliceAgain, 'Written offline')).toBeVisible()
 })
+
+test('a launch draws the note from the device while the server has not answered', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Groceries', 'milk')
+  await page.route('**/api/me', () => {})
+  await page.reload()
+  await expect(page.locator('.editor-body')).toContainText('milk')
+})
+
+test('signing in as someone else on the same browser shows their tree', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Alice only')
+  await page.goto(`/auth/login?as=bob-${uid()}`)
+  await expect(row(page, 'Alice only')).toHaveCount(0)
+})
+
+test('a launch with an expired token still syncs once the server answers', async ({ browser }) => {
+  const a = `alice-${uid()}`
+  const page = await signIn(browser, a)
+  await newNote(page, 'Groceries', 'milk')
+  await page.evaluate(() => {
+    const session = JSON.parse(localStorage.getItem('session')!)
+    localStorage.setItem('session', JSON.stringify({ ...session, token: 'expired' }))
+  })
+  await page.reload()
+  await typeAtEnd(page, ' eggs')
+  const again = await signIn(browser, a)
+  await row(again, 'Groceries').click()
+  await expect(again.locator('.editor-body')).toContainText('eggs')
+})

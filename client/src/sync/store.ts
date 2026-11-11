@@ -13,8 +13,9 @@ interface UpdateRow {
 }
 interface DocRow {
   id: string
-  seq: number
+  seq?: number
   owner?: string
+  meta?: Record<string, unknown>
 }
 interface KvRow {
   key: string
@@ -37,6 +38,8 @@ export const store = {
   shares: [] as Share[],
   users: [] as User[],
   owners: new Map<string, string>(),
+  // A copy of each note's meta map, so the tree can draw titles before the notes load.
+  meta: new Map<string, Record<string, unknown>>(),
   // Docs the server refused since startup. The tree prunes their placements.
   lost: new Set<string>(),
   collapsed: new Set<string>(),
@@ -84,16 +87,20 @@ export function expand(id: string) {
 }
 
 let starting: Promise<void> | undefined
+let token: string
 
 // Every caller gets the same promise, so nothing renders before the tree doc is loaded.
-export function start(me: User, token: string) {
-  return (starting ??= run(me, token))
+// The notes load after it, without holding up the first draw.
+// A later call only hands the socket a fresher token for its next connect.
+export function start(me: User, fresh: string) {
+  token = fresh
+  return (starting ??= run(me))
 }
 
-async function run(me: User, token: string) {
+async function run(me: User) {
   store.me = me
 
-  socket = new Socket('/socket', { params: { token } })
+  socket = new Socket('/socket', { params: () => ({ token }) })
   socket.onOpen(() => {
     store.online = true
     notify()
@@ -121,12 +128,18 @@ async function run(me: User, token: string) {
 
   for (const row of await db.docs.toArray()) {
     if (row.owner) store.owners.set(row.id, row.owner)
+    if (row.meta) store.meta.set(row.id, row.meta)
   }
 
   const tree = await openDoc(me.id)
   const nodes = tree.getMap('nodes')
-  nodes.observe(() => nodes.forEach((_node, id) => void openDoc(id)))
-  await Promise.all([...nodes.keys()].map((id) => openDoc(id)))
+  nodes.observe((event) => {
+    for (const id of event.keysChanged) if (nodes.has(id)) void openDoc(id)
+  })
+  // One at a time, so the note on screen waits behind one load instead of all of them.
+  void (async () => {
+    for (const id of [...nodes.keys()]) await openDoc(id)
+  })()
 
   store.shares = ((await db.kv.get('shares'))?.value as Share[] | undefined) ?? []
   store.users = ((await db.kv.get('users'))?.value as User[] | undefined) ?? []
@@ -204,14 +217,24 @@ async function load(id: string): Promise<Y.Doc> {
   const doc = new Y.Doc()
   const awareness = new Awareness(doc)
   awarenesses.set(id, awareness)
-  // Title and deleted flag drive the tree, so any change redraws it.
-  doc.getMap('meta').observe(notify)
   const rows = await db.updates.where('doc').equals(id).toArray()
   const seen = new Set<number>()
   for (const row of rows) {
     Y.applyUpdate(doc, row.update, 'local')
     if (row.seq != null) seen.add(row.seq)
   }
+  // Watched after the replay, so replaying the log doesn't write every title the note ever had.
+  // A reload before the write lands shows the old title until this note loads again.
+  const meta = doc.getMap('meta')
+  const copyMeta = () => {
+    const value = meta.toJSON()
+    if (JSON.stringify(value) === JSON.stringify(store.meta.get(id))) return
+    store.meta.set(id, value)
+    void db.docs.upsert(id, { meta: value })
+    notify()
+  }
+  copyMeta()
+  meta.observe(copyMeta)
   let logged = rows.length
   let since = (await db.docs.get(id))?.seq ?? 0
   const inflight = new Set<Promise<number>>()
@@ -299,10 +322,13 @@ async function load(id: string): Promise<Y.Doc> {
         owner_id: string
         compact: boolean
       }) => {
-        store.owners.set(id, owner_id)
+        if (store.owners.get(id) !== owner_id) {
+          store.owners.set(id, owner_id)
+          notify()
+        }
         await fromServer(updates)
         since = seq
-        await db.docs.put({ id, seq, owner: owner_id })
+        await db.docs.upsert(id, { seq, owner: owner_id })
         if (since > 0 && (fold || logged > LOG_LIMIT)) compact()
         const inflightIds = new Set(await Promise.all(inflight))
         const unsent = await db.updates
@@ -314,7 +340,6 @@ async function load(id: string): Promise<Y.Doc> {
         if (awareness.getLocalState()) {
           channel.push('awareness', { update: toBase64(encodeAwarenessUpdate(awareness, [doc.clientID])) })
         }
-        notify()
       },
     )
     .receive('error', ({ reason }: { reason: string }) => {
@@ -322,7 +347,6 @@ async function load(id: string): Promise<Y.Doc> {
     })
 
   docs.set(id, doc)
-  notify()
   return doc
 }
 

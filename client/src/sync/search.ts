@@ -28,7 +28,8 @@ export function textOf(id: string) {
   return text
 }
 
-// Title matches first, then text matches, each with the words around the first hit.
+// Title matches first, then text matches, each with the words around the first hit. It covers the
+// notes loaded so far, so for about a second after launch it can miss some.
 export function search(query: string): Hit[] {
   const q = query.trim().toLowerCase()
   if (!q) return []

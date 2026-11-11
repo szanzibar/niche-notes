@@ -37,6 +37,8 @@ Socket at `/socket`, authenticated by the token that `/api/me` returns.
 
 **Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`. A join reply is applied as one Y.js transaction, so a note opened on a new device appears whole. When the join reply asks for it, or its own local log has grown past a few dozen rows, the client sends a snapshot and folds its own rows the same way.
 
+The client also keeps a copy of each note's `meta` in IndexedDB, so a launch draws the whole tree before any note loads. The notes then load one at a time, so the note on screen waits behind one load at most.
+
 ## REST
 
 Cookie session, JSON.

@@ -21,16 +21,12 @@ export function settings() {
   return getDoc(store.me!.id)!.getMap('settings')
 }
 
-export function meta(id: string) {
-  return getDoc(id)?.getMap('meta')
-}
-
 export function titleOf(id: string) {
-  return (meta(id)?.get('title') as string | undefined) || 'Untitled'
+  return (store.meta.get(id)?.title as string | undefined) || 'Untitled'
 }
 
 export function isDeleted(id: string) {
-  return meta(id)?.get('deleted') === true
+  return store.meta.get(id)?.deleted === true
 }
 
 export function hasLeft(id: string) {
@@ -43,7 +39,7 @@ export function inTrash(id: string) {
 }
 
 function trashedAt(id: string) {
-  return nodes().get(id)?.leftAt ?? (meta(id)?.get('deletedAt') as number | undefined) ?? 0
+  return nodes().get(id)?.leftAt ?? (store.meta.get(id)?.deletedAt as number | undefined) ?? 0
 }
 
 export function ownerOf(id: string) {
@@ -141,8 +137,9 @@ export function removeFromTree(id: string) {
 // Deleting is a flag in the note, so it syncs everywhere. The placement stays, which is what Restore puts back.
 export function deleteNote(id: string) {
   liftChildren(id)
-  meta(id)?.set('deleted', true)
-  meta(id)?.set('deletedAt', Date.now())
+  const meta = getDoc(id)?.getMap('meta')
+  meta?.set('deleted', true)
+  meta?.set('deletedAt', Date.now())
 }
 
 export function leaveNote(id: string) {
@@ -150,14 +147,16 @@ export function leaveNote(id: string) {
   if (node) nodes().set(id, { ...node, leftAt: Date.now() })
 }
 
-export function restoreNote(id: string) {
+// The trash lists notes that may not have loaded yet.
+export async function restoreNote(id: string) {
   const node = nodes().get(id)
   if (node?.leftAt != null) {
     nodes().set(id, { parent: node.parent, order: node.order, pinned: node.pinned })
     return
   }
-  meta(id)?.set('deleted', false)
-  meta(id)?.delete('deletedAt')
+  const meta = (await openDoc(id)).getMap('meta')
+  meta.set('deleted', false)
+  meta.delete('deletedAt')
   if (!node) nodes().set(id, { parent: null, order: Date.now() })
 }
 

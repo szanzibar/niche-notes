@@ -18,23 +18,22 @@ export default function App() {
 
   useEffect(() => {
     const cached = localStorage.getItem('session')
+    const draw = ({ user, token }: Session) =>
+      start(user, token).then(() => {
+        setMe(user)
+        void purgeExpired()
+      })
+    // Draw the last signed-in user's local data first, so a launch never waits on the network.
+    if (cached) void draw(JSON.parse(cached) as Session)
     api
       .me()
       .then((session) => {
         localStorage.setItem('session', JSON.stringify(session))
-        return session
+        if (!cached) return draw(session)
+        // Someone else signed in on this browser.
+        if (session.user.id !== (JSON.parse(cached) as Session).user.id) window.location.reload()
+        else void start(session.user, session.token)
       })
-      .catch((err: Error) => {
-        // Offline start: trust the last signed-in user and the local data.
-        if (err.message === 'unauthenticated' || !cached) throw err
-        return JSON.parse(cached) as Session
-      })
-      .then(({ user, token }) =>
-        start(user, token).then(() => {
-          setMe(user)
-          void purgeExpired()
-        }),
-      )
       .catch(() => {})
   }, [])
 

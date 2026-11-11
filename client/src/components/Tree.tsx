@@ -25,7 +25,6 @@ import {
   inTrash,
   isMine,
   isPinned,
-  meta,
   nodes,
   ownerName,
   placeNote,
@@ -275,7 +274,6 @@ export function Tree({ selected }: { selected?: string }) {
 function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const navigate = useNavigate()
   const s = useStore()
-  useY(meta(id))
   const active = selected === id
   return (
     <div
@@ -328,7 +326,6 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
   const navigate = useNavigate()
   const openNote = useOpenNote()
   const s = useStore()
-  useY(meta(id))
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
   const { setNodeRef: dropRef } = useDroppable({ id, disabled: isDragging })
   if (inTrash(id)) return null
