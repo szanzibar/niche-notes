@@ -24,8 +24,11 @@ public class WidgetActivity extends Activity {
             NoteWidget.picks(this).edit()
                     .putString("note." + widget, pick.getQueryParameter("note"))
                     .putString("title." + widget, pick.getQueryParameter("title"))
+                    .putString("token." + widget, pick.getQueryParameter("token"))
+                    .remove("lines." + widget)
                     .apply();
             NoteWidget.show(this, widget);
+            sendBroadcast(NoteWidget.refresh(this, widget));
             startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
         finish();

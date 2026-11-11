@@ -49,4 +49,6 @@ Cookie session, JSON.
 - `DELETE /api/docs/:id` — owner only, removes the doc and its updates and shares for good
 - `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc
 - `DELETE /api/docs/:id/shares/:user_id` — the owner for anyone, or a recipient for themselves
+- `GET /api/docs/:id/widget_token` — anyone who can open the note: `{ token }` for a widget (ADR 005)
+- `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines }`, one line per paragraph or list item. 404 once the note is in the trash or no longer shared, 401 for any other token
 - `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`

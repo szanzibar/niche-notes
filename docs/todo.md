@@ -36,10 +36,10 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 Several home-screen widgets, each showing a whole note Steven picks, read-only; a tap opens the note in the app. The picker is the tree on `/widget/:id`, where choosing a note hands it to the app through an `intent://` link. The server reads notes with y_ex (ADR 001 amendment, proved on real data 2026-11-10). Android 12 is the minimum.
 
 - [x] Picker hand-off: the tree in pick mode, `WidgetActivity` for adding, reconfiguring and receiving the pick, the widget showing the picked title (2026-11-10)
-- [ ] Steven tries the hand-off on his phone: add a widget, pick a note, tap the widget to open it, reconfigure it
-- [ ] Server: y_ex turns a note into title and lines; a widget token from the session; an endpoint a widget reads its note from
-- [ ] The widget shows the whole note as a scrolling list, refreshes every 30 minutes and from a button
-- [ ] ADR for how widgets sign in
+- [x] Server: y_ex turns a note into title and lines; a widget token from the session; an endpoint a widget reads its note from (2026-11-11)
+- [x] The widget shows the whole note as a scrolling list, refreshes every 30 minutes and from a button (2026-11-11)
+- [x] ADR 005 for how widgets sign in (2026-11-11)
+- [ ] Steven tries the widget on his phone: re-pick widgets added before tokens existed, see the lines, refresh, tap to open the note, reconfigure it, and see it offer the picker again once its note is deleted
 - Later: instant refresh through Firebase Cloud Messaging, if 30 minutes feels stale
 
 ## Later

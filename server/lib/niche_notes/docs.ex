@@ -1,7 +1,8 @@
 defmodule NicheNotes.Docs do
   @moduledoc """
-  Y.js documents as opaque update logs. A doc is a user's tree (id == owner_id) or a note.
-  The server stores who owns what and who it is shared with, and never reads a document.
+  Y.js documents as update logs. A doc is a user's tree (id == owner_id) or a note.
+  The server stores who owns what and who it is shared with. It reads a note only for work that
+  has to happen while every app is closed, such as a home-screen widget.
   """
   import Ecto.Query
   alias NicheNotes.Repo
@@ -62,6 +63,67 @@ defmodule NicheNotes.Docs do
 
     idle = last == nil or DateTime.diff(DateTime.utc_now(), last) > @compact_idle_seconds
     rows > @compact_rows or (rows > 1 and idle)
+  end
+
+  # A note as plain lines for a widget. One the user can no longer open, or that is in the trash, is gone.
+  def read_note(doc_id, user_id) do
+    doc = Yex.Doc.new()
+    updates = from u in DocUpdate, where: u.doc_id == ^doc_id, order_by: u.id, select: u.update
+
+    with true <- can_access?(doc_id, user_id),
+         {:ok, update} <- Yex.merge_updates(Repo.all(updates)),
+         :ok <- Yex.apply_update(doc, update),
+         meta = doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map(),
+         false <- Map.get(meta, "deleted", false) do
+      title = if meta["title"] in [nil, ""], do: "Untitled", else: meta["title"]
+      content = doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()
+      {:ok, %{title: title, lines: Enum.flat_map(content, &lines(&1, 0))}}
+    else
+      _ -> :error
+    end
+  end
+
+  # One line per paragraph or list item, with nested items indented under their parent.
+  defp lines(element, depth) do
+    indent = String.duplicate("    ", depth)
+
+    case Yex.XmlElement.get_tag(element) do
+      list when list in ["bulletList", "orderedList", "taskList"] ->
+        element
+        |> Yex.XmlElement.children()
+        |> Enum.with_index(1)
+        |> Enum.flat_map(fn {item, n} ->
+          [first | rest] = Enum.to_list(Yex.XmlElement.children(item))
+
+          [
+            indent <> mark(list, item, n) <> text(first)
+            | Enum.flat_map(rest, &lines(&1, depth + 1))
+          ]
+        end)
+
+      "blockquote" ->
+        element |> Yex.XmlElement.children() |> Enum.flat_map(&lines(&1, depth))
+
+      _ ->
+        case text(element) do
+          "" -> []
+          text -> [indent <> text]
+        end
+    end
+  end
+
+  defp mark("bulletList", _item, _n), do: "• "
+  defp mark("orderedList", _item, n), do: "#{n}. "
+
+  defp mark("taskList", item, _n),
+    do: if(Yex.XmlElement.get_attribute(item, "checked"), do: "☑ ", else: "☐ ")
+
+  # The text without its bold and italic marks, which `to_string` would write as tags.
+  defp text(element) do
+    for %Yex.XmlText{} = text <- Yex.XmlElement.children(element),
+        %{insert: insert} when is_binary(insert) <- Yex.XmlText.to_delta(text),
+        into: "",
+        do: insert
   end
 
   def append_update(doc_id, update) do

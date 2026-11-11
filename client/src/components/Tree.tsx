@@ -60,13 +60,16 @@ class HandleSensor extends TouchSensor {
 }
 
 // The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it.
+// The token lets the widget read the note from the server while the app is closed.
 function useOpenNote() {
   const navigate = useNavigate()
   const widget = useMatch('/widget/:id')?.params.id
   return (id: string) => {
     if (!widget) return navigate(`/n/${id}`)
-    const query = new URLSearchParams({ id: widget, note: id, title: titleOf(id) })
-    window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;package=app.nichenotes;end`
+    void api.widgetToken(id).then(({ token }) => {
+      const query = new URLSearchParams({ id: widget, note: id, title: titleOf(id), token })
+      window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;package=app.nichenotes;end`
+    })
   }
 }
 
@@ -164,7 +167,7 @@ export function Tree({ selected }: { selected?: string }) {
     >
       {picking && (
         <p className="border-b-2 border-border bg-accent px-4 py-2 text-sm font-bold text-white">
-          Tap a note to show it in the widget
+          {s.online === false ? 'Connect to the internet to pick a note' : 'Tap a note to show it in the widget'}
         </p>
       )}
       <RootDropZone active={hint?.id === ROOT}>

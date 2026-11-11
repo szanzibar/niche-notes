@@ -37,7 +37,8 @@ defmodule NicheNotes.MixProject do
       {:assent, "~> 0.3"},
       {:req, "~> 0.5"},
       {:jason, "~> 1.2"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:y_ex, "~> 0.13.0"}
     ]
   end
 

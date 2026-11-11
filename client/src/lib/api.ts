@@ -23,5 +23,6 @@ export const api = {
   deleteDoc: (docId: string) => request<void>(`/docs/${docId}`, { method: 'DELETE' }),
   unshare: (docId: string, userId: string) =>
     request<void>(`/docs/${docId}/shares/${userId}`, { method: 'DELETE' }),
+  widgetToken: (docId: string) => request<{ token: string }>(`/docs/${docId}/widget_token`),
   logout: () => fetch('/auth/logout', { method: 'DELETE' }),
 }

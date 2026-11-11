@@ -35,6 +35,12 @@ defmodule NicheNotesWeb.Router do
     delete "/docs/:id", DocController, :delete
     post "/docs/:doc_id/shares", ShareController, :create
     delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
+    get "/docs/:doc_id/widget_token", WidgetController, :token
+  end
+
+  # A widget has no session. Its token says who it reads for.
+  scope "/api", NicheNotesWeb do
+    get "/widget", WidgetController, :show
   end
 
   scope "/", NicheNotesWeb do
