@@ -21,6 +21,15 @@ test('the highlight color is a setting that follows the user to every device', a
   await expect.poll(() => accent(other)).toBe('#2F6BFF')
 })
 
+test('the highlight colors sit on one row, even on a phone', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Settings' }).click()
+  const colors = ['Coral', 'Blue', 'Green', 'Purple', 'Orange', 'Pink', 'Teal']
+  const tops = await Promise.all(colors.map(async (name) => (await page.getByRole('button', { name }).boundingBox())!.y))
+  expect(new Set(tops).size).toBe(1)
+})
+
 test('appearance follows the device until told otherwise', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await page.emulateMedia({ colorScheme: 'dark' })

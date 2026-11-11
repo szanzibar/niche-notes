@@ -56,6 +56,43 @@ function caretColor(userId: string) {
   return caretColors[hash % caretColors.length]
 }
 
+// A finger never starts the browser's own drag, so a touch on the grip plays the drag events the editor
+// moves lines with. Dragging past the visible part of a long note doesn't scroll it.
+function dragByTouch(grip: HTMLElement | null) {
+  if (!grip) return
+  const start = (down: TouchEvent) => {
+    down.preventDefault()
+    const dataTransfer = new DataTransfer()
+    let at = down.touches[0]
+    let dragging = false
+    const fire = (type: string, target: Element | null) =>
+      target?.dispatchEvent(
+        new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: at.clientX, clientY: at.clientY }),
+      )
+    const move = (e: TouchEvent) => {
+      e.preventDefault()
+      if (!dragging) fire('dragstart', grip)
+      dragging = true
+      at = e.touches[0]
+      fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
+    }
+    const end = (e: TouchEvent) => {
+      if (dragging) {
+        if (e.type === 'touchend') fire('drop', document.elementFromPoint(at.clientX, at.clientY))
+        fire('dragend', grip)
+      }
+      document.removeEventListener('touchmove', move)
+      document.removeEventListener('touchend', end)
+      document.removeEventListener('touchcancel', end)
+    }
+    document.addEventListener('touchmove', move, { passive: false })
+    document.addEventListener('touchend', end)
+    document.addEventListener('touchcancel', end)
+  }
+  grip.addEventListener('touchstart', start, { passive: false })
+  return () => grip.removeEventListener('touchstart', start)
+}
+
 export function NoteView({ id }: { id: string }) {
   const doc = useDoc(id)
   if (!doc) return null
@@ -246,7 +283,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           nested={{ edgeDetection: 'none' }}
           className="drag-handle flex h-8 w-6 cursor-grab items-center justify-center text-ink-muted hover:text-accent"
         >
-          <GripIcon className="h-5 w-5" />
+          <span ref={dragByTouch} className="flex h-full w-full items-center justify-center">
+            <GripIcon className="h-5 w-5" />
+          </span>
         </DragHandle>
       )}
       <Toolbar editor={editor} />

@@ -86,6 +86,29 @@ test('dragging a line by its handle moves it, with what is nested under it', asy
   await expect(body(page).locator('li li p')).toHaveText('Child')
 })
 
+test('on a touch screen a finger drags a line by its handle', async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
+  const page = await context.newPage()
+  await page.goto(`/auth/login?as=alice-${uid()}`)
+  await checklist(page, 'One', 'Two')
+  const line = (text: string) => body(page).locator('li p').getByText(text, { exact: true })
+
+  // A phone's tap sends this mouse move. Tapping here would leave Playwright's mouse on the toolbar.
+  await line('Two').hover()
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+  const from = (await page.locator('.drag-handle').boundingBox())!
+  const to = (await line('One').boundingBox())!
+  // Playwright has no touch drag, so the touches go straight to Chrome.
+  const cdp = await context.newCDPSession(page)
+  const touch = (type: string, x = 0, y = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+  const [x0, y0, x1, y1] = [from.x + from.width / 2, from.y + from.height / 2, to.x + 5, to.y + 2]
+  await touch('touchStart', x0, y0)
+  for (let step = 1; step <= 8; step++) await touch('touchMove', x0 + ((x1 - x0) * step) / 8, y0 + ((y1 - y0) * step) / 8)
+  await touch('touchEnd')
+  await expect(body(page).locator('li p')).toHaveText(['Two', 'One'])
+})
+
 test('the pointer crossing a nested checkbox on the way to the handle keeps the handle on that line', async ({
   browser,
 }) => {

@@ -49,7 +49,7 @@ export function SettingsDialog() {
         >
           <Dialog.Title className="mb-3 text-lg font-bold">Settings</Dialog.Title>
           <p className="mb-2 font-medium">Highlight color</p>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid auto-cols-fr grid-flow-col gap-2">
             {ACCENTS.map(([name, hex]) => (
               <button
                 key={hex}
@@ -57,7 +57,7 @@ export function SettingsDialog() {
                 aria-label={name}
                 aria-pressed={hex === accent}
                 title={name}
-                className={`h-10 w-10 border-2 border-border ${hex === accent ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
+                className={`aspect-square border-2 border-border ${hex === accent ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
                 style={{ background: hex }}
                 onClick={() => prefs.set('accent', hex)}
               />

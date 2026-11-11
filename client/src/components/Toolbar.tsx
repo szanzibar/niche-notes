@@ -163,23 +163,11 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           </Tool>
         </Group>
         <Group>
-          <Tool label="Bold" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()}>
-            <BoldIcon className={ICON} />
+          <Tool label="Undo" onClick={() => chain().undo().run()}>
+            <UndoIcon className={ICON} />
           </Tool>
-          <Tool label="Italic" active={editor.isActive('italic')} onClick={() => chain().toggleItalic().run()}>
-            <ItalicIcon className={ICON} />
-          </Tool>
-          <Tool label="Strikethrough" active={editor.isActive('strike')} onClick={() => chain().toggleStrike().run()}>
-            <StrikeIcon className={ICON} />
-          </Tool>
-          <Tool label="Code" active={editor.isActive('code')} onClick={() => chain().toggleCode().run()}>
-            <CodeIcon className={ICON} />
-          </Tool>
-          <Tool label="Link" active={row === 'link' || editor.isActive('link')} onClick={openLink}>
-            <LinkIcon className={ICON} />
-          </Tool>
-          <Tool label="Highlight" active={editor.isActive('highlight')} onClick={() => chain().toggleHighlight().run()}>
-            <HighlightIcon className={ICON} />
+          <Tool label="Redo" onClick={() => chain().redo().run()}>
+            <RedoIcon className={ICON} />
           </Tool>
         </Group>
         <Group>
@@ -201,11 +189,23 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           </Tool>
         </Group>
         <Group>
-          <Tool label="Undo" onClick={() => chain().undo().run()}>
-            <UndoIcon className={ICON} />
+          <Tool label="Bold" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()}>
+            <BoldIcon className={ICON} />
           </Tool>
-          <Tool label="Redo" onClick={() => chain().redo().run()}>
-            <RedoIcon className={ICON} />
+          <Tool label="Italic" active={editor.isActive('italic')} onClick={() => chain().toggleItalic().run()}>
+            <ItalicIcon className={ICON} />
+          </Tool>
+          <Tool label="Strikethrough" active={editor.isActive('strike')} onClick={() => chain().toggleStrike().run()}>
+            <StrikeIcon className={ICON} />
+          </Tool>
+          <Tool label="Code" active={editor.isActive('code')} onClick={() => chain().toggleCode().run()}>
+            <CodeIcon className={ICON} />
+          </Tool>
+          <Tool label="Link" active={row === 'link' || editor.isActive('link')} onClick={openLink}>
+            <LinkIcon className={ICON} />
+          </Tool>
+          <Tool label="Highlight" active={editor.isActive('highlight')} onClick={() => chain().toggleHighlight().run()}>
+            <HighlightIcon className={ICON} />
           </Tool>
         </Group>
       </div>
