@@ -1,6 +1,7 @@
 package app.nichenotes;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.appwidget.AppWidgetManager;
 import android.content.Intent;
 import android.net.Uri;
@@ -29,7 +30,10 @@ public class WidgetActivity extends Activity {
                     .apply();
             NoteWidget.show(this, widget);
             sendBroadcast(NoteWidget.refresh(this, widget));
-            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            // Close the picker the way back does. Smart Launcher drops a widget it is still adding if we start the home screen instead.
+            for (ActivityManager.AppTask task : getSystemService(ActivityManager.class).getAppTasks()) {
+                task.finishAndRemoveTask();
+            }
         }
         finish();
     }
