@@ -4,7 +4,7 @@
 
 Built 2026-11-08, polished through 2026-11-09 from Steven's in-app task list: title focus, Enter/Tab to body, + on rows, drag and drop with sibling and child drop lines and a touch grip, ownership labels, persistent undo, live unshare, server-first pushes, trash with Restore, Delete forever, Leave and a 30-day client-side sweep, live carets, snapshot compaction decided by the server, read-only trashed notes, list buttons that act on the cursor's own level, search over everything including the trash, pins, shared notes landing at the top of the recipient's tree, settings for highlight color, appearance and density, a phone header whose dots reveal the action row, and a conflict spec that replays two people shopping offline. Every flow has a Playwright test in `client/e2e` (`npm run e2e` from `client/`); the server has ExUnit tests (`mix test` from `server/`).
 
-Steven keeps the running task list in the app itself, in the note "niche note task list". Read it with `node scripts/note.mjs show "task list"` from `client/` and tick items with `check` when they are done.
+Steven keeps the running task list in a prod note; CLAUDE.md says how to read it.
 
 ## Before the apps
 

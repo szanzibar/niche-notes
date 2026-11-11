@@ -83,7 +83,10 @@ public class NoteWidget extends AppWidgetProvider {
     static void fetch(Context context, int widget) {
         SharedPreferences picks = picks(context);
         String token = picks.getString("token." + widget, null);
-        if (token != null) {
+        if (token == null) {
+            // Picked before widgets had tokens, or by a picker page from before: offer the picker again.
+            forget(picks.edit(), widget).apply();
+        } else {
             try {
                 HttpURLConnection http = (HttpURLConnection) new URL(SITE + "/api/widget").openConnection();
                 http.setRequestProperty("Authorization", "Bearer " + token);
