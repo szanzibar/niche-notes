@@ -3,28 +3,34 @@ import { useEffect, useReducer, useState } from 'react'
 import {
   BoldIcon,
   BulletListIcon,
+  CheckIcon,
+  CodeBlockIcon,
   ChecklistIcon,
   CodeIcon,
+  DividerIcon,
   HeadingIcon,
   HighlightIcon,
   IndentIcon,
   ItalicIcon,
   LinkIcon,
-  MoveDownIcon,
-  MoveUpIcon,
   NumberedListIcon,
+  OpenLinkIcon,
   OutdentIcon,
+  QuoteIcon,
   RedoIcon,
   StrikeIcon,
   UndoIcon,
+  UnlinkIcon,
 } from './icons'
-import { listPosition, moveLine, toggleList } from './lists'
+import { listPosition, toggleList } from './lists'
 
 const ICON = 'h-5 w-5'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
-  const [styles, setStyles] = useState(false)
+  // One row opens above the bar at a time: text styles, or the address of a link.
+  const [row, setRow] = useState<'styles' | 'link' | null>(null)
+  const [href, setHref] = useState('')
   useEffect(() => {
     if (!editor) return
     editor.on('transaction', force)
@@ -36,26 +42,88 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
 
   const { item, list } = listPosition(editor)
   const listItem = item ?? 'listItem'
+  const link = editor.getAttributes('link').href as string | undefined
   const chain = () => editor.chain().focus()
-  const style = (apply: () => void) => {
-    apply()
-    setStyles(false)
+  // The link row's input holds focus, and TipTap only takes it back on the next frame, so the editor
+  // takes it before the row goes.
+  const close = () => {
+    editor.view.focus()
+    setRow(null)
   }
-  const link = () => {
-    if (editor.isActive('link')) return chain().extendMarkRange('link').unsetLink().run()
-    const typed = window.prompt('Link')?.trim()
+  const style = (apply: () => void) => {
+    close()
+    apply()
+  }
+  const openLink = () => {
+    setHref(link ?? '')
+    setRow(row === 'link' ? null : 'link')
+  }
+  const applyLink = () => {
+    close()
+    const typed = href.trim()
     if (!typed) return
     // A bare address like example.com would otherwise link to a page on this site.
-    const href = /^[a-z][a-z\d+.-]*:/i.test(typed) ? typed : `https://${typed}`
-    if (!editor.state.selection.empty) return chain().setLink({ href }).run()
+    const url = /^[a-z][a-z\d+.-]*:/i.test(typed) ? typed : `https://${typed}`
+    if (!editor.state.selection.empty || editor.isActive('link')) {
+      return chain().extendMarkRange('link').setLink({ href: url }).run()
+    }
     chain()
-      .insertContent({ type: 'text', text: typed, marks: [{ type: 'link', attrs: { href } }] })
+      .insertContent({ type: 'text', text: typed, marks: [{ type: 'link', attrs: { href: url } }] })
       .run()
   }
 
   return (
     <div className="shrink-0 border-t-2 border-border bg-surface">
-      {styles && (
+      {row === 'link' && (
+        <form
+          className="flex gap-2 px-2 pt-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            applyLink()
+          }}
+        >
+          <input
+            aria-label="Link address"
+            inputMode="url"
+            placeholder="Paste or type a link"
+            autoFocus
+            value={href}
+            onChange={(e) => setHref(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') close()
+            }}
+            className="h-10 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent"
+          />
+          <Group>
+            <Tool label="Apply link" onClick={applyLink}>
+              <CheckIcon className={ICON} />
+            </Tool>
+            {editor.isActive('link') && (
+              <Tool
+                label="Remove link"
+                onClick={() => style(() => chain().extendMarkRange('link').unsetLink().run())}
+              >
+                <UnlinkIcon className={ICON} />
+              </Tool>
+            )}
+          </Group>
+        </form>
+      )}
+      {!row && link && (
+        <div className="flex px-2 pt-2">
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open link"
+            className="flex h-9 min-w-0 items-center gap-2 border-2 border-border bg-surface px-2 font-bold shadow-[2px_2px_0_var(--border)]"
+          >
+            <OpenLinkIcon className={`${ICON} shrink-0`} />
+            <span className="truncate">{link}</span>
+          </a>
+        </div>
+      )}
+      {row === 'styles' && (
         <div className="flex overflow-x-auto px-2 pt-2">
           <Group>
             <Tool label="Text" active={editor.isActive('paragraph')} onClick={() => style(() => chain().setParagraph().run())}>
@@ -71,9 +139,6 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                 H{level}
               </Tool>
             ))}
-            <Tool label="Code block" active={editor.isActive('codeBlock')} onClick={() => style(() => chain().setCodeBlock().run())}>
-              Code
-            </Tool>
           </Group>
         </div>
       )}
@@ -96,21 +161,8 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <Tool label="Indent" onClick={() => chain().sinkListItem(listItem).run()}>
             <IndentIcon className={ICON} />
           </Tool>
-          <Tool label="Move up" onClick={() => moveLine(editor, -1)}>
-            <MoveUpIcon className={ICON} />
-          </Tool>
-          <Tool label="Move down" onClick={() => moveLine(editor, 1)}>
-            <MoveDownIcon className={ICON} />
-          </Tool>
         </Group>
         <Group>
-          <Tool
-            label="Text style"
-            active={styles || editor.isActive('heading') || editor.isActive('codeBlock')}
-            onClick={() => setStyles(!styles)}
-          >
-            <HeadingIcon className={ICON} />
-          </Tool>
           <Tool label="Bold" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()}>
             <BoldIcon className={ICON} />
           </Tool>
@@ -123,11 +175,29 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <Tool label="Code" active={editor.isActive('code')} onClick={() => chain().toggleCode().run()}>
             <CodeIcon className={ICON} />
           </Tool>
-          <Tool label="Link" active={editor.isActive('link')} onClick={link}>
+          <Tool label="Link" active={row === 'link' || editor.isActive('link')} onClick={openLink}>
             <LinkIcon className={ICON} />
           </Tool>
           <Tool label="Highlight" active={editor.isActive('highlight')} onClick={() => chain().toggleHighlight().run()}>
             <HighlightIcon className={ICON} />
+          </Tool>
+        </Group>
+        <Group>
+          <Tool
+            label="Text style"
+            active={row === 'styles' || editor.isActive('heading')}
+            onClick={() => setRow(row === 'styles' ? null : 'styles')}
+          >
+            <HeadingIcon className={ICON} />
+          </Tool>
+          <Tool label="Quote" active={editor.isActive('blockquote')} onClick={() => chain().toggleBlockquote().run()}>
+            <QuoteIcon className={ICON} />
+          </Tool>
+          <Tool label="Code block" active={editor.isActive('codeBlock')} onClick={() => chain().toggleCodeBlock().run()}>
+            <CodeBlockIcon className={ICON} />
+          </Tool>
+          <Tool label="Divider" onClick={() => chain().setHorizontalRule().run()}>
+            <DividerIcon className={ICON} />
           </Tool>
         </Group>
         <Group>

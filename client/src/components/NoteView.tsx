@@ -1,5 +1,6 @@
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import DragHandle from '@tiptap/extension-drag-handle-react'
 import Highlight from '@tiptap/extension-highlight'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
@@ -27,7 +28,7 @@ import {
   togglePin,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
+import { GripIcon, LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
 import { OfflineIcon } from './OfflineIcon'
 import { ShareDialog } from './ShareDialog'
 import { ListTabs } from './lists'
@@ -74,7 +75,12 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({ undoRedo: false }),
+        // A tap on a link places the cursor to edit it, and the toolbar shows the address to open it.
+        StarterKit.configure({
+          undoRedo: false,
+          dropcursor: { color: 'var(--accent)', width: 3 },
+          link: { openOnClick: false },
+        }),
         TaskList,
         TaskItem.configure({ nested: true }),
         Highlight,
@@ -231,7 +237,18 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           </IconButton>
         </div>
       </header>
-      <EditorContent editor={editor} className="flex-1 overflow-y-auto" />
+      <EditorContent editor={editor} className="relative flex-1 overflow-y-auto" />
+      {editor && (
+        // Pointing at a line shows its handle, and dragging the handle moves the line with what is nested under it.
+        // By default a pointer near a nested line's left edge picks its parent, and a nested checkbox sits on that edge.
+        <DragHandle
+          editor={editor}
+          nested={{ edgeDetection: 'none' }}
+          className="drag-handle flex h-8 w-6 cursor-grab items-center justify-center text-ink-muted hover:text-accent"
+        >
+          <GripIcon className="h-5 w-5" />
+        </DragHandle>
+      )}
       <Toolbar editor={editor} />
     </>
   )

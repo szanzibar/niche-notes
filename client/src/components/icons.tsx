@@ -48,16 +48,27 @@ export const BulletListIcon = icon('M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 
 export const NumberedListIcon = icon('M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1')
 export const OutdentIcon = icon('M21 6H11M21 12H11M21 18H11M7 8l-4 4 4 4')
 export const IndentIcon = icon('M21 6H11M21 12H11M21 18H11M3 8l4 4-4 4')
-export const MoveUpIcon = icon('M5 12l7-7 7 7M12 19V5')
-export const MoveDownIcon = icon('M12 5v14M19 12l-7 7-7-7')
 export const HeadingIcon = icon('M6 12h12M6 20V4M18 20V4')
+export const QuoteIcon = icon(
+  'M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2zM5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z',
+)
+export const DividerIcon = icon('M3 12h18M8 8l4-4 4 4M16 16l-4 4-4-4')
 export const BoldIcon = icon('M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8')
 export const ItalicIcon = icon('M19 4h-9M14 20H5M15 4L9 20')
 export const StrikeIcon = icon('M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16')
 export const CodeIcon = icon('M16 18l6-6-6-6M8 6l-6 6 6 6')
+export const CodeBlockIcon = icon(
+  'M10 9.5L8 12l2 2.5M14 9.5l2 2.5-2 2.5M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z',
+)
 export const LinkIcon = icon(
   'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
 )
+export const UnlinkIcon = icon(
+  'M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71M8 2v3M2 8h3M16 22v-3M22 16h-3',
+)
+export const OpenLinkIcon = icon('M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6')
+export const CheckIcon = icon('M20 6L9 17l-5-5')
+export const GripIcon = icon('M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01')
 export const HighlightIcon = icon('M9 11l-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4')
 export const UndoIcon = icon('M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11')
 export const RedoIcon = icon('M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13')
