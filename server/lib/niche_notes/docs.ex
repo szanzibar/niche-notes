@@ -85,7 +85,7 @@ defmodule NicheNotes.Docs do
   end
 
   # One line per paragraph or list item, with nested items indented under their parent. A note that
-  # hides its checked items leaves them out, with what is nested under them.
+  # hides its checked items leaves out each one that is done, with what is nested under it.
   defp lines(element, depth, hide) do
     indent = String.duplicate("    ", depth)
 
@@ -94,7 +94,7 @@ defmodule NicheNotes.Docs do
         element
         |> Yex.XmlElement.children()
         |> Enum.with_index(1)
-        |> Enum.reject(fn {item, _n} -> hide && Yex.XmlElement.get_attribute(item, "checked") end)
+        |> Enum.reject(fn {item, _n} -> hide && list == "taskList" && done?(item) end)
         |> Enum.flat_map(fn {item, n} ->
           [first | rest] = Enum.to_list(Yex.XmlElement.children(item))
 
@@ -114,6 +114,15 @@ defmodule NicheNotes.Docs do
         end
     end
   end
+
+  # An item is done once it and every item nested under it are checked, the same rule the editor hides by.
+  defp done?(%Yex.XmlElement{} = element) do
+    (Yex.XmlElement.get_tag(element) != "taskItem" ||
+       Yex.XmlElement.get_attribute(element, "checked")) &&
+      element |> Yex.XmlElement.children() |> Enum.all?(&done?/1)
+  end
+
+  defp done?(_text), do: true
 
   defp mark("bulletList", _item, _n), do: "• "
   defp mark("orderedList", _item, n), do: "#{n}. "

@@ -1,5 +1,5 @@
 import { expect, test, type Browser } from '@playwright/test'
-import { shareWith, uid } from './helpers'
+import { row, shareWith, uid } from './helpers'
 
 const phone = async (browser: Browser, name: string) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
@@ -59,4 +59,32 @@ test('a shared note shows a people icon beside the dots, for both sides', async 
   await bob.getByRole('button', { name: 'More' }).click()
   await expect(bob.getByText(/^Shared by/)).toBeVisible()
   await expect(bob.getByRole('button', { name: 'Leave' })).toBeVisible()
+})
+
+test('back from a note goes to the list and back again leaves, also when a widget opened the note', async ({
+  browser,
+}) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  const entries = await page.evaluate(() => history.length)
+  for (const title of ['First', 'Second']) {
+    await page.getByRole('button', { name: 'New note', exact: true }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(title)
+    await page.getByRole('button', { name: 'Back' }).click()
+  }
+  await row(page, 'First').click()
+  const note = page.url()
+  // The phone's own back button.
+  await page.goBack()
+  await expect(page.getByPlaceholder('Search notes')).toBeVisible()
+  // Only the last note opened lies ahead of the list, so the next back leaves the app.
+  expect(await page.evaluate(() => history.length)).toBe(entries + 1)
+
+  const launched = await page.context().newPage()
+  const blank = await launched.evaluate(() => history.length)
+  await launched.goto(note)
+  await expect(launched.getByPlaceholder('Title')).toHaveValue('First')
+  await launched.goBack()
+  await expect(launched.getByPlaceholder('Search notes')).toBeVisible()
+  expect(await launched.evaluate(() => history.length)).toBe(blank + 2)
 })

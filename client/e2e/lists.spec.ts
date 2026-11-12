@@ -128,29 +128,77 @@ test('the pointer crossing a nested checkbox on the way to the handle keeps the 
   await expect(body(page).locator('li li p')).toHaveText(['Kid B', 'Kid A'])
 })
 
-test('a note set to hide checked lines hides each one as it is checked, on every device', async ({ browser }) => {
+test('a note set to hide checked lines hides each one a moment after it is checked, on every device', async ({
+  browser,
+}) => {
   const name = `alice-${uid()}`
   const page = await signIn(browser, name)
   await checklist(page, 'Milk', 'Eggs')
   const line = (text: string, on = page) => body(on).locator('li p').getByText(text, { exact: true })
+  await page.getByRole('button', { name: 'Checked lines' }).click()
   const hide = page.getByRole('button', { name: 'Hide checked' })
   await hide.click()
   await expect(hide).toHaveAttribute('aria-pressed', 'true')
 
   await line('Eggs').click()
   await page.getByRole('checkbox', { name: 'Task item checkbox for Eggs' }).click()
+  await expect(line('Eggs')).toBeVisible()
   await expect(line('Eggs')).toBeHidden()
-  // The cursor left the hidden line for the end of the one above.
+  // The cursor left the checked line for the end of the one above.
   await page.keyboard.type(' and bread')
   await expect(line('Milk and bread')).toBeVisible()
 
+  // A line checked before the note opened is hidden from the start.
   const other = await signIn(browser, name)
   await row(other, 'Lists').click()
   await expect(line('Milk and bread', other)).toBeVisible()
-  await expect(line('Eggs', other)).toBeHidden()
+  expect(await line('Eggs', other).isVisible()).toBe(false)
 
+  await page.getByRole('button', { name: 'Checked lines' }).click()
   await hide.click()
   await expect(line('Eggs')).toBeVisible()
+})
+
+test('a checked line hides only once every line under it is checked, and only then goes with Delete checked', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Trip', 'Socks')
+  await tool(page, 'Indent').click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Charger')
+  const box = (text: string) => page.getByRole('checkbox', { name: `Task item checkbox for ${text}` })
+  const shown = body(page).locator('li p:visible')
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+
+  await box('Trip').check()
+  await expect(body(page).locator('[data-lingering]')).toHaveCount(0)
+  await expect(shown).toHaveText(['Trip', 'Socks', 'Charger'])
+  await box('Socks').check()
+  await expect(shown).toHaveText(['Trip', 'Charger'])
+
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await expect(body(page).locator('li p')).toHaveText(['Trip', 'Charger'])
+
+  // The last line under Trip shows its check before both go.
+  await box('Charger').check()
+  await expect(shown).toHaveText(['Trip', 'Charger'])
+  await expect(shown).toHaveCount(0)
+})
+
+test('the checked lines panel opens over the note and closes on a tap back in the note', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs')
+  const top = async () => (await body(page).boundingBox())!.y
+  const before = await top()
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await expect(page.getByRole('button', { name: 'Hide checked' })).toBeVisible()
+  expect(await top()).toBe(before)
+
+  await body(page).locator('li p').getByText('Eggs', { exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Hide checked' })).toBeHidden()
 })
 
 test('Uncheck all clears every box in one step that Undo takes back', async ({ browser }) => {
@@ -161,11 +209,43 @@ test('Uncheck all clears every box in one step that Undo takes back', async ({ b
   // Undo merges edits made within half a second of each other.
   await page.waitForTimeout(600)
 
+  await page.getByRole('button', { name: 'Checked lines' }).click()
   await page.getByRole('button', { name: 'Uncheck all' }).click()
   await expect(checked).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Uncheck all' })).toBeHidden()
   await tool(page, 'Undo').click()
   await expect(checked).toHaveCount(2)
+})
+
+test('Delete checked shows hidden checked lines for a moment, then removes them in one step that Undo takes back', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs', 'Bread')
+  for (const item of ['Eggs', 'Bread']) await page.getByRole('checkbox', { name: `Task item checkbox for ${item}` }).check()
+  const lines = body(page).locator('li p')
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Milk'])
+  // Undo merges edits made within half a second of each other.
+  await page.waitForTimeout(600)
+
+  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Milk', 'Eggs', 'Bread'])
+  await expect(lines).toHaveText(['Milk'])
+  await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
+  await tool(page, 'Undo').click()
+  await expect(lines).toHaveText(['Milk', 'Eggs', 'Bread'])
+
+  // With every line checked the list goes too, and the note still takes typing.
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await expect(body(page).locator('ul')).toHaveCount(0)
+  await body(page).click()
+  await page.keyboard.type('done')
+  await expect(body(page)).toHaveText('done')
 })
 
 test('a checkbox carries no hidden text, which Android keyboards would read into the line', async ({ browser }) => {

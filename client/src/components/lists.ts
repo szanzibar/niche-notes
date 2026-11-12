@@ -66,6 +66,9 @@ export const ListTabs = Extension.create({
   },
 })
 
+// How long checked lines stay in view before they hide or Delete checked removes them, so you see what goes.
+export const LINGER_MS = 800
+
 // TipTap puts a hidden label with the line's text beside each checkbox. Android keyboards read it as part
 // of the line, and it changes with every letter, so they lose their place and stop correcting words.
 // The checkbox keeps its aria-label.
@@ -75,34 +78,61 @@ export const TaskItem = TipTapTaskItem.extend({
     if (!render) return null
     return (props) => {
       const view = render(props)
-      ;(view.dom as HTMLElement).querySelector('label > span')?.remove()
+      const li = view.dom as HTMLElement
+      li.querySelector('label > span')?.remove()
+      // A line checked here or on another device lingers. Lines checked before the note opened don't.
+      const update = view.update!
+      let timer: number | undefined
+      view.update = (node, ...rest) => {
+        const was = li.dataset.checked === 'true'
+        if (!update(node, ...rest)) return false
+        if (node.attrs.checked !== was) {
+          clearTimeout(timer)
+          li.toggleAttribute('data-lingering', node.attrs.checked)
+          if (node.attrs.checked) timer = window.setTimeout(() => li.removeAttribute('data-lingering'), LINGER_MS)
+        }
+        return true
+      }
+      // The editor would read the timer's change as an edit to the line.
+      view.ignoreMutation = (m) => m.type === 'attributes' && m.attributeName === 'data-lingering'
       return view
     }
   },
 })
 
-// The outermost checked line holding `$pos`, as a depth, or 0. A checked line hides what is nested under it.
-function checkedDepth($pos: ResolvedPos) {
+// A line is done once it and every line nested under it are checked. Only a done line hides, with what is
+// nested under it, and Delete checked removes only done lines. The server's widget lines follow the same rule.
+function done(node: Node) {
+  if (node.type.name !== 'taskItem' || !node.attrs.checked) return false
+  let open = false
+  node.descendants((child) => {
+    open ||= child.type.name === 'taskItem' && !child.attrs.checked
+    return !open
+  })
+  return !open
+}
+
+// The outermost done line holding `$pos`, as a depth, or 0.
+function doneDepth($pos: ResolvedPos) {
   for (let depth = 1; depth <= $pos.depth; depth++) {
-    const node = $pos.node(depth)
-    if (node.type.name === 'taskItem' && node.attrs.checked) return depth
+    if (done($pos.node(depth))) return depth
   }
   return 0
 }
 
-// The nearest place to type from `pos` in direction `dir`, skipping checked lines.
+// The nearest place to type from `pos` in direction `dir`, skipping hidden lines.
 function visibleFrom(state: EditorState, pos: number, dir: -1 | 1) {
   let found = Selection.findFrom(state.doc.resolve(pos), dir, true)
   while (found) {
-    const depth = checkedDepth(found.$from)
+    const depth = doneDepth(found.$from)
     if (!depth) return found
     found = Selection.findFrom(state.doc.resolve(dir < 0 ? found.$from.before(depth) : found.$from.after(depth)), dir, true)
   }
   return null
 }
 
-// In a note that hides checked lines, a line hides the moment it is checked, so the cursor leaves it for
-// the end of the line above, or the start of the line below, and typing never lands in a hidden line.
+// In a note that hides checked lines, the cursor leaves a line as soon as it is done, for the end of the line
+// above or the start of the line below, so typing never lands in a hidden line.
 export const HideChecked = (hiding: () => boolean) =>
   Extension.create({
     name: 'hideChecked',
@@ -110,7 +140,7 @@ export const HideChecked = (hiding: () => boolean) =>
       new Plugin({
         appendTransaction: (_transactions, _old, state) => {
           const { $from } = state.selection
-          const depth = hiding() ? checkedDepth($from) : 0
+          const depth = hiding() ? doneDepth($from) : 0
           if (!depth) return null
           const to = visibleFrom(state, $from.before(depth), -1) ?? visibleFrom(state, $from.after(depth), 1)
           return to && state.tr.setSelection(to)
@@ -118,6 +148,24 @@ export const HideChecked = (hiding: () => boolean) =>
       }),
     ],
   })
+
+// One step, so Undo brings them all back. Going from the end keeps the earlier positions valid, and
+// deleteRange takes a list along with its last line.
+export function deleteChecked(editor: Editor) {
+  const lines: [number, number][] = []
+  editor.state.doc.descendants((node, pos) => {
+    if (!done(node)) return
+    lines.push([pos, pos + node.nodeSize])
+    return false
+  })
+  editor
+    .chain()
+    .command(({ tr }) => {
+      for (const [from, to] of lines.reverse()) tr.deleteRange(from, to)
+      return true
+    })
+    .run()
+}
 
 // One step, so Undo checks them all again.
 export function uncheckAll(editor: Editor) {

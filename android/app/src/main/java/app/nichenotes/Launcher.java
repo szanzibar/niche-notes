@@ -1,9 +1,15 @@
 package app.nichenotes;
 
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.os.Bundle;
+import androidx.browser.customtabs.CustomTabsCallback;
 import androidx.core.content.FileProvider;
 import com.google.androidbrowserhelper.trusted.LauncherActivity;
+import com.google.androidbrowserhelper.trusted.QualityEnforcer;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +42,22 @@ public class Launcher extends LauncherActivity {
                         "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), 0);
         return false;
+    }
+
+    // Leaving the app refreshes every widget, so it shows what was just written. If Android has frozen or
+    // ended the app by then, the next timed refresh catches up.
+    @Override
+    protected CustomTabsCallback getCustomTabsCallback() {
+        Context app = getApplicationContext();
+        return new QualityEnforcer() {
+            @Override
+            public void onNavigationEvent(int event, Bundle extras) {
+                if (event != TAB_HIDDEN) return;
+                int[] widgets = AppWidgetManager.getInstance(app).getAppWidgetIds(new ComponentName(app, NoteWidget.class));
+                app.sendBroadcast(new Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE, null, app, NoteWidget.class)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgets));
+            }
+        };
     }
 
     // Only a cancelled update comes back here, since installing one ends this app.

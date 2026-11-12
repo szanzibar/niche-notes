@@ -59,13 +59,20 @@ class HandleSensor extends TouchSensor {
   ]
 }
 
+// A note opens over the list, never over another note, so back always returns to the list.
+function useShowNote() {
+  const navigate = useNavigate()
+  const open = useMatch('/n/:id') != null
+  return (id: string) => navigate(`/n/${id}`, { replace: open })
+}
+
 // The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it.
 // The token lets the widget read the note from the server while the app is closed.
 function useOpenNote() {
-  const navigate = useNavigate()
+  const showNote = useShowNote()
   const widget = useMatch('/widget/:id')?.params.id
   return (id: string) => {
-    if (!widget) return navigate(`/n/${id}`)
+    if (!widget) return showNote(id)
     void api.widgetToken(id).then(({ token }) => {
       const query = new URLSearchParams({ id: widget, note: id, title: titleOf(id), token })
       window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;end`
@@ -76,6 +83,7 @@ function useOpenNote() {
 export function Tree({ selected }: { selected?: string }) {
   const s = useStore()
   const navigate = useNavigate()
+  const showNote = useShowNote()
   const openNote = useOpenNote()
   const picking = useMatch('/widget/:id') != null
   useY(nodes())
@@ -201,7 +209,7 @@ export function Tree({ selected }: { selected?: string }) {
           aria-label="New note"
           title="New note"
           className="w-10 px-0!"
-          onClick={() => navigate(`/n/${createNote(null)}`)}
+          onClick={() => showNote(createNote(null))}
         >
           <PlusIcon />
         </Button>
@@ -283,6 +291,7 @@ export function Tree({ selected }: { selected?: string }) {
 // A trashed note reads like a row, with Restore and the final action where the + would be.
 function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const navigate = useNavigate()
+  const showNote = useShowNote()
   const s = useStore()
   const active = selected === id
   return (
@@ -294,7 +303,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
         type="button"
         aria-current={active ? 'page' : undefined}
         className="flex min-w-0 flex-1 items-baseline gap-2 py-3 text-left"
-        onClick={() => navigate(`/n/${id}`)}
+        onClick={() => showNote(id)}
       >
         <span className="truncate font-medium">{titleOf(id)}</span>
         {!isMine(id) && (
@@ -310,7 +319,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
         disabled={!s.online}
         onClick={() => {
           void purgeNote(id)
-          if (active) navigate('/')
+          if (active) navigate(-1)
         }}
       >
         {isMine(id) ? 'Delete forever' : 'Leave for good'}
@@ -333,7 +342,7 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
 }
 
 function Row({ id, depth, selected, hint }: { id: string; depth: number; selected?: string; hint: Hint | null }) {
-  const navigate = useNavigate()
+  const showNote = useShowNote()
   const openNote = useOpenNote()
   const s = useStore()
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
@@ -394,7 +403,7 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
           title="New note inside"
           onClick={() => {
             expand(id)
-            navigate(`/n/${createNote(id)}`)
+            showNote(createNote(id))
           }}
         >
           +

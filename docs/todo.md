@@ -41,7 +41,8 @@ Several home-screen widgets, each showing a whole note Steven picks, read-only; 
 - [x] The widget shows the whole note as a scrolling list, refreshes every 30 minutes and from a button (2026-11-11)
 - [x] ADR 005 for how widgets sign in (2026-11-11)
 - [ ] Steven tries the widget on his phone: re-pick widgets added before tokens existed, see the lines, refresh, tap to open the note, reconfigure it, and see it offer the picker again once its note is deleted
-- Later: instant refresh through Firebase Cloud Messaging, if 30 minutes feels stale
+- [ ] Leaving the app refreshes the widgets, through Chrome's tab-hidden signal to the launcher; untested on the phone, since Android may freeze the app before the signal arrives
+- Later: instant refresh through Firebase Cloud Messaging, if 30 minutes and the refresh on leaving feel stale
 
 ## Later
 

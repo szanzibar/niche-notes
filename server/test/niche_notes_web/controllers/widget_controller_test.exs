@@ -62,6 +62,33 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     assert json_response(read(token(conn, note)), 200)["lines"] == ["eggs"]
   end
 
+  test "a checked item stays while an item under it is unchecked, without its checked ones", %{
+    conn: conn,
+    note: note
+  } do
+    item = fn text, checked, nested ->
+      paragraph = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(text)])
+      Yex.XmlElementPrelim.new("taskItem", [paragraph | nested], %{"checked" => checked})
+    end
+
+    edit(note, fn doc ->
+      Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "hideChecked", true)
+
+      nested =
+        Yex.XmlElementPrelim.new("taskList", [
+          item.("socks", true, []),
+          item.("charger", false, [])
+        ])
+
+      Yex.XmlFragment.push(
+        Yex.Doc.get_xml_fragment(doc, "content"),
+        Yex.XmlElementPrelim.new("taskList", [item.("trip", true, [nested])])
+      )
+    end)
+
+    assert json_response(read(token(conn, note)), 200)["lines"] == ["☑ trip", "    ☐ charger"]
+  end
+
   test "a token stops reading once the note is unshared or in the trash", %{
     conn: conn,
     me: me,

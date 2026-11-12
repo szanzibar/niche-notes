@@ -96,6 +96,15 @@ test('checked items are crossed out, but not their children or the line typed af
   expect(await struck('milk')).toBe('none')
 })
 
+test('a note opened while another is open takes its place, so back returns to the list', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'First')
+  await newNote(page, 'Second')
+  await row(page, 'First').click()
+  await page.goBack()
+  await expect(page.getByText('Pick a note, or make a new one.')).toBeVisible()
+})
+
 test('+ on a row makes a nested note', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Parent')
