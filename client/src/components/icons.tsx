@@ -40,9 +40,8 @@ export const CloudOffIcon = icon(
   'M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78M2 2l20 20',
 )
 export const PlusIcon = icon('M5 12h14M12 5v14')
-export const EyeOffIcon = icon(
-  'M10.73 5.08A10.7 10.7 0 0 1 21.94 12a10.7 10.7 0 0 1-1.44 2.84M14.08 14.16a3 3 0 0 1-4.24-4.24M17.48 17.5A10.75 10.75 0 0 1 2.06 12a10.75 10.75 0 0 1 4.45-5.49M2 2l20 20',
-)
+export const HideCheckedIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 12l3 3 5-6M2 2l20 20')
+export const UncheckAllIcon = icon('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M9 9h6v6H9z')
 export const SettingsIcon = icon('M20 7h-9M14 17H5M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M10 7a3 3 0 1 1-6 0a3 3 0 1 1 6 0')
 
 // The editor's toolbar.

@@ -3,7 +3,7 @@ import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import Highlight from '@tiptap/extension-highlight'
 import { TaskList } from '@tiptap/extension-list'
-import { Focus, Placeholder } from '@tiptap/extensions'
+import { Placeholder } from '@tiptap/extensions'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { absolutePositionToRelativePosition, relativePositionToAbsolutePosition, ySyncPluginKey } from '@tiptap/y-tiptap'
@@ -28,10 +28,10 @@ import {
   togglePin,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { EyeOffIcon, GripIcon, LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
+import { GripIcon, HideCheckedIcon, LeaveIcon, PinIcon, TrashIcon, UncheckAllIcon, UsersIcon } from './icons'
 import { OfflineIcon } from './OfflineIcon'
 import { ShareDialog } from './ShareDialog'
-import { ListTabs, TaskItem } from './lists'
+import { HideChecked, ListTabs, TaskItem, uncheckAll } from './lists'
 import { Toolbar } from './Toolbar'
 
 // One per note for the app's lifetime, so undo survives leaving and reopening the note.
@@ -123,7 +123,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         Highlight,
         ListTabs,
         Placeholder.configure({ placeholder: 'Write…' }),
-        Focus,
+        HideChecked(() => meta.get('hideChecked') === true),
         Collaboration.configure({
           document: doc,
           field: 'content',
@@ -140,13 +140,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   )
 
   const hideChecked = meta.get('hideChecked') === true
-  const hasChecklist = useEditorState({
+  const tasks = useEditorState({
     editor,
     selector: ({ editor }) => {
-      let found = false
+      const found = { any: false, checked: false }
       editor?.state.doc.descendants((node) => {
-        found ||= node.type.name === 'taskItem'
-        return !found
+        if (node.type.name !== 'taskItem') return
+        found.any = true
+        found.checked ||= node.attrs.checked
       })
       return found
     },
@@ -198,11 +199,11 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [])
-  useLayoutEffect(() => setFolded(false), [title, width, hasChecklist, deleted, s.online])
+  useLayoutEffect(() => setFolded(false), [title, width, tasks, deleted, s.online])
   useLayoutEffect(() => {
     const shown = header.current?.querySelector('[data-title]')
     if (!folded && shown && shown.scrollWidth > shown.clientWidth) setFolded(true)
-  }, [folded, title, width, hasChecklist, deleted, s.online])
+  }, [folded, title, width, tasks, deleted, s.online])
 
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
 
@@ -299,9 +300,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         {dots}
         <div className={actionRow}>
           {mine ? <ShareDialog id={id} /> : sharedBy}
-          {hasChecklist && (
+          {tasks?.any && (
             <IconButton label="Hide checked" aria-pressed={hideChecked} onClick={() => meta.set('hideChecked', !hideChecked)}>
-              <EyeOffIcon className={`h-[22px] w-[22px] ${hideChecked ? 'text-accent' : ''}`} />
+              <HideCheckedIcon className={`h-[22px] w-[22px] ${hideChecked ? 'text-accent' : ''}`} />
+            </IconButton>
+          )}
+          {tasks?.checked && editor && (
+            <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
+              <UncheckAllIcon />
             </IconButton>
           )}
           <IconButton label={pinLabel} onClick={() => togglePin(id)}>

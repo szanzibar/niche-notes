@@ -1,5 +1,6 @@
 import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
-import type { Node } from '@tiptap/pm/model'
+import type { Node, ResolvedPos } from '@tiptap/pm/model'
+import { type EditorState, Plugin, Selection } from '@tiptap/pm/state'
 import { Extension, type Editor } from '@tiptap/react'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
@@ -79,3 +80,54 @@ export const TaskItem = TipTapTaskItem.extend({
     }
   },
 })
+
+// The outermost checked line holding `$pos`, as a depth, or 0. A checked line hides what is nested under it.
+function checkedDepth($pos: ResolvedPos) {
+  for (let depth = 1; depth <= $pos.depth; depth++) {
+    const node = $pos.node(depth)
+    if (node.type.name === 'taskItem' && node.attrs.checked) return depth
+  }
+  return 0
+}
+
+// The nearest place to type from `pos` in direction `dir`, skipping checked lines.
+function visibleFrom(state: EditorState, pos: number, dir: -1 | 1) {
+  let found = Selection.findFrom(state.doc.resolve(pos), dir, true)
+  while (found) {
+    const depth = checkedDepth(found.$from)
+    if (!depth) return found
+    found = Selection.findFrom(state.doc.resolve(dir < 0 ? found.$from.before(depth) : found.$from.after(depth)), dir, true)
+  }
+  return null
+}
+
+// In a note that hides checked lines, a line hides the moment it is checked, so the cursor leaves it for
+// the end of the line above, or the start of the line below, and typing never lands in a hidden line.
+export const HideChecked = (hiding: () => boolean) =>
+  Extension.create({
+    name: 'hideChecked',
+    addProseMirrorPlugins: () => [
+      new Plugin({
+        appendTransaction: (_transactions, _old, state) => {
+          const { $from } = state.selection
+          const depth = hiding() ? checkedDepth($from) : 0
+          if (!depth) return null
+          const to = visibleFrom(state, $from.before(depth), -1) ?? visibleFrom(state, $from.after(depth), 1)
+          return to && state.tr.setSelection(to)
+        },
+      }),
+    ],
+  })
+
+// One step, so Undo checks them all again.
+export function uncheckAll(editor: Editor) {
+  editor
+    .chain()
+    .command(({ tr }) => {
+      tr.doc.descendants((node, pos) => {
+        if (node.type.name === 'taskItem' && node.attrs.checked) tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: false })
+      })
+      return true
+    })
+    .run()
+}

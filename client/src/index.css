@@ -67,8 +67,7 @@ body {
 .editor-body ul[data-type="taskList"] > li > label { flex: 0 0 auto; margin-top: 0.3rem; }
 .editor-body ul[data-type="taskList"] > li > div { flex: 1 1 auto; min-width: 0; }
 .editor-body ul[data-type="taskList"] > li[data-checked="true"] > div > p { text-decoration: line-through; color: var(--ink-muted); }
-/* Spares the line the cursor is in (TipTap's Focus marks it), so typing never lands in a hidden line. */
-[data-hide-checked] .editor-body li[data-checked="true"]:not(.has-focus) { display: none; }
+[data-hide-checked] .editor-body li[data-checked="true"] { display: none; }
 .editor-body input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--accent); }
 .editor-body hr { border-top: 2px solid var(--border); margin: 1rem 0; }
 .editor-body hr.ProseMirror-selectednode { border-color: var(--accent); }

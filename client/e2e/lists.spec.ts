@@ -128,7 +128,7 @@ test('the pointer crossing a nested checkbox on the way to the handle keeps the 
   await expect(body(page).locator('li li p')).toHaveText(['Kid B', 'Kid A'])
 })
 
-test('a note hides its checked lines on every device, except the line being typed in', async ({ browser }) => {
+test('a note set to hide checked lines hides each one as it is checked, on every device', async ({ browser }) => {
   const name = `alice-${uid()}`
   const page = await signIn(browser, name)
   await checklist(page, 'Milk', 'Eggs')
@@ -137,19 +137,35 @@ test('a note hides its checked lines on every device, except the line being type
   await hide.click()
   await expect(hide).toHaveAttribute('aria-pressed', 'true')
 
-  await line('Milk').click()
-  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
-  await expect(line('Milk')).toBeVisible()
   await line('Eggs').click()
-  await expect(line('Milk')).toBeHidden()
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Eggs' }).click()
+  await expect(line('Eggs')).toBeHidden()
+  // The cursor left the hidden line for the end of the one above.
+  await page.keyboard.type(' and bread')
+  await expect(line('Milk and bread')).toBeVisible()
 
   const other = await signIn(browser, name)
   await row(other, 'Lists').click()
-  await expect(line('Eggs', other)).toBeVisible()
-  await expect(line('Milk', other)).toBeHidden()
+  await expect(line('Milk and bread', other)).toBeVisible()
+  await expect(line('Eggs', other)).toBeHidden()
 
   await hide.click()
-  await expect(line('Milk')).toBeVisible()
+  await expect(line('Eggs')).toBeVisible()
+})
+
+test('Uncheck all clears every box in one step that Undo takes back', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Socks', 'Charger')
+  for (const item of ['Socks', 'Charger']) await page.getByRole('checkbox', { name: `Task item checkbox for ${item}` }).check()
+  const checked = body(page).locator('input[type="checkbox"]:checked')
+  // Undo merges edits made within half a second of each other.
+  await page.waitForTimeout(600)
+
+  await page.getByRole('button', { name: 'Uncheck all' }).click()
+  await expect(checked).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Uncheck all' })).toBeHidden()
+  await tool(page, 'Undo').click()
+  await expect(checked).toHaveCount(2)
 })
 
 test('a checkbox carries no hidden text, which Android keyboards would read into the line', async ({ browser }) => {
