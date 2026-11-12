@@ -22,7 +22,7 @@
             android:exported="false">
             <meta-data
                 android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL"
-                android:value="https://notes.example.com" />
+                android:value="https://${host}" />
         </activity>
 
         <activity
@@ -31,7 +31,7 @@
             android:exported="true">
             <meta-data
                 android:name="android.support.customtabs.trusted.DEFAULT_URL"
-                android:value="https://notes.example.com" />
+                android:value="https://${host}" />
             <meta-data
                 android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
                 android:resource="@color/bar" />
@@ -54,7 +54,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="notes.example.com" />
+                <data android:scheme="https" android:host="${host}" />
             </intent-filter>
         </activity>
 

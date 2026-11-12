@@ -24,7 +24,6 @@ import org.json.JSONObject;
 // Each widget shows the note picked for it, read from the server with the token that came with the pick.
 // A tap opens that note in the app, or the picker until one is picked.
 public class NoteWidget extends AppWidgetProvider {
-    static final String SITE = "https://notes.example.com";
     static final String REFRESH = "app.nichenotes.REFRESH";
 
     static SharedPreferences picks(Context context) {
@@ -33,7 +32,7 @@ public class NoteWidget extends AppWidgetProvider {
 
     // Starts the app afresh, since Android would bring back an app opened by this same link wherever it was left.
     static Intent inApp(Context context, String path) {
-        return new Intent(Intent.ACTION_VIEW, Uri.parse(SITE + path), context, LauncherActivity.class)
+        return new Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.site) + path), context, LauncherActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
     }
 
@@ -89,7 +88,7 @@ public class NoteWidget extends AppWidgetProvider {
             forget(picks.edit(), widget).apply();
         } else {
             try {
-                HttpURLConnection http = (HttpURLConnection) new URL(SITE + "/api/widget").openConnection();
+                HttpURLConnection http = (HttpURLConnection) new URL(context.getString(R.string.site) + "/api/widget").openConnection();
                 http.setRequestProperty("Authorization", "Bearer " + token);
                 http.setConnectTimeout(5000);
                 http.setReadTimeout(5000);

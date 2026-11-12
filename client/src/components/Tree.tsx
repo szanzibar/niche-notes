@@ -68,7 +68,7 @@ function useOpenNote() {
     if (!widget) return navigate(`/n/${id}`)
     void api.widgetToken(id).then(({ token }) => {
       const query = new URLSearchParams({ id: widget, note: id, title: titleOf(id), token })
-      window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;package=app.nichenotes;end`
+      window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;end`
     })
   }
 }

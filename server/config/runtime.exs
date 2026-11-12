@@ -16,6 +16,10 @@ if config_env() == :prod do
     http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}],
     secret_key_base: System.fetch_env!("SECRET_KEY_BASE")
 
+  config :niche_notes, :android,
+    app_id: System.get_env("ANDROID_APP_ID"),
+    cert_sha256: System.get_env("ANDROID_CERT_SHA256")
+
   config :niche_notes, :oidc,
     client_id: System.fetch_env!("OIDC_CLIENT_ID"),
     client_secret: System.fetch_env!("OIDC_CLIENT_SECRET"),

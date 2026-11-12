@@ -38,6 +38,10 @@ defmodule NicheNotesWeb.Router do
     get "/docs/:doc_id/widget_token", WidgetController, :token
   end
 
+  scope "/.well-known", NicheNotesWeb do
+    get "/assetlinks.json", AssetLinksController, :show
+  end
+
   # A widget has no session. Its token says who it reads for.
   scope "/api", NicheNotesWeb do
     get "/widget", WidgetController, :show

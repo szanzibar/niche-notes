@@ -35,7 +35,11 @@ jobs:
       - name: Build
         id: build
         working-directory: android
+        env:
+          PHX_HOST: ${{ vars.PHX_HOST }}
+          ANDROID_APP_ID: ${{ vars.ANDROID_APP_ID }}
         run: |
+          : "${PHX_HOST:?set the PHX_HOST repository variable}" "${ANDROID_APP_ID:?set the ANDROID_APP_ID repository variable}"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           export VERSION=$(git rev-list --count HEAD)
           ./gradlew --no-daemon assembleRelease

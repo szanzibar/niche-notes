@@ -7,11 +7,20 @@ def keystore = new Properties()
 def keystoreFile = rootProject.file('keystore.properties')
 if (keystoreFile.exists()) keystoreFile.withInputStream { keystore.load(it) }
 
+// The server this app opens and the app's id, from the same names the server's `.env` uses: CI passes
+// repository variables, build.sh passes `.env`. The defaults only keep a bare checkout building.
+def host = System.getenv('PHX_HOST') ?: 'notes.example.com'
+
 android {
     namespace 'app.nichenotes'
     compileSdk 36
     defaultConfig {
-        applicationId 'app.nichenotes'
+        applicationId System.getenv('ANDROID_APP_ID') ?: 'app.nichenotes'
+        manifestPlaceholders = [host: host]
+        resValue 'string', 'site', "https://$host"
+        // Lets Chrome open the site without an address bar, together with the server's assetlinks.json.
+        resValue 'string', 'asset_statements',
+            '[{\\"relation\\": [\\"delegate_permission/common.handle_all_urls\\"], \\"target\\": {\\"namespace\\": \\"web\\", \\"site\\": \\"https://' + host + '\\"}}]'
         // Android 12 gives widgets a scrolling list without a separate list service.
         minSdk 31
         targetSdk 36

@@ -10,7 +10,7 @@ Steven keeps the running task list in a prod note; CLAUDE.md says how to read it
 
 The Android and desktop apps load the web app from the server, so they are useless until the server has an address, and every build bakes that address in.
 
-The server is a home server: a push to `main` makes GitHub Actions publish `ghcr.io/szanzibar/niche-notes:latest`, and `the server's directory` holds only `docker-compose.yml`, `.env` and `data/`. Watchtower pulls new images on its daily pass; `docker compose pull && docker compose up -d` does it now. Caddy terminates TLS for `notes.example.com` and proxies to the container on 127.0.0.1:4040. The hourly backup snapshots the SQLite file into `_db_dumps` like the other backups, and the live file is excluded from rclone.
+The server is a home server: a push to `main` makes GitHub Actions publish `ghcr.io/szanzibar/niche-notes:latest`, and the server's directory holds only `docker-compose.yml`, `.env` and `data/`. Watchtower pulls new images on its daily pass; `docker compose pull && docker compose up -d` does it now. Caddy terminates TLS for `PHX_HOST` and proxies to the container on 127.0.0.1:4040. An hourly backup snapshots the SQLite file, and the live file is excluded from the offsite sync.
 
 - [x] Caddy entry, backup hook, compose and `.env` on the server (2026-11-10)
 - [x] First image published by the Publish Container workflow, package made public, the server pulls it (2026-11-10)
@@ -28,7 +28,7 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 - [x] `.github/workflows/android.yml` builds on a push to `main` that touches `android/`, or by hand, and publishes the APK as release `android-<commit count>`
 - [x] Secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PROPERTIES` added (2026-11-10)
 - [x] First release built and published by the workflow on a push to main (2026-11-10)
-- [ ] Hide the address bar during login too: Caddy serves the same assetlinks on `auth.example.com` and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
+- [ ] Hide the address bar during login too: Caddy serves the same assetlinks on the Pocket ID host and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
 ## v2: widgets

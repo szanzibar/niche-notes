@@ -33,7 +33,7 @@ Every major user flow has an e2e test in `client/e2e`. A change to a flow update
 
 Steven keeps the running task list in a note on the prod server and ticks items himself as he checks them.
 Read it from the repo root with `curl -H "Authorization: Bearer $(grep TASKS_TOKEN .env | cut -d= -f2-)"
-https://notes.example.com/api/widget`. That token is a widget token, so it reads only that one note.
+https://$(grep PHX_HOST .env | cut -d= -f2-)/api/widget`. That token is a widget token, so it reads only that one note.
 
 In dev, `/auth/login` signs in a local user without Pocket ID, and `/auth/login?as=<name>` signs in another.
 

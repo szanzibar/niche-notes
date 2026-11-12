@@ -4,10 +4,4 @@
     <string name="widget_pick">Tap to choose a note</string>
     <string name="widget_description">A note on your home screen</string>
     <string name="widget_refresh">Refresh</string>
-    <string name="asset_statements">
-        [{
-            \"relation\": [\"delegate_permission/common.handle_all_urls\"],
-            \"target\": {\"namespace\": \"web\", \"site\": \"https://notes.example.com\"}
-        }]
-    </string>
 </resources>

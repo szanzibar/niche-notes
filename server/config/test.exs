@@ -12,3 +12,5 @@ config :niche_notes, NicheNotesWeb.Endpoint,
 
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
+
+config :niche_notes, :android, app_id: "app.nichenotes.test", cert_sha256: "AA:BB"
