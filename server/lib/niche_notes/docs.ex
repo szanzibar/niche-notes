@@ -77,14 +77,16 @@ defmodule NicheNotes.Docs do
          false <- Map.get(meta, "deleted", false) do
       title = if meta["title"] in [nil, ""], do: "Untitled", else: meta["title"]
       content = doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()
-      {:ok, %{title: title, lines: Enum.flat_map(content, &lines(&1, 0))}}
+      hide = Map.get(meta, "hideChecked", false)
+      {:ok, %{title: title, lines: Enum.flat_map(content, &lines(&1, 0, hide))}}
     else
       _ -> :error
     end
   end
 
-  # One line per paragraph or list item, with nested items indented under their parent.
-  defp lines(element, depth) do
+  # One line per paragraph or list item, with nested items indented under their parent. A note that
+  # hides its checked items leaves them out, with what is nested under them.
+  defp lines(element, depth, hide) do
     indent = String.duplicate("    ", depth)
 
     case Yex.XmlElement.get_tag(element) do
@@ -92,17 +94,18 @@ defmodule NicheNotes.Docs do
         element
         |> Yex.XmlElement.children()
         |> Enum.with_index(1)
+        |> Enum.reject(fn {item, _n} -> hide && Yex.XmlElement.get_attribute(item, "checked") end)
         |> Enum.flat_map(fn {item, n} ->
           [first | rest] = Enum.to_list(Yex.XmlElement.children(item))
 
           [
             indent <> mark(list, item, n) <> text(first)
-            | Enum.flat_map(rest, &lines(&1, depth + 1))
+            | Enum.flat_map(rest, &lines(&1, depth + 1, hide))
           ]
         end)
 
       "blockquote" ->
-        element |> Yex.XmlElement.children() |> Enum.flat_map(&lines(&1, depth))
+        element |> Yex.XmlElement.children() |> Enum.flat_map(&lines(&1, depth, hide))
 
       _ ->
         case text(element) do

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { newNote, signIn, uid } from './helpers'
+import { newNote, row, signIn, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -126,4 +126,35 @@ test('the pointer crossing a nested checkbox on the way to the handle keeps the 
   await page.locator('.drag-handle').dragTo(line('Kid A'), { targetPosition: { x: 5, y: 2 } })
   await expect(body(page).locator('li p')).toHaveText(['Parent', 'Kid B', 'Kid A'])
   await expect(body(page).locator('li li p')).toHaveText(['Kid B', 'Kid A'])
+})
+
+test('a note hides its checked lines on every device, except the line being typed in', async ({ browser }) => {
+  const name = `alice-${uid()}`
+  const page = await signIn(browser, name)
+  await checklist(page, 'Milk', 'Eggs')
+  const line = (text: string, on = page) => body(on).locator('li p').getByText(text, { exact: true })
+  const hide = page.getByRole('button', { name: 'Hide checked' })
+  await hide.click()
+  await expect(hide).toHaveAttribute('aria-pressed', 'true')
+
+  await line('Milk').click()
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
+  await expect(line('Milk')).toBeVisible()
+  await line('Eggs').click()
+  await expect(line('Milk')).toBeHidden()
+
+  const other = await signIn(browser, name)
+  await row(other, 'Lists').click()
+  await expect(line('Eggs', other)).toBeVisible()
+  await expect(line('Milk', other)).toBeHidden()
+
+  await hide.click()
+  await expect(line('Milk')).toBeVisible()
+})
+
+test('a checkbox carries no hidden text, which Android keyboards would read into the line', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk')
+  await expect(body(page).locator('li > label')).toHaveText('')
+  await expect(page.getByRole('checkbox', { name: 'Task item checkbox for Milk' })).toBeVisible()
 })

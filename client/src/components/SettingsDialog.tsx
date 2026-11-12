@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
+import { useEffect, useState } from 'react'
 import { useY } from '../sync/hooks'
 import { settings } from '../sync/tree'
 import { Button, IconButton } from './Button'
@@ -32,7 +33,16 @@ export function SettingsDialog() {
   useY(prefs)
   const accent = (prefs.get('accent') as string | undefined) ?? ACCENTS[0][1]
   const theme = prefs.get('theme') as string | undefined
-  const density = prefs.get('density') as string | undefined
+  // Density stays on this device, since a phone and a desktop want different sizes.
+  const [density, setDensity] = useState(localStorage.getItem('density') ?? undefined)
+  const chooseDensity = (value: string | undefined) => {
+    if (value) localStorage.setItem('density', value)
+    else localStorage.removeItem('density')
+    setDensity(value)
+  }
+  useEffect(() => {
+    document.documentElement.dataset.density = density ?? ''
+  }, [density])
 
   return (
     <Dialog.Root>
@@ -83,7 +93,7 @@ export function SettingsDialog() {
                 key={name}
                 variant={density === value ? 'primary' : 'default'}
                 aria-pressed={density === value}
-                onClick={() => (value ? prefs.set('density', value) : prefs.delete('density'))}
+                onClick={() => chooseDensity(value)}
               >
                 {name}
               </Button>

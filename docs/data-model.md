@@ -15,10 +15,10 @@ Access rule, used by every channel join and share endpoint: a user may open a do
 
 **Tree doc**, one per user, id = user id.
 - `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number, pinned?: boolean, leftAt?: number }`. `leftAt` is set when the user puts someone else's note in their trash; it only ever touches their own tree. Siblings sort pinned first, then by `order` descending. A new note gets the current time, so it lands on top. A drop next to a sibling takes that sibling's pin state and renumbers the whole group it lands in, so orders never tie.
-- `settings`: Y.Map of per-user preferences, currently `accent` (a hex color). Living in the tree doc, they sync to every device with no server change.
+- `settings`: Y.Map of per-user preferences, `accent` (a hex color) and `theme`. Living in the tree doc, they sync to every device with no server change. Density stays in each device's `localStorage`.
 
 **Note doc**
-- `meta`: Y.Map with `title: string`, `deleted: boolean` and `deletedAt: number`.
+- `meta`: Y.Map with `title: string`, `deleted: boolean`, `deletedAt: number` and `hideChecked: boolean`.
 - `content`: Y.XmlFragment bound to the TipTap editor.
 
 Deleting a note sets `deleted`, so it syncs like any edit and vanishes for everyone shared on it, while the owner's placement stays so Restore puts it back where it was. The rows stay until the owner empties it from the trash or thirty days pass, when the owner's client calls the purge endpoint.
@@ -50,5 +50,5 @@ Cookie session, JSON.
 - `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc
 - `DELETE /api/docs/:id/shares/:user_id` — the owner for anyone, or a recipient for themselves
 - `GET /api/docs/:id/widget_token` — anyone who can open the note: `{ token }` for a widget (ADR 005)
-- `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines }`, one line per paragraph or list item. 404 once the note is in the trash or no longer shared, 401 for any other token
+- `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines }`, one line per paragraph or list item, without checked items when the note hides them. 404 once the note is in the trash or no longer shared, 401 for any other token
 - `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`

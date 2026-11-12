@@ -31,9 +31,10 @@ public class NoteWidget extends AppWidgetProvider {
         return context.getSharedPreferences("widgets", Context.MODE_PRIVATE);
     }
 
+    // Starts the app afresh, since Android would bring back an app opened by this same link wherever it was left.
     static Intent inApp(Context context, String path) {
         return new Intent(Intent.ACTION_VIEW, Uri.parse(SITE + path), context, LauncherActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
     }
 
     static Intent refresh(Context context, int widget) {

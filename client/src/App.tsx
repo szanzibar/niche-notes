@@ -17,6 +17,7 @@ export default function App() {
   const [me, setMe] = useState<User | null>(null)
 
   useEffect(() => {
+    document.documentElement.dataset.density = localStorage.getItem('density') ?? ''
     const cached = localStorage.getItem('session')
     const draw = ({ user, token }: Session) =>
       start(user, token).then(() => {
@@ -45,23 +46,18 @@ export default function App() {
   )
 }
 
-// Everything is laid out in rem, so one root size scales rows, text and spacing together.
-const FONT_SIZE: Record<string, string> = { compact: '14px', large: '18px' }
-
 function Shell() {
   const noteId = useMatch('/n/:id')?.params.id
   const prefs = settings()
   useY(prefs)
   const accent = prefs.get('accent') as string | undefined
   const theme = prefs.get('theme') as string | undefined
-  const density = prefs.get('density') as string | undefined
   useEffect(() => {
     if (accent) document.documentElement.style.setProperty('--accent', accent)
     else document.documentElement.style.removeProperty('--accent')
     if (theme) document.documentElement.dataset.theme = theme
     else delete document.documentElement.dataset.theme
-    document.documentElement.style.fontSize = FONT_SIZE[density ?? ''] ?? ''
-  }, [accent, theme, density])
+  }, [accent, theme])
   return (
     <div className="h-dvh md:grid md:grid-cols-[320px_1fr]">
       <aside

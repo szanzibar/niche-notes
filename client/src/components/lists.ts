@@ -1,3 +1,4 @@
+import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
 import type { Node } from '@tiptap/pm/model'
 import { Extension, type Editor } from '@tiptap/react'
 
@@ -61,5 +62,20 @@ export const ListTabs = Extension.create({
       return true
     }
     return { Tab: () => indent(true), 'Shift-Tab': () => indent(false) }
+  },
+})
+
+// TipTap puts a hidden label with the line's text beside each checkbox. Android keyboards read it as part
+// of the line, and it changes with every letter, so they lose their place and stop correcting words.
+// The checkbox keeps its aria-label.
+export const TaskItem = TipTapTaskItem.extend({
+  addNodeView() {
+    const render = this.parent?.()
+    if (!render) return null
+    return (props) => {
+      const view = render(props)
+      ;(view.dom as HTMLElement).querySelector('label > span')?.remove()
+      return view
+    }
   },
 })

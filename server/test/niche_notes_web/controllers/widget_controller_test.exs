@@ -52,6 +52,16 @@ defmodule NicheNotesWeb.WidgetControllerTest do
            }
   end
 
+  test "a note that hides its checked items leaves them out", %{conn: conn, note: note} do
+    edit(note, fn doc ->
+      Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "hideChecked", true)
+      eggs = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from("eggs")])
+      Yex.XmlFragment.push(Yex.Doc.get_xml_fragment(doc, "content"), eggs)
+    end)
+
+    assert json_response(read(token(conn, note)), 200)["lines"] == ["eggs"]
+  end
+
   test "a token stops reading once the note is unshared or in the trash", %{
     conn: conn,
     me: me,

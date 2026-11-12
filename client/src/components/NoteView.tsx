@@ -2,12 +2,12 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import Highlight from '@tiptap/extension-highlight'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
-import { Placeholder } from '@tiptap/extensions'
-import { EditorContent, useEditor } from '@tiptap/react'
+import { TaskList } from '@tiptap/extension-list'
+import { Focus, Placeholder } from '@tiptap/extensions'
+import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { absolutePositionToRelativePosition, relativePositionToAbsolutePosition, ySyncPluginKey } from '@tiptap/y-tiptap'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as Y from 'yjs'
 import { useDoc, useStore, useY } from '../sync/hooks'
@@ -28,10 +28,10 @@ import {
   togglePin,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { GripIcon, LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
+import { EyeOffIcon, GripIcon, LeaveIcon, PinIcon, TrashIcon, UsersIcon } from './icons'
 import { OfflineIcon } from './OfflineIcon'
 import { ShareDialog } from './ShareDialog'
-import { ListTabs } from './lists'
+import { ListTabs, TaskItem } from './lists'
 import { Toolbar } from './Toolbar'
 
 // One per note for the app's lifetime, so undo survives leaving and reopening the note.
@@ -123,6 +123,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         Highlight,
         ListTabs,
         Placeholder.configure({ placeholder: 'Write…' }),
+        Focus,
         Collaboration.configure({
           document: doc,
           field: 'content',
@@ -137,6 +138,19 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     },
     [doc],
   )
+
+  const hideChecked = meta.get('hideChecked') === true
+  const hasChecklist = useEditorState({
+    editor,
+    selector: ({ editor }) => {
+      let found = false
+      editor?.state.doc.descendants((node) => {
+        found ||= node.type.name === 'taskItem'
+        return !found
+      })
+      return found
+    },
+  })
 
   // A trashed note can be read but not edited until it is restored.
   useEffect(() => {
@@ -173,6 +187,23 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
   }, [editor, id])
 
+  // The actions sit beside the title until it would be cut off. Then they fold behind the dots, which
+  // reveal them under the title. Each check lays them out beside it first, before anything is drawn.
+  const header = useRef<HTMLElement>(null)
+  const [folded, setFolded] = useState(false)
+  const [width, setWidth] = useState(window.innerWidth)
+  const title = meta.get('title')
+  useEffect(() => {
+    const resize = () => setWidth(window.innerWidth)
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+  useLayoutEffect(() => setFolded(false), [title, width, hasChecklist, deleted, s.online])
+  useLayoutEffect(() => {
+    const shown = header.current?.querySelector('[data-title]')
+    if (!folded && shown && shown.scrollWidth > shown.clientWidth) setFolded(true)
+  }, [folded, title, width, hasChecklist, deleted, s.online])
+
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
 
   const mine = isMine(id)
@@ -197,11 +228,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   )
 
   const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
-  // On a phone the title needs the width, so the action row drops under it and the dots reveal it.
-  const phoneControls = (
+  const dots = folded && (
     <>
       {(!mine || shareCount(id) > 0) && (
-        <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted md:hidden">
+        <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
           <UsersIcon />
         </span>
       )}
@@ -209,14 +239,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         type="button"
         aria-label="More"
         aria-expanded={more}
-        className="h-10 w-10 shrink-0 text-2xl leading-none md:hidden"
+        className="h-10 w-10 shrink-0 text-2xl leading-none"
         onClick={() => setMore(!more)}
       >
         ⋯
       </button>
     </>
   )
-  const actionRow = `${more ? 'flex' : 'hidden'} w-full items-center justify-end gap-2 md:flex md:w-auto`
+  const actionRow = `${folded && !more ? 'hidden' : 'flex'} items-center justify-end gap-2 ${folded ? 'w-full' : ''}`
 
   if (deleted) {
     const canAct = mine || hasLeft(id)
@@ -227,11 +257,13 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
     return (
       <>
-        <header className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+        <header ref={header} className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
           {back}
-          <span className="min-w-0 flex-1 truncate text-lg font-bold">{titleOf(id)}</span>
+          <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
+            {titleOf(id)}
+          </span>
           <OfflineIcon />
-          {phoneControls}
+          {dots}
           <div className={actionRow}>
             {sharedBy}
             {canAct && (
@@ -252,10 +284,11 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
 
   return (
     <>
-      <header className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+      <header ref={header} className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
         {back}
         <input
           ref={titleRef}
+          data-title
           className="min-w-0 flex-1 bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
           placeholder="Title"
           value={(meta.get('title') as string | undefined) ?? ''}
@@ -263,9 +296,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           onKeyDown={toBody}
         />
         <OfflineIcon />
-        {phoneControls}
+        {dots}
         <div className={actionRow}>
           {mine ? <ShareDialog id={id} /> : sharedBy}
+          {hasChecklist && (
+            <IconButton label="Hide checked" aria-pressed={hideChecked} onClick={() => meta.set('hideChecked', !hideChecked)}>
+              <EyeOffIcon className={`h-[22px] w-[22px] ${hideChecked ? 'text-accent' : ''}`} />
+            </IconButton>
+          )}
           <IconButton label={pinLabel} onClick={() => togglePin(id)}>
             <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
           </IconButton>
@@ -274,7 +312,11 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           </IconButton>
         </div>
       </header>
-      <EditorContent editor={editor} className="relative flex-1 overflow-y-auto" />
+      <EditorContent
+        editor={editor}
+        className="relative flex-1 overflow-y-auto"
+        data-hide-checked={hideChecked || undefined}
+      />
       {editor && (
         // Pointing at a line shows its handle, and dragging the handle moves the line with what is nested under it.
         // By default a pointer near a nested line's left edge picks its parent, and a nested checkbox sits on that edge.
