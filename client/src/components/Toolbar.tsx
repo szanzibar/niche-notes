@@ -23,12 +23,13 @@ import {
   UnlinkIcon,
 } from './icons'
 import { listPosition, toggleList } from './lists'
+import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
-  // One row opens above the bar at a time: text styles, or the address of a link.
+  // One box opens above the bar at a time: text styles, or the address of a link.
   const [row, setRow] = useState<'styles' | 'link' | null>(null)
   const [href, setHref] = useState('')
   useEffect(() => {
@@ -44,8 +45,8 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   const listItem = item ?? 'listItem'
   const link = editor.getAttributes('link').href as string | undefined
   const chain = () => editor.chain().focus()
-  // The link row's input holds focus, and TipTap only takes it back on the next frame, so the editor
-  // takes it before the row goes.
+  // The link box's input holds focus, and TipTap only takes it back on the next frame, so the editor
+  // takes it before the box goes.
   const close = () => {
     editor.view.focus()
     setRow(null)
@@ -54,9 +55,10 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
     close()
     apply()
   }
-  const openLink = () => {
+  const openLink = (open: boolean) => {
+    if (!open) return close()
     setHref(link ?? '')
-    setRow(row === 'link' ? null : 'link')
+    setRow('link')
   }
   const applyLink = () => {
     close()
@@ -73,74 +75,18 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   }
 
   return (
-    <div className="shrink-0 border-t-2 border-border bg-surface">
-      {row === 'link' && (
-        <form
-          className="flex gap-2 px-2 pt-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            applyLink()
-          }}
-        >
-          <input
-            aria-label="Link address"
-            inputMode="url"
-            placeholder="Paste or type a link"
-            autoFocus
-            value={href}
-            onChange={(e) => setHref(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') close()
-            }}
-            className="h-10 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent"
-          />
-          <Group>
-            <Tool label="Apply link" onClick={applyLink}>
-              <CheckIcon className={ICON} />
-            </Tool>
-            {editor.isActive('link') && (
-              <Tool
-                label="Remove link"
-                onClick={() => style(() => chain().extendMarkRange('link').unsetLink().run())}
-              >
-                <UnlinkIcon className={ICON} />
-              </Tool>
-            )}
-          </Group>
-        </form>
-      )}
+    <div className="relative shrink-0 border-t-2 border-border bg-surface">
       {!row && link && (
-        <div className="flex px-2 pt-2">
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open link"
-            className="flex h-9 min-w-0 items-center gap-2 border-2 border-border bg-surface px-2 font-bold shadow-[2px_2px_0_var(--border)]"
-          >
-            <OpenLinkIcon className={`${ICON} shrink-0`} />
-            <span className="truncate">{link}</span>
-          </a>
-        </div>
-      )}
-      {row === 'styles' && (
-        <div className="flex overflow-x-auto px-2 pt-2">
-          <Group>
-            <Tool label="Text" active={editor.isActive('paragraph')} onClick={() => style(() => chain().setParagraph().run())}>
-              Text
-            </Tool>
-            {([1, 2, 3] as const).map((level) => (
-              <Tool
-                key={level}
-                label={`Heading ${level}`}
-                active={editor.isActive('heading', { level })}
-                onClick={() => style(() => chain().setHeading({ level }).run())}
-              >
-                H{level}
-              </Tool>
-            ))}
-          </Group>
-        </div>
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open link"
+          className="absolute bottom-full left-2 mb-2 flex h-9 max-w-[calc(100%-1rem)] items-center gap-2 border-2 border-border bg-surface px-2 font-bold shadow-brutal"
+        >
+          <OpenLinkIcon className={`${ICON} shrink-0`} />
+          <span className="truncate">{link}</span>
+        </a>
       )}
       <div className="flex gap-2 overflow-x-auto p-2">
         <Group>
@@ -171,13 +117,30 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           </Tool>
         </Group>
         <Group>
-          <Tool
-            label="Text style"
-            active={row === 'styles' || editor.isActive('heading')}
-            onClick={() => setRow(row === 'styles' ? null : 'styles')}
+          <Popover
+            side="top"
+            open={row === 'styles'}
+            onOpenChange={(open) => setRow(open ? 'styles' : null)}
+            trigger={
+              <Tool label="Text style" active={row === 'styles' || editor.isActive('heading')}>
+                <HeadingIcon className={ICON} />
+              </Tool>
+            }
           >
-            <HeadingIcon className={ICON} />
-          </Tool>
+            <Tool label="Text" active={editor.isActive('paragraph')} onClick={() => style(() => chain().setParagraph().run())}>
+              Text
+            </Tool>
+            {([1, 2, 3] as const).map((level) => (
+              <Tool
+                key={level}
+                label={`Heading ${level}`}
+                active={editor.isActive('heading', { level })}
+                onClick={() => style(() => chain().setHeading({ level }).run())}
+              >
+                H{level}
+              </Tool>
+            ))}
+          </Popover>
           <Tool label="Quote" active={editor.isActive('blockquote')} onClick={() => chain().toggleBlockquote().run()}>
             <QuoteIcon className={ICON} />
           </Tool>
@@ -201,9 +164,46 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <Tool label="Code" active={editor.isActive('code')} onClick={() => chain().toggleCode().run()}>
             <CodeIcon className={ICON} />
           </Tool>
-          <Tool label="Link" active={row === 'link' || editor.isActive('link')} onClick={openLink}>
-            <LinkIcon className={ICON} />
-          </Tool>
+          <Popover
+            side="top"
+            open={row === 'link'}
+            onOpenChange={openLink}
+            className="w-[min(calc(100vw-1rem),28rem)]"
+            trigger={
+              <Tool label="Link" active={row === 'link' || editor.isActive('link')}>
+                <LinkIcon className={ICON} />
+              </Tool>
+            }
+          >
+            <form
+              className="flex min-w-0 flex-1 items-center gap-1"
+              onSubmit={(e) => {
+                e.preventDefault()
+                applyLink()
+              }}
+            >
+              <input
+                aria-label="Link address"
+                inputMode="url"
+                placeholder="Paste or type a link"
+                autoFocus
+                value={href}
+                onChange={(e) => setHref(e.target.value)}
+                className="h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent"
+              />
+              <Tool label="Apply link" onClick={applyLink}>
+                <CheckIcon className={ICON} />
+              </Tool>
+              {editor.isActive('link') && (
+                <Tool
+                  label="Remove link"
+                  onClick={() => style(() => chain().extendMarkRange('link').unsetLink().run())}
+                >
+                  <UnlinkIcon className={ICON} />
+                </Tool>
+              )}
+            </form>
+          </Popover>
           <Tool label="Highlight" active={editor.isActive('highlight')} onClick={() => chain().toggleHighlight().run()}>
             <HighlightIcon className={ICON} />
           </Tool>
@@ -218,17 +218,7 @@ function Group({ children }: { children: React.ReactNode }) {
   return <div className="flex shrink-0 border-2 border-border shadow-[2px_2px_0_var(--border)]">{children}</div>
 }
 
-function Tool({
-  label,
-  active,
-  onClick,
-  children,
-}: {
-  label: string
-  active?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
+function Tool({ label, active, ...props }: React.ComponentProps<'button'> & { label: string; active?: boolean }) {
   return (
     <button
       type="button"
@@ -237,10 +227,8 @@ function Tool({
       title={label}
       // Keep the editor focused and the keyboard open while tapping the bar.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
       className={`flex h-9 min-w-9 shrink-0 items-center justify-center px-1.5 text-sm font-bold ${active ? 'bg-accent text-white' : 'bg-surface'}`}
-    >
-      {children}
-    </button>
+      {...props}
+    />
   )
 }

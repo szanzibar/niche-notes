@@ -248,6 +248,38 @@ test('Delete checked shows hidden checked lines for a moment, then removes them 
   await expect(body(page)).toHaveText('done')
 })
 
+test('a tick while typing moves the cursor to the ticked line, and a tick with the keyboard down keeps it down', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs', 'Bread')
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
+  await page.keyboard.type(' and butter')
+  await expect(body(page).locator('li p')).toHaveText(['Milk and butter', 'Eggs', 'Bread'])
+
+  await body(page).blur()
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Eggs' }).check()
+  await expect(body(page)).not.toBeFocused()
+})
+
+test('deleting the blank line between two checklists makes them one list', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs')
+  // The first Enter leaves the list and the second leaves a blank line.
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Enter')
+  await page.keyboard.type('Bread')
+  await tool(page, 'Checklist').click()
+  await expect(body(page).locator('> ul')).toHaveCount(2)
+
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowUp')
+  // Chromium hands ProseMirror the caret move on the next frame.
+  await page.waitForTimeout(60)
+  await page.keyboard.press('Backspace')
+  await expect(body(page).locator('> ul')).toHaveCount(1)
+  await expect(body(page).locator('li p')).toHaveText(['Milk', 'Eggs', 'Bread'])
+})
+
 test('a checkbox carries no hidden text, which Android keyboards would read into the line', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Milk')

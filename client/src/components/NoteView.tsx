@@ -40,8 +40,9 @@ import {
   UsersIcon,
 } from './icons'
 import { OfflineIcon } from './OfflineIcon'
+import { Popover } from './Popover'
 import { ShareDialog } from './ShareDialog'
-import { deleteChecked, HideChecked, LINGER_MS, ListTabs, TaskItem, uncheckAll } from './lists'
+import { deleteChecked, HideChecked, JoinLists, LINGER_MS, ListTabs, TaskItem, uncheckAll } from './lists'
 import { Toolbar } from './Toolbar'
 
 // One per note for the app's lifetime, so undo survives leaving and reopening the note.
@@ -117,10 +118,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   useY(nodes())
   const titleRef = useRef<HTMLInputElement>(null)
   const deleted = inTrash(id)
-  // One panel opens under the title at a time: the folded actions, or what to do with checked lines. It
-  // floats over the note so the text doesn't jump, and a tap back in the note closes it.
+  // One box opens under the title at a time: the folded actions, or what to do with checked lines.
   const [panel, setPanel] = useState<'more' | 'checked' | null>(null)
-  const togglePanel = (name: 'more' | 'checked') => setPanel(panel === name ? null : name)
 
   const editor = useEditor(
     {
@@ -135,6 +134,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         TaskItem.configure({ nested: true }),
         Highlight,
         ListTabs,
+        JoinLists,
         Placeholder.configure({ placeholder: 'Write…' }),
         HideChecked(() => meta.get('hideChecked') === true),
         Collaboration.configure({
@@ -254,26 +254,30 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   )
 
   const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
-  const dots = folded && (
-    <>
-      {(!mine || shareCount(id) > 0) && (
-        <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
-          <UsersIcon />
-        </span>
-      )}
-      <button
-        type="button"
-        aria-label="More"
-        aria-expanded={panel === 'more'}
-        className="h-10 w-10 shrink-0 text-2xl leading-none"
-        onClick={() => togglePanel('more')}
-      >
-        ⋯
-      </button>
-    </>
-  )
-  const panelClass = 'absolute right-3 top-full z-10 mt-2 flex items-center gap-2 border-2 border-border bg-surface p-1 shadow-brutal'
-  const actionRow = folded ? (panel === 'more' ? panelClass : 'hidden') : 'flex items-center justify-end gap-2'
+  const actions = (children: React.ReactNode) =>
+    folded ? (
+      <>
+        {(!mine || shareCount(id) > 0) && (
+          <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
+            <UsersIcon />
+          </span>
+        )}
+        <Popover
+          side="bottom"
+          open={panel === 'more'}
+          onOpenChange={(open) => setPanel(open ? 'more' : null)}
+          trigger={
+            <button type="button" aria-label="More" className="h-10 w-10 shrink-0 text-2xl leading-none">
+              ⋯
+            </button>
+          }
+        >
+          {children}
+        </Popover>
+      </>
+    ) : (
+      <div className="flex items-center justify-end gap-2">{children}</div>
+    )
 
   if (deleted) {
     const canAct = mine || hasLeft(id)
@@ -284,38 +288,35 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
     return (
       <>
-        <header ref={header} className="relative flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+        <header ref={header} className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
           {back}
           <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
             {titleOf(id)}
           </span>
           <OfflineIcon />
-          {dots}
-          <div className={actionRow}>
-            {sharedBy}
-            {canAct && (
-              <>
-                <Button onClick={() => restoreNote(id)}>Restore</Button>
-                <Button disabled={!s.online} onClick={purge}>
-                  {final}
-                </Button>
-              </>
-            )}
-          </div>
+          {actions(
+            <>
+              {sharedBy}
+              {canAct && (
+                <>
+                  <Button onClick={() => restoreNote(id)}>Restore</Button>
+                  <Button disabled={!s.online} onClick={purge}>
+                    {final}
+                  </Button>
+                </>
+              )}
+            </>,
+          )}
         </header>
         {/* Sunken and muted: readable, clearly not for writing. */}
-        <EditorContent
-          editor={editor}
-          className="flex-1 overflow-y-auto bg-sunken text-ink-muted"
-          onPointerDown={() => setPanel(null)}
-        />
+        <EditorContent editor={editor} className="flex-1 overflow-y-auto bg-sunken text-ink-muted" />
       </>
     )
   }
 
   return (
     <>
-      <header ref={header} className="relative flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+      <header ref={header} className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
         {back}
         <input
           ref={titleRef}
@@ -327,23 +328,17 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           onKeyDown={toBody}
         />
         <OfflineIcon />
-        {tasks?.any && (
-          <IconButton label="Checked lines" aria-expanded={panel === 'checked'} onClick={() => togglePanel('checked')}>
-            <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hideChecked ? 'text-accent' : ''}`} />
-          </IconButton>
-        )}
-        {dots}
-        <div className={actionRow}>
-          {mine ? <ShareDialog id={id} /> : sharedBy}
-          <IconButton label={pinLabel} onClick={() => togglePin(id)}>
-            <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
-          </IconButton>
-          <IconButton label={removeLabel} onClick={remove}>
-            {mine ? <TrashIcon /> : <LeaveIcon />}
-          </IconButton>
-        </div>
-        {panel === 'checked' && tasks?.any && editor && (
-          <div className={panelClass}>
+        {tasks?.any && editor && (
+          <Popover
+            side="bottom"
+            open={panel === 'checked'}
+            onOpenChange={(open) => setPanel(open ? 'checked' : null)}
+            trigger={
+              <IconButton label="Checked lines">
+                <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hideChecked ? 'text-accent' : ''}`} />
+              </IconButton>
+            }
+          >
             <IconButton label="Hide checked" aria-pressed={hideChecked} onClick={() => meta.set('hideChecked', !hideChecked)}>
               <HideCheckedIcon className={`h-[22px] w-[22px] ${hideChecked ? 'text-accent' : ''}`} />
             </IconButton>
@@ -357,14 +352,24 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
                 </IconButton>
               </>
             )}
-          </div>
+          </Popover>
+        )}
+        {actions(
+          <>
+            {mine ? <ShareDialog id={id} /> : sharedBy}
+            <IconButton label={pinLabel} onClick={() => togglePin(id)}>
+              <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
+            </IconButton>
+            <IconButton label={removeLabel} onClick={remove}>
+              {mine ? <TrashIcon /> : <LeaveIcon />}
+            </IconButton>
+          </>,
         )}
       </header>
       <EditorContent
         editor={editor}
         className="relative flex-1 overflow-y-auto"
         data-hide-checked={(hideChecked && !clearing) || undefined}
-        onPointerDown={() => setPanel(null)}
       />
       {editor && (
         // Pointing at a line shows its handle, and dragging the handle moves the line with what is nested under it.

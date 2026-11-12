@@ -8,7 +8,9 @@ defmodule NicheNotesWeb.Endpoint do
     store: :cookie,
     key: "_niche_notes_key",
     signing_salt: "LC0kN30a",
-    same_site: "Lax"
+    same_site: "Lax",
+    # Without an expiry the cookie dies whenever Android restarts Chrome. /api/me renews it.
+    max_age: 365 * 24 * 60 * 60
   ]
 
   socket "/socket", NicheNotesWeb.UserSocket, websocket: true, longpoll: false

@@ -1,7 +1,8 @@
 import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
 import type { Node, ResolvedPos } from '@tiptap/pm/model'
-import { type EditorState, Plugin, Selection } from '@tiptap/pm/state'
+import { type EditorState, Plugin, Selection, TextSelection } from '@tiptap/pm/state'
 import { Extension, type Editor } from '@tiptap/react'
+import { ySyncPluginKey } from '@tiptap/y-tiptap'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
 const ITEM: Record<ListType, string> = { taskList: 'taskItem', bulletList: 'listItem', orderedList: 'listItem' }
@@ -66,6 +67,29 @@ export const ListTabs = Extension.create({
   },
 })
 
+// Two lists of one type side by side read as one list with a gap, and Indent can't cross the gap, so an edit
+// that leaves them touching joins them. Only our own edits, around the cursor: if two devices joined the same
+// lists, the second list's lines would appear twice.
+export const JoinLists = Extension.create({
+  name: 'joinLists',
+  addProseMirrorPlugins: () => [
+    new Plugin({
+      appendTransaction: (transactions, _old, state) => {
+        if (!transactions.some((tr) => tr.docChanged && !tr.getMeta(ySyncPluginKey))) return null
+        const { $from } = state.selection
+        const tr = state.tr
+        for (let depth = $from.depth; depth > 0; depth--) {
+          const { type } = $from.node(depth)
+          if (!(type.name in ITEM)) continue
+          if (state.doc.resolve($from.after(depth)).nodeAfter?.type === type) tr.join(tr.mapping.map($from.after(depth)))
+          if (state.doc.resolve($from.before(depth)).nodeBefore?.type === type) tr.join(tr.mapping.map($from.before(depth)))
+        }
+        return tr.docChanged ? tr : null
+      },
+    }),
+  ],
+})
+
 // How long checked lines stay in view before they hide or Delete checked removes them, so you see what goes.
 export const LINGER_MS = 800
 
@@ -95,6 +119,29 @@ export const TaskItem = TipTapTaskItem.extend({
       }
       // The editor would read the timer's change as an edit to the line.
       view.ignoreMutation = (m) => m.type === 'attributes' && m.attributeName === 'data-lingering'
+      // A tick while typing moves the cursor to the end of the ticked line, so the note stays put, and a tick with
+      // the keyboard down leaves it down. TipTap's own tick would focus the editor at the old cursor instead.
+      const { editor, getPos } = props
+      const label = li.querySelector('label')!
+      label.addEventListener(
+        'change',
+        (e) => {
+          const pos = getPos()
+          if (!editor.isEditable || pos == null) return
+          e.stopPropagation()
+          const line = editor.state.doc.nodeAt(pos)!
+          const checked = (e.target as HTMLInputElement).checked
+          editor
+            .chain()
+            .command(({ tr }) => {
+              if (editor.isFocused) tr.setSelection(TextSelection.create(tr.doc, pos + line.firstChild!.nodeSize))
+              tr.setNodeMarkup(pos, undefined, { ...line.attrs, checked })
+              return true
+            })
+            .run()
+        },
+        true,
+      )
       return view
     }
   },
