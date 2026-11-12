@@ -32,6 +32,8 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
   SDK Docker image, for the server in `.env`'s `PHX_HOST` and with `ANDROID_APP_ID` as its id. The server's `.env`
   also needs `ANDROID_CERT_SHA256`, the signing key's fingerprint, so Chrome opens the site without an address
   bar. A push to `main` that touches `android/` publishes the signed APK as a GitHub release, using the keystore
-  from two repository secrets and `PHX_HOST` and `ANDROID_APP_ID` from repository variables.
+  from two repository secrets and `PHX_HOST` and `ANDROID_APP_ID` from repository variables. Installed apps
+  download a newer release by themselves and offer it on their next launch. The first update asks to allow
+  installing unknown apps.
 - **Desktop.** Open the site in Chrome or Edge and choose Install. Passkeys, offline and notifications work there
   as in the browser.

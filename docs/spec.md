@@ -18,7 +18,7 @@ Amplenote is a paid subscription, its sync has lost data, and it is cluttered. W
 - **Settings.** A highlight color from a palette, light, dark or follow-the-device appearance, and a compact, default or large density. The color and appearance follow the user to every device, and density stays with each device, since a phone and a desktop want different sizes.
 - **Note header.** The actions sit beside the title until it would be cut off. Then they fold behind dots that reveal them under the title, with a people icon beside the dots when the note is shared either way.
 - **Widgets.** On Android, any number of home-screen widgets, each showing a whole note you pick, read-only. Adding or reconfiguring a widget opens the tree to pick from, and tapping the widget opens its note in the app. Widgets refresh every 30 minutes and from a refresh button.
-- **Native.** An Android app and the web app, which Chrome and Edge install as a desktop app, all loading the same build from the server.
+- **Native.** An Android app and the web app, which Chrome and Edge install as a desktop app, all loading the same build from the server. The Android app updates itself from the project's releases: it downloads a newer one in the background and offers to install it on the next launch.
 - **Self-hosted.** One Docker container and one SQLite file. Login through Pocket ID passkeys. A person can be shared with once they have logged in.
 
 ## Not in v1

@@ -9,7 +9,6 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.view.View;
 import android.widget.RemoteViews;
-import com.google.androidbrowserhelper.trusted.LauncherActivity;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -32,7 +31,7 @@ public class NoteWidget extends AppWidgetProvider {
 
     // Starts the app afresh, since Android would bring back an app opened by this same link wherever it was left.
     static Intent inApp(Context context, String path) {
-        return new Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.site) + path), context, LauncherActivity.class)
+        return new Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.site) + path), context, Launcher.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
     }
 

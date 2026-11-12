@@ -20,7 +20,7 @@ The server is a home server: a push to `main` makes GitHub Actions publish `ghcr
 
 ## Apps: local builds first, then the same in Actions
 
-Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site under our icon, because Pocket ID refuses passkeys from a WebView. `android/build.sh` runs gradle in `ghcr.io/cirruslabs/android-sdk:36`, signed with `android/release.keystore` and `android/keystore.properties`, both outside git. The signing certificate's fingerprint is published in `client/public/.well-known/assetlinks.json`; Chrome only drops its address bar once that file is live on the server.
+Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site under our icon, because Pocket ID refuses passkeys from a WebView. `android/build.sh` runs gradle in `ghcr.io/cirruslabs/android-sdk:36`, signed with `android/release.keystore` and `android/keystore.properties`, both outside git. The server publishes the signing certificate's fingerprint from `ANDROID_CERT_SHA256` at `/.well-known/assetlinks.json`; Chrome only drops its address bar once that is live.
 
 - [x] `android/release.keystore` and `android/keystore.properties` backed up in the password manager (2026-11-10)
 - [x] APK installs and runs on Steven's phone (2026-11-10)
@@ -28,6 +28,7 @@ Android is a Trusted Web Activity (ADR 002 amendment): Chrome renders the site u
 - [x] `.github/workflows/android.yml` builds on a push to `main` that touches `android/`, or by hand, and publishes the APK as release `android-<commit count>`
 - [x] Secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PROPERTIES` added (2026-11-10)
 - [x] First release built and published by the workflow on a push to main (2026-11-10)
+- [ ] The app downloads a newer release and offers it on the next launch, tested on Steven's phone
 - [ ] Hide the address bar during login too: Caddy serves the same assetlinks on the Pocket ID host and the launcher lists it in `ADDITIONAL_TRUSTED_ORIGINS`
 - [x] Desktop decided 2026-11-10: the installed PWA from Chrome or Edge; Electron removed
 
