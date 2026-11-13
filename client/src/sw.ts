@@ -55,13 +55,12 @@ self.addEventListener('notificationclick', (event) => {
       : event.action === 'snooze'
         ? { move_to: `${dayOf(later)}T${later.toTimeString().slice(0, 5)}` }
         : null
+  const note = `/n/${alert.note}?${new URLSearchParams({ line: alert.text })}`
   const open = () =>
     self.clients
       .matchAll({ type: 'window' })
       .then(([window]) =>
-        window
-          ? window.focus().then((focused) => focused.navigate(`/n/${alert.note}`))
-          : self.clients.openWindow(`/n/${alert.note}`),
+        window ? window.focus().then((focused) => focused.navigate(note)) : self.clients.openWindow(note),
       )
   event.waitUntil(
     change

@@ -6,6 +6,8 @@
 // feed passes it on as it is.
 export const DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
 export type Day = (typeof DAYS)[number]
+// The week starts on Monday, as it does in Switzerland.
+export const WEEK = [...DAYS.slice(1), DAYS[0]]
 export interface Rule {
   freq: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   interval: number
@@ -22,7 +24,7 @@ export function parseRule(text: string | null | undefined): Rule | null {
   return {
     freq: parts.FREQ,
     interval: Number(parts.INTERVAL ?? 1),
-    days: DAYS.filter((day) => byDay.some((entry) => entry.endsWith(day))),
+    days: WEEK.filter((day) => byDay.some((entry) => entry.endsWith(day))),
     weeks: [...new Set(byDay.map((entry) => Number(entry.slice(0, -2))).filter(Boolean))].sort(
       (a, b) => (a < 0 ? 9 : a) - (b < 0 ? 9 : b),
     ),

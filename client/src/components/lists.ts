@@ -148,6 +148,14 @@ export const TaskItem = TipTapTaskItem.extend({
         editor.commands.setTextSelection(pos + editor.state.doc.nodeAt(pos)!.firstChild!.nodeSize)
         editor.view.dom.dispatchEvent(new Event('due-date'))
       })
+      // The space after the date belongs to the line, not its text, and a phone puts the cursor on the next
+      // line for a tap there. It goes to the end of the tapped row instead.
+      li.addEventListener('click', (e) => {
+        if (e.target !== li || !editor.isEditable) return
+        const text = li.querySelector(':scope > div')!.getBoundingClientRect()
+        const at = editor.view.posAtCoords({ left: text.right - 1, top: e.clientY })
+        if (at) editor.commands.focus(at.pos)
+      })
       // A line checked here or on another device lingers until the note is still. Lines checked before the
       // note opened don't.
       const update = view.update!

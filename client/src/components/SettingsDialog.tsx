@@ -49,6 +49,11 @@ export function SettingsDialog() {
   const [calendar, setCalendar] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const webcal = calendar?.replace(/^https?:/, 'webcal:')
+  const google = webcal && `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`
+  // Google Calendar's Android app claims Google's links and can't add a calendar from one, so a phone pastes the
+  // link into a browser. Google's sign-in comes first, for a browser that isn't signed in yet.
+  const android = /Android/.test(navigator.userAgent)
+  const copy = android ? google && `https://accounts.google.com/ServiceLogin?service=cl&continue=${encodeURIComponent(google)}` : calendar
   const [alerts, setAlerts] = useState('Notification' in window ? Notification.permission : null)
   const open = (opened: boolean) => {
     if (!opened) return
@@ -132,26 +137,30 @@ export function SettingsDialog() {
             </>
           )}
           <p className="mt-5 font-medium">Calendar</p>
-          <p className="mb-2 text-sm text-ink-muted">
-            Dated checkbox lines in your calendar. Google Calendar adds it on its website and refreshes it about once a
-            day.
-          </p>
+          {android ? (
+            <p className="mb-2 text-sm text-ink-muted">
+              Dated checkbox lines in Google Calendar, refreshed about once a day. Copy the link and paste it into your
+              browser's address bar. If the Calendar app opens after you sign in, go back to the browser and add the
+              calendar there. Then turn on Sync for Niche Notes in the Calendar app's settings.
+            </p>
+          ) : (
+            <p className="mb-2 text-sm text-ink-muted">
+              Dated checkbox lines in your calendar. Google Calendar adds it on its website and refreshes it about once a
+              day. To see it on a phone, turn on Sync for Niche Notes in the Calendar app's settings.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={!calendar}
-              onClick={() =>
-                window.open(`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal!)}`, '_blank')
-              }
-            >
-              Add to Google Calendar
-            </Button>
-            <Button disabled={!calendar} onClick={() => (window.location.href = webcal!)}>
-              Calendar app
-            </Button>
-            <Button
-              disabled={!calendar}
-              onClick={() => void navigator.clipboard.writeText(calendar!).then(() => setCopied(true))}
-            >
+            {!android && (
+              <>
+                <Button disabled={!calendar} onClick={() => window.open(google!, '_blank')}>
+                  Add to Google Calendar
+                </Button>
+                <Button disabled={!calendar} onClick={() => (window.location.href = webcal!)}>
+                  Calendar app
+                </Button>
+              </>
+            )}
+            <Button disabled={!calendar} onClick={() => void navigator.clipboard.writeText(copy!).then(() => setCopied(true))}>
               {copied ? 'Copied' : 'Copy link'}
             </Button>
           </div>

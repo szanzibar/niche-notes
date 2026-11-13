@@ -197,9 +197,21 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   }, [editor, deleted])
 
   // Opening a note means writing in it: an empty title first, otherwise where this device left the
-  // cursor, or the end of the text.
+  // cursor, or the end of the text. A calendar event's link names its checkbox line instead.
   useEffect(() => {
     if (!editor || deleted) return
+    const line = new URLSearchParams(location.search).get('line')
+    let end: number | null = null
+    editor.state.doc.descendants((node, pos) => {
+      if (end == null && node.type.name === 'taskItem' && node.firstChild?.textContent === line) {
+        end = pos + node.firstChild.nodeSize
+      }
+      return end == null
+    })
+    if (end != null) {
+      editor.commands.focus(end)
+      return
+    }
     if (!titleRef.current?.value) {
       titleRef.current?.focus()
       return
@@ -268,7 +280,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   )
 
   const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
-  const actions = (children: React.ReactNode) =>
+  // Every action folds at once. Behind the dots, the checked-line options get their own row instead of a box
+  // inside the box.
+  const actions = (children: React.ReactNode, checked?: React.ReactNode) =>
     folded ? (
       <>
         {(!mine || shareCount(id) > 0) && (
@@ -286,11 +300,30 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             </button>
           }
         >
-          {children}
+          <div className="flex flex-col items-end gap-2">
+            {checked && <div className="flex items-center gap-2">{checked}</div>}
+            <div className="flex items-center gap-2">{children}</div>
+          </div>
         </Popover>
       </>
     ) : (
-      <div className="flex items-center justify-end gap-2">{children}</div>
+      <div className="flex items-center justify-end gap-2">
+        {checked && (
+          <Popover
+            side="bottom"
+            open={panel === 'checked'}
+            onOpenChange={(open) => setPanel(open ? 'checked' : null)}
+            trigger={
+              <IconButton label="Checked lines">
+                <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hiding ? 'text-accent' : ''}`} />
+              </IconButton>
+            }
+          >
+            {checked}
+          </Popover>
+        )}
+        {children}
+      </div>
     )
 
   if (deleted) {
@@ -335,46 +368,13 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         <input
           ref={titleRef}
           data-title
-          className="min-w-0 flex-1 bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
+          className="min-w-0 flex-1 truncate bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
           placeholder="Title"
           value={(meta.get('title') as string | undefined) ?? ''}
           onChange={(e) => meta.set('title', e.target.value)}
           onKeyDown={toBody}
         />
         <OfflineIcon />
-        {tasks?.any && editor && (
-          <Popover
-            side="bottom"
-            open={panel === 'checked'}
-            onOpenChange={(open) => setPanel(open ? 'checked' : null)}
-            trigger={
-              <IconButton label="Checked lines">
-                <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hiding ? 'text-accent' : ''}`} />
-              </IconButton>
-            }
-          >
-            <IconButton
-              label="Hide checked"
-              aria-pressed={hiding && !deleting}
-              onClick={() => setMode('hideChecked', !(hiding && !deleting))}
-            >
-              <HideCheckedIcon className={`h-[22px] w-[22px] ${hiding && !deleting ? 'text-accent' : ''}`} />
-            </IconButton>
-            <IconButton label="Delete when checked" aria-pressed={deleting} onClick={() => setMode('deleteChecked', !deleting)}>
-              <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent' : ''}`} />
-            </IconButton>
-            {tasks.checked && (
-              <>
-                <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
-                  <UncheckAllIcon />
-                </IconButton>
-                <IconButton label="Delete checked" onClick={() => (hiding ? setClearing(true) : deleteChecked(editor))}>
-                  <DeleteCheckedIcon />
-                </IconButton>
-              </>
-            )}
-          </Popover>
-        )}
         {actions(
           <>
             {mine ? <ShareDialog id={id} /> : sharedBy}
@@ -385,6 +385,30 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
               {mine ? <TrashIcon /> : <LeaveIcon />}
             </IconButton>
           </>,
+          tasks?.any && editor && (
+            <>
+              <IconButton
+                label="Hide checked"
+                aria-pressed={hiding && !deleting}
+                onClick={() => setMode('hideChecked', !(hiding && !deleting))}
+              >
+                <HideCheckedIcon className={`h-[22px] w-[22px] ${hiding && !deleting ? 'text-accent' : ''}`} />
+              </IconButton>
+              <IconButton label="Delete when checked" aria-pressed={deleting} onClick={() => setMode('deleteChecked', !deleting)}>
+                <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent' : ''}`} />
+              </IconButton>
+              {tasks.checked && (
+                <>
+                  <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
+                    <UncheckAllIcon />
+                  </IconButton>
+                  <IconButton label="Delete checked" onClick={() => (hiding ? setClearing(true) : deleteChecked(editor))}>
+                    <DeleteCheckedIcon />
+                  </IconButton>
+                </>
+              )}
+            </>
+          ),
         )}
       </header>
       <EditorContent

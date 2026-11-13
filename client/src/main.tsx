@@ -5,7 +5,7 @@ import './index.css'
 
 // A launch straight into a note, as from a widget, puts the list under it, so back goes to the list.
 if (location.pathname.startsWith('/n/') && history.state == null) {
-  const note = location.pathname
+  const note = location.pathname + location.search
   history.replaceState(null, '', '/')
   history.pushState(null, '', note)
 }

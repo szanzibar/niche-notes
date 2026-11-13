@@ -43,8 +43,10 @@ defmodule NicheNotesWeb.CalendarControllerTest do
     path = URI.parse(url).path
     feed = build_conn() |> get(path) |> response(200)
 
+    link = "#{NicheNotesWeb.Endpoint.url()}/n/#{mine}?line=Pay+rent%2C+then+bills"
+
     assert feed =~
-             "DTSTART;VALUE=DATE:20261114\r\nSUMMARY:Pay rent\\, then bills\r\nDESCRIPTION:House\r\n"
+             "DTSTART;VALUE=DATE:20261114\r\nSUMMARY:Pay rent\\, then bills\r\nDESCRIPTION:House\\n#{link}\r\nURL:#{link}\r\n"
 
     assert feed =~ "RRULE:FREQ=MONTHLY;BYDAY=1SU,3SU\r\n"
     assert feed =~ "DTSTART:20261114T153000\r\nDURATION:PT30M\r\nSUMMARY:Call the plumber\r\n"

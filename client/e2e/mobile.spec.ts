@@ -42,6 +42,24 @@ test('a short title keeps the actions beside it until typing makes it too long',
   await expect(page.getByPlaceholder('Title')).toBeFocused()
 })
 
+test('every action folds behind the dots at once, and the offline cloud stays beside them', async ({ browser }) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Groceries for the whole week')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await page.keyboard.type('Eggs')
+  await expect(page.getByRole('button', { name: 'Checked lines' })).toBeHidden()
+
+  await page.context().setOffline(true)
+  await expect(page.locator('main').getByRole('img', { name: 'Offline' })).toBeVisible()
+  await page.getByRole('button', { name: 'More' }).click()
+  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('a shared note shows a people icon beside the dots, for both sides', async ({ browser }) => {
   const a = `alice-${uid()}`
   const b = `bob-${uid()}`

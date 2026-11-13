@@ -30,14 +30,18 @@ defmodule NicheNotesWeb.CalendarController do
     events =
       for {id, {title, lines}} <- Map.take(Reminders.notes(), Docs.note_ids(user_id)),
           {line, n} <- Enum.with_index(lines) do
+        # The link opens the note at the line, found by its text. Google Calendar shows no URL field, so the
+        # description carries it too.
+        link = url(~p"/n/#{id}?#{[line: line.text]}")
+
         [
           "BEGIN:VEVENT",
           "UID:#{id}-#{n}",
           "DTSTAMP:#{stamp}",
           start(line),
           "SUMMARY:#{escape(line.text)}",
-          "DESCRIPTION:#{escape(title)}",
-          "URL:#{url(~p"/n/#{id}")}"
+          "DESCRIPTION:#{escape(title)}\\n#{link}",
+          "URL:#{link}"
         ] ++ repeat(line.repeat) ++ ["END:VEVENT"]
       end
 

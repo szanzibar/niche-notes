@@ -1,7 +1,7 @@
 import type { Editor } from '@tiptap/react'
 import { useEffect, useReducer, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
-import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule } from './dates'
+import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
 import {
   BoldIcon,
   BulletListIcon,
@@ -30,7 +30,7 @@ import { listPosition, toggleList } from './lists'
 import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
-const FIELD = 'h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent'
+const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:border-accent'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
@@ -164,19 +164,22 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                 ))}
               </Group>
               <div className="flex gap-1">
-                <input
-                  type="date"
-                  aria-label="Day"
-                  value={day}
-                  onChange={(e) => setDue(e.target.value ? (time ? `${e.target.value}T${time}` : e.target.value) : null)}
-                  className={FIELD}
-                />
+                <label className={`${FIELD} flex flex-1 items-center gap-1 focus-within:border-accent`}>
+                  {day && <span className="shrink-0">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>}
+                  <input
+                    type="date"
+                    aria-label="Day"
+                    value={day}
+                    onChange={(e) => setDue(e.target.value ? (time ? `${e.target.value}T${time}` : e.target.value) : null)}
+                    className="min-w-0 flex-1 bg-transparent outline-none"
+                  />
+                </label>
                 <input
                   type="time"
                   aria-label="Time"
                   value={time}
                   onChange={(e) => setDue(e.target.value ? `${day || inDays(0)}T${e.target.value}` : day || null)}
-                  className={FIELD}
+                  className={`${FIELD} w-28`}
                 />
               </div>
               <Group className="[&>*]:flex-1">
@@ -228,18 +231,18 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
               )}
               {(rule?.freq === 'WEEKLY' || (rule?.freq === 'MONTHLY' && rule.weeks.length > 0)) && (
                 <Group className="[&>*]:flex-1">
-                  {DAYS.map((d: Day, i) => (
+                  {WEEK.map((d: Day) => (
                     <Tool
                       key={d}
-                      label={new Date(2026, 10, 1 + i).toLocaleDateString('en', { weekday: 'long' })}
+                      label={new Date(2026, 10, 1 + DAYS.indexOf(d)).toLocaleDateString('en', { weekday: 'long' })}
                       active={rule.days.includes(d)}
                       // A rule keeps at least one day.
                       onClick={() =>
                         (rule.days.length > 1 || !rule.days.includes(d)) &&
-                        setRule({ ...rule, days: DAYS.filter((x) => (x === d) !== rule.days.includes(x)) })
+                        setRule({ ...rule, days: WEEK.filter((x) => (x === d) !== rule.days.includes(x)) })
                       }
                     >
-                      {'SMTWTFS'[i]}
+                      {'SMTWTFS'[DAYS.indexOf(d)]}
                     </Tool>
                   ))}
                 </Group>
