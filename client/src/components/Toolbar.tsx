@@ -1,8 +1,11 @@
 import type { Editor } from '@tiptap/react'
 import { useEffect, useReducer, useState } from 'react'
+import { enableAlerts } from '../lib/alerts'
+import { inDays, REPEATS } from './dates'
 import {
   BoldIcon,
   BulletListIcon,
+  CalendarIcon,
   CheckIcon,
   CodeBlockIcon,
   ChecklistIcon,
@@ -19,6 +22,7 @@ import {
   QuoteIcon,
   RedoIcon,
   StrikeIcon,
+  TrashIcon,
   UndoIcon,
   UnlinkIcon,
 } from './icons'
@@ -26,22 +30,28 @@ import { listPosition, toggleList } from './lists'
 import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
+const FIELD = 'h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
-  // One box opens above the bar at a time: text styles, or the address of a link.
-  const [row, setRow] = useState<'styles' | 'link' | null>(null)
+  // One box opens above the bar at a time: text styles, the address of a link, or a checkbox line's date.
+  const [row, setRow] = useState<'styles' | 'link' | 'due' | null>(null)
   const [href, setHref] = useState('')
   useEffect(() => {
     if (!editor) return
+    // A tap on a line's date opens its box too.
+    const due = () => setRow('due')
+    const dom = editor.view.dom
     editor.on('transaction', force)
+    dom.addEventListener('due-date', due)
     return () => {
       editor.off('transaction', force)
+      dom.removeEventListener('due-date', due)
     }
   }, [editor])
   if (!editor) return null
 
-  const { item, list } = listPosition(editor)
+  const { item, list, depth } = listPosition(editor)
   const listItem = item ?? 'listItem'
   const link = editor.getAttributes('link').href as string | undefined
   const chain = () => editor.chain().focus()
@@ -60,6 +70,27 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
     setHref(link ?? '')
     setRow('link')
   }
+  // Dates belong to checkbox lines. Each change applies at once, and only a quick pick or Remove closes the box,
+  // so a time or a repeat can follow a date.
+  const linePos = item === 'taskItem' ? editor.state.selection.$from.before(depth) : null
+  const line = linePos == null ? null : editor.state.doc.nodeAt(linePos)
+  const due = line?.attrs.due as string | null | undefined
+  const [day = '', time = ''] = due?.split('T') ?? []
+  const setDue = (next: string | null, repeat = line!.attrs.repeat) => {
+    editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setNodeMarkup(linePos!, undefined, { ...line!.attrs, due: next, repeat: next ? repeat : null })
+        return true
+      })
+      .run()
+    if (next) void enableAlerts()
+  }
+  const pick = (next: string | null) => {
+    setRow(null)
+    setDue(next && time ? `${next}T${time}` : next)
+  }
+
   const applyLink = () => {
     close()
     const typed = href.trim()
@@ -99,6 +130,71 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <Tool label="Numbered list" active={list === 'orderedList'} onClick={() => toggleList(editor, 'orderedList')}>
             <NumberedListIcon className={ICON} />
           </Tool>
+        </Group>
+        <Group>
+          <Popover
+            side="top"
+            open={row === 'due'}
+            onOpenChange={(open) => setRow(open ? 'due' : null)}
+            className="w-[min(calc(100vw-1rem),19rem)]"
+            trigger={
+              <Tool label="Date" disabled={!line} active={row === 'due' || Boolean(due)}>
+                <CalendarIcon className={ICON} />
+              </Tool>
+            }
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-2 p-1">
+              <Group className="[&>*]:flex-1">
+                {(
+                  [
+                    ['Today', 0],
+                    ['Tomorrow', 1],
+                    ['Next week', 7],
+                  ] as const
+                ).map(([label, days]) => (
+                  <Tool key={label} label={label} onClick={() => pick(inDays(days))}>
+                    {label}
+                  </Tool>
+                ))}
+              </Group>
+              <div className="flex gap-1">
+                <input
+                  type="date"
+                  aria-label="Day"
+                  value={day}
+                  onChange={(e) => setDue(e.target.value ? (time ? `${e.target.value}T${time}` : e.target.value) : null)}
+                  className={FIELD}
+                />
+                <input
+                  type="time"
+                  aria-label="Time"
+                  value={time}
+                  onChange={(e) => setDue(e.target.value ? `${day || inDays(0)}T${e.target.value}` : day || null)}
+                  className={FIELD}
+                />
+              </div>
+              <div className="flex gap-1">
+                <select
+                  aria-label="Repeat"
+                  value={line?.attrs.repeat ?? ''}
+                  onChange={(e) => setDue(due ?? inDays(0), e.target.value || null)}
+                  className={FIELD}
+                >
+                  <option value="">Doesn't repeat</option>
+                  {REPEATS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                {due && (
+                  <Tool label="Remove date" onClick={() => pick(null)}>
+                    <TrashIcon className={ICON} />
+                  </Tool>
+                )}
+              </div>
+            </div>
+          </Popover>
         </Group>
         <Group>
           <Tool label="Outdent" onClick={() => chain().liftListItem(listItem).run()}>
@@ -214,8 +310,8 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
 }
 
 // The border goes around a group of related tools, not each tool.
-function Group({ children }: { children: React.ReactNode }) {
-  return <div className="flex shrink-0 border-2 border-border shadow-[2px_2px_0_var(--border)]">{children}</div>
+function Group({ className = '', children }: { className?: string; children: React.ReactNode }) {
+  return <div className={`flex shrink-0 border-2 border-border shadow-[2px_2px_0_var(--border)] ${className}`}>{children}</div>
 }
 
 function Tool({ label, active, ...props }: React.ComponentProps<'button'> & { label: string; active?: boolean }) {
@@ -227,7 +323,7 @@ function Tool({ label, active, ...props }: React.ComponentProps<'button'> & { la
       title={label}
       // Keep the editor focused and the keyboard open while tapping the bar.
       onMouseDown={(e) => e.preventDefault()}
-      className={`flex h-9 min-w-9 shrink-0 items-center justify-center px-1.5 text-sm font-bold ${active ? 'bg-accent text-white' : 'bg-surface'}`}
+      className={`flex h-9 min-w-9 shrink-0 items-center justify-center px-1.5 text-sm font-bold disabled:text-ink-muted ${active ? 'bg-accent text-white' : 'bg-surface'}`}
       {...props}
     />
   )

@@ -24,5 +24,12 @@ export const api = {
   unshare: (docId: string, userId: string) =>
     request<void>(`/docs/${docId}/shares/${userId}`, { method: 'DELETE' }),
   widgetToken: (docId: string) => request<{ token: string }>(`/docs/${docId}/widget_token`),
+  pushKey: () => request<{ key: string }>('/push_key'),
+  subscribe: (subscription: PushSubscriptionJSON, timeZone: string) =>
+    request<void>('/push_subscriptions', {
+      method: 'PUT',
+      body: JSON.stringify({ subscription, time_zone: timeZone }),
+    }),
+  calendar: () => request<{ url: string }>('/calendar'),
   logout: () => fetch('/auth/logout', { method: 'DELETE' }),
 }

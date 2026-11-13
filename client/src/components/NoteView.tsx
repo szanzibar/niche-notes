@@ -31,6 +31,7 @@ import { Button, IconButton } from './Button'
 import {
   CheckedIcon,
   DeleteCheckedIcon,
+  DeleteWhenCheckedIcon,
   GripIcon,
   HideCheckedIcon,
   LeaveIcon,
@@ -118,6 +119,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   useY(nodes())
   const titleRef = useRef<HTMLInputElement>(null)
   const deleted = inTrash(id)
+  // One way to treat checked lines at a time. If two devices pick both at once, delete wins, and it hides too.
+  const deleting = meta.get('deleteChecked') === true
+  const hiding = deleting || meta.get('hideChecked') === true
+  const setMode = (mode: 'hideChecked' | 'deleteChecked', on: boolean) =>
+    doc.transact(() => {
+      meta.set('hideChecked', on && mode === 'hideChecked')
+      meta.set('deleteChecked', on && mode === 'deleteChecked')
+    })
   // One box opens under the title at a time: the folded actions, or what to do with checked lines.
   const [panel, setPanel] = useState<'more' | 'checked' | null>(null)
 
@@ -136,7 +145,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         ListTabs,
         JoinLists,
         Placeholder.configure({ placeholder: 'Write…' }),
-        HideChecked(() => meta.get('hideChecked') === true),
+        HideChecked(() => meta.get('hideChecked') === true || meta.get('deleteChecked') === true),
         Collaboration.configure({
           document: doc,
           field: 'content',
@@ -152,7 +161,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     [doc],
   )
 
-  const hideChecked = meta.get('hideChecked') === true
   const tasks = useEditorState({
     editor,
     selector: ({ editor }) => {
@@ -176,6 +184,12 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }, LINGER_MS)
     return () => clearTimeout(timer)
   }, [clearing, editor])
+
+  // Lines ticked while the note is open stay, hidden, until it opens again. Someone ticking in it right then
+  // loses the line a moment early.
+  useEffect(() => {
+    if (editor && !deleted && meta.get('deleteChecked') === true) deleteChecked(editor)
+  }, [editor, deleted, meta])
 
   // A trashed note can be read but not edited until it is restored.
   useEffect(() => {
@@ -335,19 +349,26 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             onOpenChange={(open) => setPanel(open ? 'checked' : null)}
             trigger={
               <IconButton label="Checked lines">
-                <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hideChecked ? 'text-accent' : ''}`} />
+                <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hiding ? 'text-accent' : ''}`} />
               </IconButton>
             }
           >
-            <IconButton label="Hide checked" aria-pressed={hideChecked} onClick={() => meta.set('hideChecked', !hideChecked)}>
-              <HideCheckedIcon className={`h-[22px] w-[22px] ${hideChecked ? 'text-accent' : ''}`} />
+            <IconButton
+              label="Hide checked"
+              aria-pressed={hiding && !deleting}
+              onClick={() => setMode('hideChecked', !(hiding && !deleting))}
+            >
+              <HideCheckedIcon className={`h-[22px] w-[22px] ${hiding && !deleting ? 'text-accent' : ''}`} />
+            </IconButton>
+            <IconButton label="Delete when checked" aria-pressed={deleting} onClick={() => setMode('deleteChecked', !deleting)}>
+              <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent' : ''}`} />
             </IconButton>
             {tasks.checked && (
               <>
                 <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
                   <UncheckAllIcon />
                 </IconButton>
-                <IconButton label="Delete checked" onClick={() => (hideChecked ? setClearing(true) : deleteChecked(editor))}>
+                <IconButton label="Delete checked" onClick={() => (hiding ? setClearing(true) : deleteChecked(editor))}>
                   <DeleteCheckedIcon />
                 </IconButton>
               </>
@@ -369,7 +390,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       <EditorContent
         editor={editor}
         className="relative flex-1 overflow-y-auto"
-        data-hide-checked={(hideChecked && !clearing) || undefined}
+        data-hide-checked={(hiding && !clearing) || undefined}
       />
       {editor && (
         // Pointing at a line shows its handle, and dragging the handle moves the line with what is nested under it.

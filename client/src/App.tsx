@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, useMatch } from 'react-router-dom'
 import { NoteView } from './components/NoteView'
 import { Tree } from './components/Tree'
+import { registerAlerts } from './lib/alerts'
 import { api } from './lib/api'
 import type { User } from './lib/types'
 
@@ -30,6 +31,7 @@ export default function App() {
       .me()
       .then((session) => {
         localStorage.setItem('session', JSON.stringify(session))
+        registerAlerts().catch(() => {})
         if (!cached) return draw(session)
         // Someone else signed in on this browser.
         if (session.user.id !== (JSON.parse(cached) as Session).user.id) window.location.reload()

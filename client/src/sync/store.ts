@@ -118,6 +118,21 @@ async function run(me: User) {
     socket.disconnect()
   })
   window.addEventListener('online', () => socket.connect())
+  // Android can keep a dead connection looking open while the app is away, and the heartbeat takes up to a
+  // minute to notice. Coming back asks the server at once and treats silence as a missed heartbeat.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    const dead = setTimeout(
+      () =>
+        socket.disconnect(() => {
+          // Phoenix's own step on a missed heartbeat, so every channel rejoins on the new connection.
+          ;(socket as unknown as { triggerChanError(): void }).triggerChanError()
+          socket.connect()
+        }),
+      3000,
+    )
+    if (!socket.ping(() => clearTimeout(dead))) clearTimeout(dead)
+  })
   window.addEventListener('beforeunload', () => {
     for (const awareness of awarenesses.values()) removeAwarenessStates(awareness, [awareness.doc.clientID], 'unload')
   })

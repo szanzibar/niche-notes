@@ -14,3 +14,7 @@ config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
 
 config :niche_notes, :android, app_id: "app.nichenotes.test", cert_sha256: "AA:BB"
+
+# Tests run each reminders pass themselves, and catch pushes before they leave.
+config :niche_notes, :reminders, false
+config :niche_notes, :push_req, plug: {Req.Test, NicheNotes.Push}

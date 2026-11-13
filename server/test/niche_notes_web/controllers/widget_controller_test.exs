@@ -1,6 +1,7 @@
 defmodule NicheNotesWeb.WidgetControllerTest do
   use NicheNotesWeb.ConnCase
 
+  import NicheNotesWeb.ChannelCase, only: [edit!: 2]
   alias NicheNotes.Docs
 
   setup %{conn: conn} do
@@ -9,7 +10,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     note = Ecto.UUID.generate()
     {:ok, _} = Docs.open(note, me.id)
 
-    edit(note, fn doc ->
+    edit!(note, fn doc ->
       Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "title", "Groceries")
       milk = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from("milk")])
       item = Yex.XmlElementPrelim.new("taskItem", [milk], %{"checked" => true})
@@ -28,17 +29,6 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     }
   end
 
-  # Applies the change on top of the note's log and stores it, the way a device would.
-  defp edit(note, change) do
-    doc = Yex.Doc.new()
-    {rows, _} = Docs.updates_since(note, 0)
-    for {_, update} <- rows, do: :ok = Yex.apply_update(doc, update)
-    {:ok, before} = Yex.encode_state_vector(doc)
-    change.(doc)
-    {:ok, update} = Yex.encode_state_as_update(doc, before)
-    Docs.append_update(note, update)
-  end
-
   defp read(token),
     do: build_conn() |> put_req_header("authorization", "Bearer " <> token) |> get("/api/widget")
 
@@ -53,13 +43,19 @@ defmodule NicheNotesWeb.WidgetControllerTest do
   end
 
   test "a note that hides its checked items leaves them out", %{conn: conn, note: note} do
-    edit(note, fn doc ->
+    edit!(note, fn doc ->
       Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "hideChecked", true)
       eggs = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from("eggs")])
       Yex.XmlFragment.push(Yex.Doc.get_xml_fragment(doc, "content"), eggs)
     end)
 
     assert json_response(read(token(conn, note)), 200)["lines"] == ["eggs"]
+  end
+
+  test "a note that deletes its checked items leaves them out too", %{conn: conn, note: note} do
+    edit!(note, fn doc -> Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "deleteChecked", true) end)
+
+    assert json_response(read(token(conn, note)), 200)["lines"] == []
   end
 
   test "a checked item stays while an item under it is unchecked, without its checked ones", %{
@@ -71,7 +67,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
       Yex.XmlElementPrelim.new("taskItem", [paragraph | nested], %{"checked" => checked})
     end
 
-    edit(note, fn doc ->
+    edit!(note, fn doc ->
       Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "hideChecked", true)
 
       nested =
@@ -105,7 +101,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     assert json_response(read(theirs), 404)
     assert json_response(read(mine), 200)
 
-    edit(note, &Yex.Map.set(Yex.Doc.get_map(&1, "meta"), "deleted", true))
+    edit!(note, &Yex.Map.set(Yex.Doc.get_map(&1, "meta"), "deleted", true))
     assert json_response(read(mine), 404)
   end
 

@@ -10,6 +10,12 @@ defmodule NicheNotes.Application do
       NicheNotesWeb.Endpoint
     ]
 
+    children =
+      children ++
+        if Application.get_env(:niche_notes, :reminders, true),
+          do: [NicheNotes.Reminders],
+          else: []
+
     Supervisor.start_link(children, strategy: :one_for_one, name: NicheNotes.Supervisor)
   end
 

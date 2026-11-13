@@ -2,7 +2,7 @@ defmodule NicheNotes.Docs do
   @moduledoc """
   Y.js documents as update logs. A doc is a user's tree (id == owner_id) or a note.
   The server stores who owns what and who it is shared with. It reads a note only for work that
-  has to happen while every app is closed, such as a home-screen widget.
+  has to happen while every app is closed, such as a home-screen widget, an alert or a calendar.
   """
   import Ecto.Query
   alias NicheNotes.Repo
@@ -67,25 +67,92 @@ defmodule NicheNotes.Docs do
 
   # A note as plain lines for a widget. One the user can no longer open, or that is in the trash, is gone.
   def read_note(doc_id, user_id) do
-    doc = Yex.Doc.new()
-    updates = from u in DocUpdate, where: u.doc_id == ^doc_id, order_by: u.id, select: u.update
-
     with true <- can_access?(doc_id, user_id),
-         {:ok, update} <- Yex.merge_updates(Repo.all(updates)),
-         :ok <- Yex.apply_update(doc, update),
-         meta = doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map(),
-         false <- Map.get(meta, "deleted", false) do
-      title = if meta["title"] in [nil, ""], do: "Untitled", else: meta["title"]
-      content = doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()
-      hide = Map.get(meta, "hideChecked", false)
+         {title, meta, content} <- load(doc_id) do
+      hide = meta["hideChecked"] == true or meta["deleteChecked"] == true
       {:ok, %{title: title, lines: Enum.flat_map(content, &lines(&1, 0, hide))}}
     else
       _ -> :error
     end
   end
 
+  # A note's title and its unchecked checkbox lines that have a date, at any depth. A note in the trash has none.
+  def dated_lines(doc_id) do
+    case load(doc_id) do
+      {title, _meta, content} -> {title, Enum.flat_map(content, &dated/1)}
+      nil -> {nil, []}
+    end
+  end
+
+  # The notes with rows after `seen`, and the newest row's id.
+  def changed_since(seen) do
+    rows =
+      Repo.all(
+        from u in DocUpdate,
+          join: d in assoc(u, :doc),
+          where: u.id > ^seen and d.id != d.owner_id,
+          group_by: u.doc_id,
+          select: {u.doc_id, max(u.id)}
+      )
+
+    {Enum.map(rows, &elem(&1, 0)), rows |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> seen end)}
+  end
+
+  # Everyone on a note: its owner and whoever it is shared with.
+  def member_ids(doc_id) do
+    Repo.all(from d in Doc, where: d.id == ^doc_id, select: d.owner_id) ++
+      Repo.all(from s in DocShare, where: s.doc_id == ^doc_id, select: s.user_id)
+  end
+
+  # Every note a user can open.
+  def note_ids(user_id) do
+    Repo.all(from d in Doc, where: d.owner_id == ^user_id and d.id != ^user_id, select: d.id) ++
+      Repo.all(from s in DocShare, where: s.user_id == ^user_id, select: s.doc_id)
+  end
+
+  defp load(doc_id) do
+    doc = Yex.Doc.new()
+    updates = from u in DocUpdate, where: u.doc_id == ^doc_id, order_by: u.id, select: u.update
+
+    with {:ok, update} <- Yex.merge_updates(Repo.all(updates)),
+         :ok <- Yex.apply_update(doc, update),
+         meta = doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map(),
+         false <- Map.get(meta, "deleted", false) do
+      title = if meta["title"] in [nil, ""], do: "Untitled", else: meta["title"]
+      {title, meta, doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()}
+    else
+      _ -> nil
+    end
+  end
+
+  # A date is "2026-11-14" or "2026-11-14T15:30" in the reader's own time zone. One a device wrote wrong is
+  # left out, since the server alerts and draws calendars from these.
+  defp dated(%Yex.XmlElement{} = element) do
+    children = Enum.to_list(Yex.XmlElement.children(element))
+    nested = Enum.flat_map(children, &dated/1)
+    attribute = &Yex.XmlElement.get_attribute(element, &1)
+
+    with "taskItem" <- Yex.XmlElement.get_tag(element),
+         [%Yex.XmlElement{} = first | _] <- children,
+         false <- attribute.("checked") == true,
+         due when is_binary(due) <- attribute.("due"),
+         [day | time] <- String.split(due, "T", parts: 2),
+         {:ok, date} <- Date.from_iso8601(day),
+         {:ok, time} <- if(time == [], do: {:ok, nil}, else: Time.from_iso8601("#{time}:00")) do
+      repeat =
+        if attribute.("repeat") in ~w(daily weekdays weekly monthly yearly),
+          do: attribute.("repeat")
+
+      [%{text: text(first), date: date, time: time, repeat: repeat} | nested]
+    else
+      _ -> nested
+    end
+  end
+
+  defp dated(_text), do: []
+
   # One line per paragraph or list item, with nested items indented under their parent. A note that
-  # hides its checked items leaves out each one that is done, with what is nested under it.
+  # hides or deletes its checked items leaves out each one that is done, with what is nested under it.
   defp lines(element, depth, hide) do
     indent = String.duplicate("    ", depth)
 

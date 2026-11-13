@@ -27,8 +27,9 @@ export default defineConfig({
       },
       workbox: {
         inlineWorkboxRuntime: true,
+        importScripts: ['/push.js'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/socket/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/socket/, /^\/calendar\//],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },
     }),

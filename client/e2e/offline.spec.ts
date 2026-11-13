@@ -63,3 +63,33 @@ test('a launch with an expired token still syncs once the server answers', async
   await row(again, 'Groceries').click()
   await expect(again.locator('.editor-body')).toContainText('eggs')
 })
+
+test('coming back to the app catches up at once, even over a connection that died while away', async ({ browser }) => {
+  const a = `alice-${uid()}`
+  const page = await signIn(browser, a)
+  await newNote(page, 'Away', 'one')
+  // Connections from here on pass through a proxy that can go silent without closing, as Android leaves them.
+  const links: { silent: boolean; joins: number }[] = []
+  await page.routeWebSocket(/\/socket\//, (ws) => {
+    const link = { silent: false, joins: 0 }
+    links.push(link)
+    const server = ws.connectToServer()
+    ws.onMessage((message) => !link.silent && server.send(message))
+    server.onMessage((message) => {
+      if (link.silent) return
+      if (String(message).includes('"doc:') && String(message).includes('"phx_reply"')) link.joins++
+      ws.send(message)
+    })
+  })
+  await page.reload()
+  // The tree and the note have joined.
+  await expect.poll(() => links[0]?.joins ?? 0).toBeGreaterThanOrEqual(2)
+  links[0].silent = true
+
+  const other = await signIn(browser, a)
+  await row(other, 'Away').click()
+  await typeAtEnd(other, ' two')
+
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.locator('.editor-body')).toContainText('one two', { timeout: 10_000 })
+})

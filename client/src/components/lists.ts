@@ -3,6 +3,7 @@ import type { Node, ResolvedPos } from '@tiptap/pm/model'
 import { type EditorState, Plugin, Selection, TextSelection } from '@tiptap/pm/state'
 import { Extension, type Editor } from '@tiptap/react'
 import { ySyncPluginKey } from '@tiptap/y-tiptap'
+import { dueLabel, nextDue, overdue } from './dates'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
 const ITEM: Record<ListType, string> = { taskList: 'taskItem', bulletList: 'listItem', orderedList: 'listItem' }
@@ -90,13 +91,35 @@ export const JoinLists = Extension.create({
   ],
 })
 
-// How long checked lines stay in view before they hide or Delete checked removes them, so you see what goes.
+// How long Delete checked shows hidden checked lines before removing them, so you see what goes.
 export const LINGER_MS = 800
+
+// Checked lines leave once the note has been this still, so lines ticked in a row leave together and
+// nothing moves under the next tap.
+const STILL_MS = 2000
 
 // TipTap puts a hidden label with the line's text beside each checkbox. Android keyboards read it as part
 // of the line, and it changes with every letter, so they lose their place and stop correcting words.
 // The checkbox keeps its aria-label.
 export const TaskItem = TipTapTaskItem.extend({
+  // A new line split from a dated one starts without a date.
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      due: {
+        default: null,
+        keepOnSplit: false,
+        parseHTML: (el) => el.getAttribute('data-due'),
+        renderHTML: ({ due }) => (due ? { 'data-due': due } : {}),
+      },
+      repeat: {
+        default: null,
+        keepOnSplit: false,
+        parseHTML: (el) => el.getAttribute('data-repeat'),
+        renderHTML: ({ repeat }) => (repeat ? { 'data-repeat': repeat } : {}),
+      },
+    }
+  },
   addNodeView() {
     const render = this.parent?.()
     if (!render) return null
@@ -104,24 +127,41 @@ export const TaskItem = TipTapTaskItem.extend({
       const view = render(props)
       const li = view.dom as HTMLElement
       li.querySelector('label > span')?.remove()
-      // A line checked here or on another device lingers. Lines checked before the note opened don't.
+      const { editor, getPos } = props
+      // The date follows the line's text and opens the date box. Its words come from CSS, for the same reason
+      // as the label above.
+      const chip = document.createElement('span')
+      chip.className = 'due-chip'
+      chip.contentEditable = 'false'
+      li.append(chip)
+      const showDue = (node: Node) => {
+        const { due, repeat, checked } = node.attrs
+        if (due) chip.dataset.label = `${repeat ? '↻ ' : ''}${dueLabel(due)}`
+        else delete chip.dataset.label
+        chip.toggleAttribute('data-overdue', Boolean(due) && !checked && overdue(due))
+      }
+      showDue(props.node)
+      chip.addEventListener('mousedown', (e) => e.preventDefault())
+      chip.addEventListener('click', () => {
+        const pos = getPos()
+        if (!editor.isEditable || pos == null) return
+        editor.commands.setTextSelection(pos + editor.state.doc.nodeAt(pos)!.firstChild!.nodeSize)
+        editor.view.dom.dispatchEvent(new Event('due-date'))
+      })
+      // A line checked here or on another device lingers until the note is still. Lines checked before the
+      // note opened don't.
       const update = view.update!
-      let timer: number | undefined
       view.update = (node, ...rest) => {
         const was = li.dataset.checked === 'true'
         if (!update(node, ...rest)) return false
-        if (node.attrs.checked !== was) {
-          clearTimeout(timer)
-          li.toggleAttribute('data-lingering', node.attrs.checked)
-          if (node.attrs.checked) timer = window.setTimeout(() => li.removeAttribute('data-lingering'), LINGER_MS)
-        }
+        if (node.attrs.checked !== was) li.toggleAttribute('data-lingering', node.attrs.checked)
+        showDue(node)
         return true
       }
-      // The editor would read the timer's change as an edit to the line.
+      // The editor would read the lingering mark as an edit to the line.
       view.ignoreMutation = (m) => m.type === 'attributes' && m.attributeName === 'data-lingering'
       // A tick while typing moves the cursor to the end of the ticked line, so the note stays put, and a tick with
       // the keyboard down leaves it down. TipTap's own tick would focus the editor at the old cursor instead.
-      const { editor, getPos } = props
       const label = li.querySelector('label')!
       label.addEventListener(
         'change',
@@ -131,14 +171,29 @@ export const TaskItem = TipTapTaskItem.extend({
           e.stopPropagation()
           const line = editor.state.doc.nodeAt(pos)!
           const checked = (e.target as HTMLInputElement).checked
+          const repeats = checked && line.attrs.due && line.attrs.repeat
           editor
             .chain()
             .command(({ tr }) => {
               if (editor.isFocused) tr.setSelection(TextSelection.create(tr.doc, pos + line.firstChild!.nodeSize))
-              tr.setNodeMarkup(pos, undefined, { ...line.attrs, checked })
+              if (!repeats) tr.setNodeMarkup(pos, undefined, { ...line.attrs, checked })
               return true
             })
             .run()
+          if (!repeats) return
+          // A repeating line shows its tick for a moment, then moves to its next date, unticked.
+          setTimeout(() => {
+            const at = getPos()
+            const current = at == null ? null : editor.state.doc.nodeAt(at)
+            if (!current?.attrs.due || !current.attrs.repeat) return
+            editor
+              .chain()
+              .command(({ tr }) => {
+                tr.setNodeMarkup(at!, undefined, { ...current.attrs, due: nextDue(current.attrs.due, current.attrs.repeat) })
+                return true
+              })
+              .run()
+          }, 600)
         },
         true,
       )
@@ -191,6 +246,25 @@ export const HideChecked = (hiding: () => boolean) =>
           if (!depth) return null
           const to = visibleFrom(state, $from.before(depth), -1) ?? visibleFrom(state, $from.after(depth), 1)
           return to && state.tr.setSelection(to)
+        },
+        // A tap, a key, a scroll or an edit from anyone counts as the note moving.
+        view: (view) => {
+          let timer: number | undefined
+          const wait = () => {
+            clearTimeout(timer)
+            timer = window.setTimeout(() => {
+              for (const li of view.dom.querySelectorAll('[data-lingering]')) li.removeAttribute('data-lingering')
+            }, STILL_MS)
+          }
+          const events = ['pointerdown', 'keydown', 'scroll']
+          for (const type of events) document.addEventListener(type, wait, true)
+          return {
+            update: wait,
+            destroy: () => {
+              clearTimeout(timer)
+              for (const type of events) document.removeEventListener(type, wait, true)
+            },
+          }
         },
       }),
     ],

@@ -47,3 +47,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # The server pulls the new image right away instead of on Watchtower's daily pass. The reply waits for the
+      # update, so a failed one fails this step.
+      - name: Update the server
+        if: github.event_name != 'pull_request' && vars.WATCHTOWER_URL != ''
+        env:
+          TOKEN: ${{ secrets.WATCHTOWER_TOKEN }}
+        run: curl -fsS --max-time 600 -X POST -H "Authorization: Bearer $TOKEN" "${{ vars.WATCHTOWER_URL }}/v1/update?image=ghcr.io/${{ github.repository }}"

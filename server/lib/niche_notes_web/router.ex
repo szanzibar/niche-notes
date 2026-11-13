@@ -36,15 +36,22 @@ defmodule NicheNotesWeb.Router do
     post "/docs/:doc_id/shares", ShareController, :create
     delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
     get "/docs/:doc_id/widget_token", WidgetController, :token
+    get "/push_key", PushController, :key
+    put "/push_subscriptions", PushController, :subscribe
+    get "/calendar", CalendarController, :link
   end
 
   scope "/.well-known", NicheNotesWeb do
     get "/assetlinks.json", AssetLinksController, :show
   end
 
-  # A widget has no session. Its token says who it reads for.
+  # A widget and a calendar app have no session. Their token says who they read for.
   scope "/api", NicheNotesWeb do
     get "/widget", WidgetController, :show
+  end
+
+  scope "/calendar", NicheNotesWeb do
+    get "/:token", CalendarController, :show
   end
 
   scope "/", NicheNotesWeb do

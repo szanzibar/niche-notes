@@ -159,6 +159,42 @@ test('a note set to hide checked lines hides each one a moment after it is check
   await expect(line('Eggs')).toBeVisible()
 })
 
+test('lines ticked in a row stay put until the note is still, then leave together', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs', 'Bread')
+  const shown = body(page).locator('li p:visible')
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
+  await page.waitForTimeout(1200)
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Eggs' }).check()
+  await page.waitForTimeout(1200)
+  // Milk was ticked long enough ago to leave, but the tick on Eggs kept the note moving.
+  await expect(shown).toHaveText(['Milk', 'Eggs', 'Bread'])
+  await expect(shown).toHaveText(['Bread'])
+})
+
+test('a note set to delete checked lines hides them, then deletes them the next time it opens', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs')
+  const hide = page.getByRole('button', { name: 'Hide checked' })
+  const remove = page.getByRole('button', { name: 'Delete when checked' })
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await hide.click()
+  await remove.click()
+  await expect(hide).toHaveAttribute('aria-pressed', 'false')
+  await expect(remove).toHaveAttribute('aria-pressed', 'true')
+
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Eggs' }).check()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Milk'])
+  await expect(body(page).locator('li p')).toHaveText(['Milk', 'Eggs'])
+
+  await page.goBack()
+  await row(page, 'Lists').click()
+  await expect(body(page).locator('li p')).toHaveText(['Milk'])
+})
+
 test('a checked line hides only once every line under it is checked, and only then goes with Delete checked', async ({
   browser,
 }) => {

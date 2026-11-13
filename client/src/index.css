@@ -67,8 +67,17 @@ body {
 .editor-body ul[data-type="taskList"] > li > label { flex: 0 0 auto; margin-top: 0.3rem; }
 .editor-body ul[data-type="taskList"] > li > div { flex: 1 1 auto; min-width: 0; }
 .editor-body ul[data-type="taskList"] > li[data-checked="true"] > div > p { text-decoration: line-through; color: var(--ink-muted); }
-/* A checked line hides once every line under it is checked too, and not while it or one of them lingers. */
-[data-hide-checked] .editor-body li[data-checked="true"]:not([data-lingering]):not(:has(li[data-checked="false"], [data-lingering])) { display: none; }
+/* A checked line hides once every line under it is checked too, and not while it or one of them lingers.
+   It folds away rather than vanishing, so the lines below slide up. */
+.editor-body li { interpolate-size: allow-keywords; transition: height 0.2s, opacity 0.2s, display 0.2s allow-discrete; }
+[data-hide-checked] .editor-body li[data-checked="true"]:not([data-lingering]):not(:has(li[data-checked="false"], [data-lingering])) { display: none; height: 0; opacity: 0; overflow: hidden; }
+/* A checkbox line's date follows its text. The words come from the label attribute. */
+.editor-body ul[data-type="taskList"] > li[data-due] > div { flex-grow: 0; }
+.editor-body .due-chip { flex: none; margin-top: 0.15rem; border: 2px solid var(--border); padding: 0 0.3rem; font-size: 0.8rem; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; user-select: none; }
+.editor-body .due-chip::after { content: attr(data-label); }
+.editor-body .due-chip:not([data-label]) { display: none; }
+.editor-body .due-chip[data-overdue] { color: var(--accent); border-color: var(--accent); }
+.editor-body li[data-checked="true"] > .due-chip { color: var(--ink-muted); border-color: var(--ink-muted); }
 .editor-body input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--accent); }
 .editor-body hr { border-top: 2px solid var(--border); margin: 1rem 0; }
 .editor-body hr.ProseMirror-selectednode { border-color: var(--accent); }

@@ -24,4 +24,7 @@ config :logger, :default_formatter,
 
 config :phoenix, :json_library, Jason
 
+# Alerts come due at a wall-clock time in each device's time zone.
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
 import_config "#{config_env()}.exs"
