@@ -131,6 +131,15 @@ test("a calendar event's link opens its note with the cursor at the end of its l
   await page.keyboard.press('Enter')
   await page.keyboard.type('Bins')
   const note = page.url()
+  // A link opens a note this device saved long ago. A change reaches the server only once it is saved here.
+  const saved = (id: string) =>
+    new Promise<boolean>((resolve) => {
+      indexedDB.open('niche-notes').onsuccess = (e) => {
+        const rows = (e.target as IDBOpenDBRequest).result.transaction('updates').objectStore('updates').getAll()
+        rows.onsuccess = () => resolve(rows.result.filter((row) => row.doc === id).every((row) => row.seq != null))
+      }
+    })
+  await expect.poll(() => page.evaluate(saved, note.split('/n/')[1])).toBe(true)
 
   await page.goto(`${note}?line=Rent`)
   await expect(page.locator('.editor-body')).toBeFocused()

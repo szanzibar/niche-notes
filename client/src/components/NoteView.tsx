@@ -197,7 +197,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   }, [editor, deleted])
 
   // Opening a note means writing in it: an empty title first, otherwise where this device left the
-  // cursor, or the end of the text. A calendar event's link names its checkbox line instead.
+  // cursor, or the end of the text. A calendar event's link names its checkbox line instead. A line that
+  // reaches this device only after the note opens isn't found, so the note opens as usual.
   useEffect(() => {
     if (!editor || deleted) return
     const line = new URLSearchParams(location.search).get('line')
