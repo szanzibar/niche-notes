@@ -2,7 +2,7 @@ defmodule NicheNotes.GoogleCalendarTest do
   use NicheNotes.DataCase
 
   import NicheNotesWeb.ChannelCase, only: [user!: 1, edit!: 2]
-  alias NicheNotes.{Docs, GoogleCalendar, Reminders}
+  alias NicheNotes.{Docs, GoogleCalendar, Push, Reminders}
   alias NicheNotes.GoogleCalendar.Connection
 
   @events "/calendar/v3/calendars/cal%40group.calendar.google.com/events"
@@ -137,6 +137,43 @@ defmodule NicheNotes.GoogleCalendarTest do
     assert_received {"DELETE", @events <> "/plumber", _}
     refute_received {"DELETE", _, _}
     refute_received {"POST", @events, _}
+  end
+
+  test "timed events follow the zone of the device the person opened last", %{me: me} do
+    note = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(note, me.id)
+
+    edit!(note, fn doc ->
+      paragraph =
+        Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from("Call the plumber")])
+
+      item = Yex.XmlElementPrelim.new("taskItem", [paragraph], %{"due" => "2026-11-14T15:30"})
+
+      Yex.XmlFragment.push(
+        Yex.Doc.get_xml_fragment(doc, "content"),
+        Yex.XmlElementPrelim.new("taskList", [item])
+      )
+    end)
+
+    for {device, zone, opened} <- [
+          {"phone", "America/Chicago", ~U[2026-11-13 10:00:00Z]},
+          {"desktop", "Asia/Tokyo", ~U[2026-11-13 09:00:00Z]}
+        ] do
+      Repo.insert!(%Push.Subscription{
+        endpoint: "https://push.example/#{device}",
+        user_id: me.id,
+        p256dh: "key",
+        auth: "auth",
+        time_zone: zone,
+        inserted_at: opened,
+        updated_at: opened
+      })
+    end
+
+    google([])
+    GoogleCalendar.sync(%{})
+    assert_received {"POST", @events, event}
+    assert %{"start" => %{"timeZone" => "America/Chicago"}} = Jason.decode!(event)
   end
 
   test "a person who removed the app's access is disconnected, so Settings offers Connect again",

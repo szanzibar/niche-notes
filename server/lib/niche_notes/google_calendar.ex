@@ -13,7 +13,7 @@ defmodule NicheNotes.GoogleCalendar do
   use Phoenix.VerifiedRoutes, endpoint: NicheNotesWeb.Endpoint, router: NicheNotesWeb.Router
   import Ecto.Query
   require Logger
-  alias NicheNotes.{Docs, Reminders, Repo}
+  alias NicheNotes.{Docs, Push, Reminders, Repo}
   alias NicheNotes.GoogleCalendar.Connection
 
   @token_url "https://oauth2.googleapis.com/token"
@@ -211,11 +211,19 @@ defmodule NicheNotes.GoogleCalendar do
     end
   end
 
+  # Times follow the person, like their alerts do: the zone of the device they opened last, which each
+  # device with alerts on reports at launch. Without one, the zone they connected from.
   defp events(connection, notes) do
+    time_zone =
+      case Push.subscriptions([connection.user_id]) do
+        [] -> connection.time_zone
+        devices -> Enum.max_by(devices, & &1.updated_at, DateTime).time_zone
+      end
+
     for {id, {title, lines}} <- Map.take(notes, Docs.note_ids(connection.user_id)),
         line <- lines,
         into: %{} do
-      event = event(id, title, line, connection.time_zone)
+      event = event(id, title, line, time_zone)
 
       {:crypto.hash(:sha256, :erlang.term_to_binary(event, [:deterministic]))
        |> Base.url_encode64(padding: false), event}
