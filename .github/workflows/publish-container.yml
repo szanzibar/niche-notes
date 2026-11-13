@@ -54,4 +54,5 @@ jobs:
         if: github.event_name != 'pull_request' && vars.WATCHTOWER_URL != ''
         env:
           TOKEN: ${{ secrets.WATCHTOWER_TOKEN }}
-        run: curl -fsS --max-time 600 -X POST -H "Authorization: Bearer $TOKEN" "${{ vars.WATCHTOWER_URL }}/v1/update?image=ghcr.io/${{ github.repository }}"
+        run: |
+          curl -fsS --max-time 600 -X POST -H "Authorization: Bearer $TOKEN" "${{ vars.WATCHTOWER_URL }}/v1/update?image=ghcr.io/${{ github.repository }}"
