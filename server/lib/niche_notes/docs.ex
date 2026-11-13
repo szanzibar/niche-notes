@@ -68,7 +68,7 @@ defmodule NicheNotes.Docs do
   # A note as plain lines for a widget. One the user can no longer open, or that is in the trash, is gone.
   def read_note(doc_id, user_id) do
     with true <- can_access?(doc_id, user_id),
-         {title, meta, content} <- load(doc_id) do
+         {_doc, title, meta, content} <- load(doc_id) do
       hide = meta["hideChecked"] == true or meta["deleteChecked"] == true
       {:ok, %{title: title, lines: Enum.flat_map(content, &lines(&1, 0, hide))}}
     else
@@ -79,10 +79,42 @@ defmodule NicheNotes.Docs do
   # A note's title and its unchecked checkbox lines that have a date, at any depth. A note in the trash has none.
   def dated_lines(doc_id) do
     case load(doc_id) do
-      {title, _meta, content} -> {title, Enum.flat_map(content, &dated/1)}
+      {_doc, title, _meta, content} -> {title, Enum.flat_map(content, &dated/1)}
       nil -> {nil, []}
     end
   end
+
+  # An alert's button changing its line while the app may be closed: `changes` sets `checked` or a new `due`. The
+  # line is the first unchecked one with that date and text, so one edited since the alert is left alone.
+  def change_line(doc_id, user_id, due, text, changes) do
+    with true <- can_access?(doc_id, user_id),
+         {doc, _title, _meta, content} <- load(doc_id),
+         %Yex.XmlElement{} = line <- Enum.find_value(content, &find_line(&1, due, text)),
+         {:ok, before} <- Yex.encode_state_vector(doc) do
+      for {key, value} <- changes, do: Yex.XmlElement.insert_attribute(line, key, value)
+      {:ok, update} = Yex.encode_state_as_update(doc, before)
+      {:ok, append_update(doc_id, update), update}
+    else
+      _ -> :error
+    end
+  end
+
+  # Alerts carry a line's text cut to 200 letters.
+  defp find_line(%Yex.XmlElement{} = element, due, text) do
+    children = Enum.to_list(Yex.XmlElement.children(element))
+
+    with "taskItem" <- Yex.XmlElement.get_tag(element),
+         ^due <- Yex.XmlElement.get_attribute(element, "due"),
+         false <- Yex.XmlElement.get_attribute(element, "checked") == true,
+         [%Yex.XmlElement{} = first | _] <- children,
+         true <- String.slice(text(first), 0, 200) == text do
+      element
+    else
+      _ -> Enum.find_value(children, &find_line(&1, due, text))
+    end
+  end
+
+  defp find_line(_text, _due, _line_text), do: nil
 
   # The notes with rows after `seen`, and the newest row's id.
   def changed_since(seen) do
@@ -119,11 +151,14 @@ defmodule NicheNotes.Docs do
          meta = doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map(),
          false <- Map.get(meta, "deleted", false) do
       title = if meta["title"] in [nil, ""], do: "Untitled", else: meta["title"]
-      {title, meta, doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()}
+      {doc, title, meta, doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()}
     else
       _ -> nil
     end
   end
+
+  # The repeat rules the date box writes, which a calendar reads as they are.
+  @repeat ~r/^FREQ=(WEEKLY|MONTHLY|YEARLY)(;INTERVAL=[1-9]\d*)?(;BYDAY=(-1|[1-4])?(SU|MO|TU|WE|TH|FR|SA)(,(-1|[1-4])?(SU|MO|TU|WE|TH|FR|SA))*|;BYMONTHDAY=([1-9]|[12]\d|3[01]))?$/
 
   # A date is "2026-11-14" or "2026-11-14T15:30" in the reader's own time zone. One a device wrote wrong is
   # left out, since the server alerts and draws calendars from these.
@@ -140,10 +175,10 @@ defmodule NicheNotes.Docs do
          {:ok, date} <- Date.from_iso8601(day),
          {:ok, time} <- if(time == [], do: {:ok, nil}, else: Time.from_iso8601("#{time}:00")) do
       repeat =
-        if attribute.("repeat") in ~w(daily weekdays weekly monthly yearly),
+        if is_binary(attribute.("repeat")) and attribute.("repeat") =~ @repeat,
           do: attribute.("repeat")
 
-      [%{text: text(first), date: date, time: time, repeat: repeat} | nested]
+      [%{text: text(first), due: due, date: date, time: time, repeat: repeat} | nested]
     else
       _ -> nested
     end

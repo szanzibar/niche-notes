@@ -1,7 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useState } from 'react'
+import { enableAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
-import { useStore, useY } from '../sync/hooks'
+import { useY } from '../sync/hooks'
 import { settings } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import { SettingsIcon } from './icons'
@@ -44,15 +45,22 @@ export function SettingsDialog() {
   useEffect(() => {
     document.documentElement.dataset.density = density ?? ''
   }, [density])
-  const s = useStore()
+  // The calendar address is fetched when Settings opens, since a tap that opens a link can't wait for the server.
+  const [calendar, setCalendar] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const copyCalendar = async () => {
-    await navigator.clipboard.writeText((await api.calendar()).url)
-    setCopied(true)
+  const webcal = calendar?.replace(/^https?:/, 'webcal:')
+  const [alerts, setAlerts] = useState('Notification' in window ? Notification.permission : null)
+  const open = (opened: boolean) => {
+    if (!opened) return
+    setAlerts('Notification' in window ? Notification.permission : null)
+    api
+      .calendar()
+      .then(({ url }) => setCalendar(url))
+      .catch(() => {})
   }
 
   return (
-    <Dialog.Root>
+    <Dialog.Root onOpenChange={open}>
       <Dialog.Trigger asChild>
         <IconButton label="Settings">
           <SettingsIcon />
@@ -106,13 +114,47 @@ export function SettingsDialog() {
               </Button>
             ))}
           </div>
+          {alerts && (
+            <>
+              <p className="mb-2 mt-5 font-medium">Alerts</p>
+              {alerts === 'granted' && <p className="text-sm text-ink-muted">On for this device.</p>}
+              {alerts === 'default' && (
+                <Button onClick={() => void enableAlerts().then(() => setAlerts(Notification.permission))}>
+                  Turn on alerts
+                </Button>
+              )}
+              {alerts === 'denied' && (
+                <p className="text-sm text-ink-muted">
+                  Blocked on this device. Allow notifications for Niche Notes in your phone's settings, then close the
+                  app and open it again.
+                </p>
+              )}
+            </>
+          )}
           <p className="mt-5 font-medium">Calendar</p>
           <p className="mb-2 text-sm text-ink-muted">
-            Dated checkbox lines in your calendar. In Google Calendar, paste the link under Other calendars, From URL.
+            Dated checkbox lines in your calendar. Google Calendar adds it on its website and refreshes it about once a
+            day.
           </p>
-          <Button disabled={!s.online} onClick={() => void copyCalendar()}>
-            {copied ? 'Copied' : 'Copy calendar link'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={!calendar}
+              onClick={() =>
+                window.open(`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal!)}`, '_blank')
+              }
+            >
+              Add to Google Calendar
+            </Button>
+            <Button disabled={!calendar} onClick={() => (window.location.href = webcal!)}>
+              Calendar app
+            </Button>
+            <Button
+              disabled={!calendar}
+              onClick={() => void navigator.clipboard.writeText(calendar!).then(() => setCopied(true))}
+            >
+              {copied ? 'Copied' : 'Copy link'}
+            </Button>
+          </div>
           <Dialog.Close asChild>
             <Button className="mt-5 w-full">Done</Button>
           </Dialog.Close>

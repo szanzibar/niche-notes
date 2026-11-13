@@ -1,19 +1,50 @@
 // A checkbox line's date is wall-clock time, "2026-11-14" or "2026-11-14T15:30", so it reads the same in every
 // time zone and each device alerts at its own 9:00 or 15:30.
 
-export type Repeat = 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly'
+// A repeat is the calendar standard's rule (RFC 5545), in the shapes the date box writes: FREQ=WEEKLY;BYDAY=MO,TH,
+// FREQ=MONTHLY;BYDAY=1SU,3SU or BYMONTHDAY=15, and FREQ=YEARLY, each with an optional INTERVAL. The calendar
+// feed passes it on as it is.
+export const DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
+export type Day = (typeof DAYS)[number]
+export interface Rule {
+  freq: 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  interval: number
+  days: Day[]
+  // Which of a month's weekdays: 1 to 4, or -1 for the last. Empty for a monthly rule on a day of the month.
+  weeks: number[]
+  monthDay: number | null
+}
 
-export const REPEATS: [Repeat, string][] = [
-  ['daily', 'Daily'],
-  ['weekdays', 'Weekdays'],
-  ['weekly', 'Weekly'],
-  ['monthly', 'Monthly'],
-  ['yearly', 'Yearly'],
-]
+export function parseRule(text: string | null | undefined): Rule | null {
+  const parts = Object.fromEntries((text ?? '').split(';').map((part) => part.split('=')))
+  if (!['WEEKLY', 'MONTHLY', 'YEARLY'].includes(parts.FREQ)) return null
+  const byDay: string[] = parts.BYDAY?.split(',') ?? []
+  return {
+    freq: parts.FREQ,
+    interval: Number(parts.INTERVAL ?? 1),
+    days: DAYS.filter((day) => byDay.some((entry) => entry.endsWith(day))),
+    weeks: [...new Set(byDay.map((entry) => Number(entry.slice(0, -2))).filter(Boolean))].sort(
+      (a, b) => (a < 0 ? 9 : a) - (b < 0 ? 9 : b),
+    ),
+    monthDay: parts.BYMONTHDAY ? Number(parts.BYMONTHDAY) : null,
+  }
+}
+
+export function formatRule({ freq, interval, days, weeks, monthDay }: Rule) {
+  const byDay = freq === 'WEEKLY' ? days : weeks.flatMap((week) => days.map((day) => `${week}${day}`))
+  return [
+    `FREQ=${freq}`,
+    interval > 1 && `INTERVAL=${interval}`,
+    byDay.length && `BYDAY=${byDay.join(',')}`,
+    monthDay && `BYMONTHDAY=${monthDay}`,
+  ]
+    .filter(Boolean)
+    .join(';')
+}
 
 const pad = (n: number) => String(n).padStart(2, '0')
 export const dayOf = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-const parse = (day: string) => {
+export const parseDay = (day: string) => {
   const [y, m, d] = day.split('-').map(Number)
   return new Date(y, m - 1, d)
 }
@@ -25,29 +56,77 @@ export function inDays(days: number) {
   return dayOf(date)
 }
 
-function step(date: Date, repeat: Repeat) {
-  const next = new Date(date)
-  if (repeat === 'daily') next.setDate(next.getDate() + 1)
-  else if (repeat === 'weekly') next.setDate(next.getDate() + 7)
-  else if (repeat === 'weekdays') {
-    do next.setDate(next.getDate() + 1)
-    while (next.getDay() === 0 || next.getDay() === 6)
-  } else {
-    // The 31st moves to a shorter month's last day and stays there after. Known and accepted.
-    next.setDate(1)
-    next.setMonth(next.getMonth() + (repeat === 'monthly' ? 1 : 12))
-    next.setDate(Math.min(date.getDate(), new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()))
+const monday = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7))
+
+// Whether `date` is one of the rule's days, counting intervals from `start`. Like a calendar, a monthly rule
+// on the 31st skips shorter months.
+function occurs(rule: Rule, start: Date, date: Date) {
+  const months = (date.getFullYear() - start.getFullYear()) * 12 + date.getMonth() - start.getMonth()
+  const weekday = DAYS[date.getDay()]
+  if (rule.freq === 'WEEKLY') {
+    const weeks = Math.round((monday(date).getTime() - monday(start).getTime()) / (7 * 86_400_000))
+    return weeks % rule.interval === 0 && (rule.days.length ? rule.days : [DAYS[start.getDay()]]).includes(weekday)
   }
-  return next
+  if (rule.freq === 'YEARLY') return months % (12 * rule.interval) === 0 && date.getDate() === start.getDate()
+  if (months % rule.interval !== 0) return false
+  if (!rule.weeks.length) return date.getDate() === (rule.monthDay ?? start.getDate())
+  const nth = Math.ceil(date.getDate() / 7)
+  const last = date.getDate() + 7 > new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  return rule.days.includes(weekday) && rule.weeks.some((week) => week === nth || (week === -1 && last))
 }
 
-// The first date after today, so a line ticked late lands on its next coming day and one ticked early skips one.
-export function nextDue(due: string, repeat: Repeat) {
-  const [day, time] = due.split('T')
-  const today = parse(dayOf(new Date()))
-  let date = step(parse(day), repeat)
-  while (date <= today) date = step(date, repeat)
-  return time ? `${dayOf(date)}T${time}` : dayOf(date)
+// The rule's first day after `from`. Five years without one means the rule never comes round, which the date
+// box can't write.
+function after(rule: Rule, start: Date, from: Date) {
+  const date = new Date(from)
+  for (let i = 0; i < 5 * 366; i++) {
+    date.setDate(date.getDate() + 1)
+    if (occurs(rule, start, date)) return date
+  }
+  return null
+}
+
+const withTime = (date: Date | null, due: string) => {
+  const time = due.split('T')[1]
+  return date ? `${dayOf(date)}${time ? `T${time}` : ''}` : due
+}
+
+// The first day after today, so a line ticked late lands on its next coming day and one ticked early skips one.
+export function nextDue(due: string, repeat: string, today = new Date()) {
+  const rule = parseRule(repeat)
+  const start = parseDay(due.split('T')[0])
+  const now = parseDay(dayOf(today))
+  return rule ? withTime(after(rule, start, now > start ? now : start), due) : due
+}
+
+// A line given a repeat moves to the rule's first day from today, or from its own date when that is earlier,
+// so its date is always one of the rule's days.
+export function onRule(due: string, repeat: string, today = new Date()) {
+  const start = parseDay(due.split('T')[0])
+  const now = parseDay(dayOf(today))
+  const from = now < start ? now : start
+  from.setDate(from.getDate() - 1)
+  return withTime(after(parseRule(repeat)!, start, from), due)
+}
+
+const ORDINAL: Record<string, string> = { one: 'st', two: 'nd', few: 'rd', other: 'th' }
+const nth = (n: number) => (n < 0 ? 'last' : `${n}${ORDINAL[new Intl.PluralRules('en', { type: 'ordinal' }).select(n)]}`)
+const list = (items: string[]) => new Intl.ListFormat('en', { type: 'conjunction' }).format(items)
+// November 2026 starts on a Sunday.
+const dayName = (day: Day, width: 'long' | 'short') =>
+  new Date(2026, 10, 1 + DAYS.indexOf(day)).toLocaleDateString('en', { weekday: width })
+
+export function describeRule(rule: Rule, start: Date) {
+  const every = (unit: string) => (rule.interval > 1 ? `Every ${rule.interval} ${unit}s` : `Every ${unit}`)
+  const days = rule.days.map((day) => dayName(day, rule.days.length > 1 ? 'short' : 'long'))
+  if (rule.freq === 'WEEKLY') {
+    if (rule.interval === 1 && rule.days.length === 7) return 'Every day'
+    if (rule.interval === 1 && rule.days.join() === 'MO,TU,WE,TH,FR') return 'Every weekday'
+    return `${every('week')} on ${list(days)}`
+  }
+  if (rule.freq === 'YEARLY') return `${every('year')} on ${start.toLocaleDateString('en', { month: 'long', day: 'numeric' })}`
+  if (!rule.weeks.length) return `${every('month')} on the ${nth(rule.monthDay ?? start.getDate())}`
+  return `${every('month')} on the ${list(rule.weeks.map(nth))} ${list(days)}`
 }
 
 export function overdue(due: string) {
@@ -58,9 +137,9 @@ export function overdue(due: string) {
 // Near days by name, the coming week by weekday, the rest by date.
 export function dueLabel(due: string) {
   const [day, time] = due.split('T')
-  const date = parse(day)
+  const date = parseDay(day)
   const now = new Date()
-  const days = Math.round((date.getTime() - parse(dayOf(now)).getTime()) / 86_400_000)
+  const days = Math.round((date.getTime() - parseDay(dayOf(now)).getTime()) / 86_400_000)
   const label =
     days === 0
       ? 'Today'

@@ -56,7 +56,10 @@ defmodule NicheNotes.Reminders do
         title: text,
         body: title,
         note: id,
-        tag: "#{id} #{line.date} #{text}"
+        tag: "#{id} #{line.due} #{text}",
+        due: line.due,
+        text: text,
+        repeat: line.repeat
       })
     end
 

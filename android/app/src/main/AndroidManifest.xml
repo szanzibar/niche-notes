@@ -68,6 +68,10 @@
             <meta-data
                 android:name="android.support.customtabs.trusted.SMALL_ICON"
                 android:resource="@drawable/ic_notification" />
+            <!-- An alert pops up over whatever is on screen, since it is due now. -->
+            <meta-data
+                android:name="androidx.browser.trusted.USE_HIGH_PRI_NOTIFICATIONS"
+                android:value="true" />
             <intent-filter>
                 <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
                 <category android:name="android.intent.category.DEFAULT" />

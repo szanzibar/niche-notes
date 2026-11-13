@@ -61,9 +61,15 @@ defmodule NicheNotes.Push do
     request = [body: body, headers: headers] ++ Application.get_env(:niche_notes, :push_req, [])
 
     case Req.post(subscription.endpoint, request) do
-      {:ok, %{status: status}} when status in 200..299 -> :ok
-      {:ok, %{status: status}} when status in [404, 410] -> Repo.delete!(subscription)
-      failed -> Logger.warning("push to #{subscription.endpoint} failed: #{inspect(failed)}")
+      {:ok, %{status: status}} when status in 200..299 ->
+        :ok
+
+      {:ok, %{status: status}} when status in [404, 410] ->
+        Logger.info("push: #{subscription.endpoint} is no longer subscribed")
+        Repo.delete!(subscription)
+
+      failed ->
+        Logger.warning("push to #{subscription.endpoint} failed: #{inspect(failed)}")
     end
   end
 

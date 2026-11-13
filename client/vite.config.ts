@@ -11,6 +11,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // Our own service worker, so alerts can reuse the app's date logic.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       injectRegister: 'inline',
       manifest: {
@@ -25,11 +29,7 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
-      workbox: {
-        inlineWorkboxRuntime: true,
-        importScripts: ['/push.js'],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/socket/, /^\/calendar\//],
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },
     }),

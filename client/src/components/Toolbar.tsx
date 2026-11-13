@@ -1,7 +1,7 @@
 import type { Editor } from '@tiptap/react'
 import { useEffect, useReducer, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
-import { inDays, REPEATS } from './dates'
+import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule } from './dates'
 import {
   BoldIcon,
   BulletListIcon,
@@ -70,13 +70,14 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
     setHref(link ?? '')
     setRow('link')
   }
-  // Dates belong to checkbox lines. Each change applies at once, and only a quick pick or Remove closes the box,
-  // so a time or a repeat can follow a date.
+  // Dates belong to checkbox lines. Each change applies at once and the box stays open, so a time or a repeat
+  // can follow a date. Only Remove closes it.
   const linePos = item === 'taskItem' ? editor.state.selection.$from.before(depth) : null
   const line = linePos == null ? null : editor.state.doc.nodeAt(linePos)
   const due = line?.attrs.due as string | null | undefined
   const [day = '', time = ''] = due?.split('T') ?? []
-  const setDue = (next: string | null, repeat = line!.attrs.repeat) => {
+  const rule = parseRule(line?.attrs.repeat)
+  const setDue = (next: string | null, repeat: string | null = rule && formatRule(rule)) => {
     editor
       .chain()
       .command(({ tr }) => {
@@ -86,10 +87,15 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
       .run()
     if (next) void enableAlerts()
   }
-  const pick = (next: string | null) => {
-    setRow(null)
-    setDue(next && time ? `${next}T${time}` : next)
+  const pick = (next: string) => setDue(time ? `${next}T${time}` : next)
+  // A new rule moves the date to the rule's first day.
+  const setRule = (next: Rule | null) => {
+    if (!next) return due && setDue(due, null)
+    const repeat = formatRule(next)
+    setDue(onRule(due ?? inDays(0), repeat), repeat)
   }
+  const start = parseDay(day || inDays(0))
+  const weekday = DAYS[start.getDay()]
 
   const applyLink = () => {
     close()
@@ -152,7 +158,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                     ['Next week', 7],
                   ] as const
                 ).map(([label, days]) => (
-                  <Tool key={label} label={label} onClick={() => pick(inDays(days))}>
+                  <Tool key={label} label={label} active={day === inDays(days)} onClick={() => pick(inDays(days))}>
                     {label}
                   </Tool>
                 ))}
@@ -173,26 +179,100 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                   className={FIELD}
                 />
               </div>
-              <div className="flex gap-1">
-                <select
-                  aria-label="Repeat"
-                  value={line?.attrs.repeat ?? ''}
-                  onChange={(e) => setDue(due ?? inDays(0), e.target.value || null)}
-                  className={FIELD}
-                >
-                  <option value="">Doesn't repeat</option>
-                  {REPEATS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                {due && (
-                  <Tool label="Remove date" onClick={() => pick(null)}>
-                    <TrashIcon className={ICON} />
+              <Group className="[&>*]:flex-1">
+                {(
+                  [
+                    ['Never', null],
+                    ['Week', { freq: 'WEEKLY', interval: 1, days: [weekday], weeks: [], monthDay: null }],
+                    ['Month', { freq: 'MONTHLY', interval: 1, days: [], weeks: [], monthDay: start.getDate() }],
+                    ['Year', { freq: 'YEARLY', interval: 1, days: [], weeks: [], monthDay: null }],
+                  ] satisfies [string, Rule | null][]
+                ).map(([label, fresh]) => (
+                  <Tool
+                    key={label}
+                    label={label === 'Never' ? "Doesn't repeat" : `Every ${label.toLowerCase()}`}
+                    active={(rule?.freq ?? null) === (fresh?.freq ?? null)}
+                    onClick={() => (rule?.freq ?? null) !== (fresh?.freq ?? null) && setRule(fresh)}
+                  >
+                    {label}
                   </Tool>
-                )}
-              </div>
+                ))}
+              </Group>
+              {rule?.freq === 'MONTHLY' && (
+                <Group className="[&>*]:flex-1">
+                  <Tool
+                    label={`On the ${start.getDate()}`}
+                    active={!rule.weeks.length}
+                    onClick={() => setRule({ ...rule, weeks: [], days: [], monthDay: start.getDate() })}
+                  >
+                    {start.getDate()}
+                  </Tool>
+                  {[1, 2, 3, 4, -1].map((week) => (
+                    <Tool
+                      key={week}
+                      label={week < 0 ? 'Last' : ['1st', '2nd', '3rd', '4th'][week - 1]}
+                      active={rule.weeks.includes(week)}
+                      onClick={() => {
+                        const weeks = rule.weeks.includes(week) ? rule.weeks.filter((w) => w !== week) : [...rule.weeks, week]
+                        setRule(
+                          weeks.length
+                            ? { ...rule, weeks, days: rule.days.length ? rule.days : [weekday], monthDay: null }
+                            : { ...rule, weeks, days: [], monthDay: start.getDate() },
+                        )
+                      }}
+                    >
+                      {week < 0 ? 'Last' : ['1st', '2nd', '3rd', '4th'][week - 1]}
+                    </Tool>
+                  ))}
+                </Group>
+              )}
+              {(rule?.freq === 'WEEKLY' || (rule?.freq === 'MONTHLY' && rule.weeks.length > 0)) && (
+                <Group className="[&>*]:flex-1">
+                  {DAYS.map((d: Day, i) => (
+                    <Tool
+                      key={d}
+                      label={new Date(2026, 10, 1 + i).toLocaleDateString('en', { weekday: 'long' })}
+                      active={rule.days.includes(d)}
+                      // A rule keeps at least one day.
+                      onClick={() =>
+                        (rule.days.length > 1 || !rule.days.includes(d)) &&
+                        setRule({ ...rule, days: DAYS.filter((x) => (x === d) !== rule.days.includes(x)) })
+                      }
+                    >
+                      {'SMTWTFS'[i]}
+                    </Tool>
+                  ))}
+                </Group>
+              )}
+              {rule && (
+                <div className="flex items-center gap-2">
+                  <Group>
+                    <Tool
+                      label="Repeat more often"
+                      disabled={rule.interval === 1}
+                      onClick={() => setRule({ ...rule, interval: rule.interval - 1 })}
+                    >
+                      <span className="text-xl leading-none">−</span>
+                    </Tool>
+                    <Tool label="Repeat less often" onClick={() => setRule({ ...rule, interval: rule.interval + 1 })}>
+                      <span className="text-xl leading-none">+</span>
+                    </Tool>
+                  </Group>
+                  <span className="min-w-0 flex-1 text-sm font-bold">{describeRule(rule, start)}</span>
+                </div>
+              )}
+              {due && (
+                <Tool
+                  label="Remove date"
+                  onClick={() => {
+                    setRow(null)
+                    setDue(null)
+                  }}
+                >
+                  <TrashIcon className={ICON} />
+                  <span className="ml-1">Remove date</span>
+                </Tool>
+              )}
             </div>
           </Popover>
         </Group>

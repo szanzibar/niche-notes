@@ -20,7 +20,7 @@ Access rule, used by every channel join and share endpoint: a user may open a do
 
 **Note doc**
 - `meta`: Y.Map with `title: string`, `deleted: boolean`, `deletedAt: number`, `hideChecked: boolean` and `deleteChecked: boolean`. The app sets one of the last two at a time, and if both are set, delete wins.
-- `content`: Y.XmlFragment bound to the TipTap editor. A checkbox line (`taskItem`) carries `checked`, and when it has a date, `due` and maybe `repeat`. `due` is wall-clock time, `2026-11-14` or `2026-11-14T15:30`, and `repeat` is `daily`, `weekdays`, `weekly`, `monthly` or `yearly`.
+- `content`: Y.XmlFragment bound to the TipTap editor. A checkbox line (`taskItem`) carries `checked`, and when it has a date, `due` and maybe `repeat`. `due` is wall-clock time, `2026-11-14` or `2026-11-14T15:30`, and `repeat` is an iCalendar rule in the shapes the date box writes: `FREQ=WEEKLY;BYDAY=MO,TH`, `FREQ=MONTHLY;BYDAY=1SU,-1SU` or `FREQ=MONTHLY;BYMONTHDAY=15`, and `FREQ=YEARLY`, each with an optional `INTERVAL`. A line's `due` is always one of its rule's days.
 
 Deleting a note sets `deleted`, so it syncs like any edit and vanishes for everyone shared on it, while the owner's placement stays so Restore puts it back where it was. The rows stay until the owner empties it from the trash or thirty days pass, when the owner's client calls the purge endpoint.
 
@@ -54,6 +54,7 @@ Cookie session, JSON.
 - `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines }`, one line per paragraph or list item, without checked items when the note hides or deletes them. 404 once the note is in the trash or no longer shared, 401 for any other token
 - `GET /api/push_key` — the public key a device subscribes to alerts with (ADR 006)
 - `PUT /api/push_subscriptions` `{ subscription, time_zone }` — this device's push subscription, as the browser gives it
+- `PATCH /api/docs/:id/line` `{ due, text, checked: true }` or `{ due, text, move_to }` — an alert's Done or Snooze: changes the first unchecked line with that date and text, and broadcasts the change to the doc's channel. 404 once no line matches
 - `GET /api/calendar` — `{ url }`, the user's calendar address
 - `GET /calendar/:token` — no session; every dated, unchecked line in the notes the token's user can open, as iCalendar
 - `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`

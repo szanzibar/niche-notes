@@ -18,7 +18,12 @@ defmodule NicheNotesWeb.CalendarControllerTest do
 
         items =
           for {line, attrs} <- [
-                {text, %{"checked" => false, "due" => "2026-11-14", "repeat" => "weekdays"}},
+                {text,
+                 %{
+                   "checked" => false,
+                   "due" => "2026-11-14",
+                   "repeat" => "FREQ=MONTHLY;BYDAY=1SU,3SU"
+                 }},
                 {"Call the plumber", %{"checked" => false, "due" => "2026-11-14T15:30"}}
               ] do
             paragraph = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(line)])
@@ -41,7 +46,7 @@ defmodule NicheNotesWeb.CalendarControllerTest do
     assert feed =~
              "DTSTART;VALUE=DATE:20261114\r\nSUMMARY:Pay rent\\, then bills\r\nDESCRIPTION:House\r\n"
 
-    assert feed =~ "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\r\n"
+    assert feed =~ "RRULE:FREQ=MONTHLY;BYDAY=1SU,3SU\r\n"
     assert feed =~ "DTSTART:20261114T153000\r\nDURATION:PT30M\r\nSUMMARY:Call the plumber\r\n"
     refute feed =~ "Not for me"
     assert response(get(build_conn(), path <> "x"), 401)

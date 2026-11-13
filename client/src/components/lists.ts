@@ -3,7 +3,7 @@ import type { Node, ResolvedPos } from '@tiptap/pm/model'
 import { type EditorState, Plugin, Selection, TextSelection } from '@tiptap/pm/state'
 import { Extension, type Editor } from '@tiptap/react'
 import { ySyncPluginKey } from '@tiptap/y-tiptap'
-import { dueLabel, nextDue, overdue } from './dates'
+import { dueLabel, nextDue, overdue, parseRule } from './dates'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
 const ITEM: Record<ListType, string> = { taskList: 'taskItem', bulletList: 'listItem', orderedList: 'listItem' }
@@ -136,7 +136,7 @@ export const TaskItem = TipTapTaskItem.extend({
       li.append(chip)
       const showDue = (node: Node) => {
         const { due, repeat, checked } = node.attrs
-        if (due) chip.dataset.label = `${repeat ? '↻ ' : ''}${dueLabel(due)}`
+        if (due) chip.dataset.label = `${parseRule(repeat) ? '↻ ' : ''}${dueLabel(due)}`
         else delete chip.dataset.label
         chip.toggleAttribute('data-overdue', Boolean(due) && !checked && overdue(due))
       }
@@ -171,7 +171,7 @@ export const TaskItem = TipTapTaskItem.extend({
           e.stopPropagation()
           const line = editor.state.doc.nodeAt(pos)!
           const checked = (e.target as HTMLInputElement).checked
-          const repeats = checked && line.attrs.due && line.attrs.repeat
+          const repeats = checked && line.attrs.due && parseRule(line.attrs.repeat)
           editor
             .chain()
             .command(({ tr }) => {

@@ -59,8 +59,7 @@ defmodule NicheNotesWeb.CalendarController do
   end
 
   defp repeat(nil), do: []
-  defp repeat("weekdays"), do: ["RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"]
-  defp repeat(every), do: ["RRULE:FREQ=#{String.upcase(every)}"]
+  defp repeat(rule), do: ["RRULE:#{rule}"]
 
   defp escape(text), do: String.replace(text, ~r/[\;,]/, "\\\\\\0")
 end

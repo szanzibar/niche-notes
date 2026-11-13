@@ -49,8 +49,8 @@ Several home-screen widgets, each showing a whole note Steven picks, read-only; 
 Dates, repeats and a time on checkbox lines, alerts through Web Push, and a calendar feed (ADR 006). Google Tasks sync is not wanted.
 
 - [x] Dates, repeats and the date box, the alert pass and the calendar feed, tested in the browser and on the server (2026-11-12)
-- [ ] On Steven's phone: the app asks to allow notifications on the first date, an alert arrives at 9:00 for a date-only line and at the time of a timed one, and a tap opens the note
-- [ ] The calendar link subscribed in Google Calendar shows dated lines
+- [ ] On Steven's phone: an alert arrives at 9:00 for a date-only line and at the time of a timed one, a tap opens the note, Done ticks the line or moves a repeating one, and Snooze 1 hour moves it
+- [ ] Add to Google Calendar from Settings shows dated lines in Google Calendar
 - Later: the Google Calendar API, if a feed that Google refreshes every few hours feels stale
 
 ## Later

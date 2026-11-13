@@ -39,6 +39,7 @@ defmodule NicheNotesWeb.Router do
     get "/push_key", PushController, :key
     put "/push_subscriptions", PushController, :subscribe
     get "/calendar", CalendarController, :link
+    patch "/docs/:doc_id/line", LineController, :update
   end
 
   scope "/.well-known", NicheNotesWeb do
