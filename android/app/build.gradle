@@ -27,7 +27,7 @@ android {
         // Android installs an update only over a lower versionCode, so VERSION is the commit count.
         versionCode = Integer.parseInt(System.getenv('VERSION') ?: '1')
         versionName = System.getenv('VERSION') ?: 'dev'
-        // CI builds update themselves from their own repository's releases. Local builds don't look.
+        // Builds update themselves from their repository's releases: CI names it, and build.sh reads the origin remote.
         def repo = System.getenv('GITHUB_REPOSITORY')
         buildConfigField 'String', 'RELEASES', repo ? "\"https://api.github.com/repos/$repo/releases/latest\"" : 'null'
     }
