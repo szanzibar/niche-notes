@@ -48,8 +48,8 @@ export function SettingsDialog() {
   // The calendar address is fetched when Settings opens, since a tap that opens a link can't wait for the server.
   const [calendar, setCalendar] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const webcal = calendar?.replace(/^https?:/, 'webcal:')
-  const google = webcal && `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`
+  const google =
+    calendar && `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(calendar.replace(/^https?:/, 'webcal:'))}`
   // Google Calendar's Android app claims Google's links and can't add a calendar from one, so a phone pastes the
   // link into a browser. Google's sign-in comes first, for a browser that isn't signed in yet.
   const android = /Android/.test(navigator.userAgent)
@@ -151,14 +151,9 @@ export function SettingsDialog() {
           )}
           <div className="flex flex-wrap gap-2">
             {!android && (
-              <>
-                <Button disabled={!calendar} onClick={() => window.open(google!, '_blank')}>
-                  Add to Google Calendar
-                </Button>
-                <Button disabled={!calendar} onClick={() => (window.location.href = webcal!)}>
-                  Calendar app
-                </Button>
-              </>
+              <Button disabled={!calendar} onClick={() => window.open(google!, '_blank')}>
+                Add to Google Calendar
+              </Button>
             )}
             <Button disabled={!calendar} onClick={() => void navigator.clipboard.writeText(copy!).then(() => setCopied(true))}>
               {copied ? 'Copied' : 'Copy link'}
