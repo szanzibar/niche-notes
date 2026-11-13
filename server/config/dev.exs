@@ -17,3 +17,8 @@ config :niche_notes, NicheNotesWeb.Endpoint,
 config :logger, :default_formatter, format: "[$level] $message\n"
 config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime
+
+# dev.sh exports these from the repo's .env.
+config :niche_notes, :google,
+  client_id: System.get_env("GOOGLE_CLIENT_ID"),
+  client_secret: System.get_env("GOOGLE_CLIENT_SECRET")

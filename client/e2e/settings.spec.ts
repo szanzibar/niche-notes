@@ -64,3 +64,24 @@ test('density scales the whole interface and stays on this device', async ({ bro
   await expect.poll(() => accent(other)).toBe('#2F6BFF')
   expect(await rootSize(other)).toBe('16px')
 })
+
+test('Settings connects Google Calendar through Google, then shows the account with Disconnect', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ body: 'Google' }))
+  await page.getByRole('button', { name: 'Settings' }).click()
+  const consent = page.waitForRequest(/^https:\/\/accounts\.google\.com\//)
+  await page.getByRole('button', { name: 'Connect Google Calendar' }).click()
+  expect(new URL((await consent).url()).searchParams.get('scope')).toContain('calendar.app.created')
+
+  // Google's side can't run here, so the server's answer stands in for a connected account.
+  await page.route('**/api/google_calendar', (route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({ json: { email: 'alice@example.com' } })
+      : route.fulfill({ status: 204 }),
+  )
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByText(/Niche Notes calendar of alice@example\.com/)).toBeVisible()
+  await page.getByRole('button', { name: 'Disconnect' }).click()
+  await expect(page.getByRole('button', { name: 'Connect Google Calendar' })).toBeEnabled()
+})

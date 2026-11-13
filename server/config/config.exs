@@ -18,6 +18,10 @@ config :niche_notes, :oidc,
   redirect_uri: "http://localhost:4000/auth/callback",
   http_adapter: {Assent.HTTPAdapter.Req, []}
 
+config :niche_notes, :google,
+  redirect_uri: "http://localhost:4000/auth/google/callback",
+  http_adapter: {Assent.HTTPAdapter.Req, []}
+
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]

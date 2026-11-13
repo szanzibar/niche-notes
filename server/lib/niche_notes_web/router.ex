@@ -24,6 +24,8 @@ defmodule NicheNotesWeb.Router do
 
     get "/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
+    get "/google", GoogleCalendarController, :connect
+    get "/google/callback", GoogleCalendarController, :callback
   end
 
   scope "/api", NicheNotesWeb do
@@ -38,7 +40,8 @@ defmodule NicheNotesWeb.Router do
     get "/docs/:doc_id/widget_token", WidgetController, :token
     get "/push_key", PushController, :key
     put "/push_subscriptions", PushController, :subscribe
-    get "/calendar", CalendarController, :link
+    get "/google_calendar", GoogleCalendarController, :show
+    delete "/google_calendar", GoogleCalendarController, :delete
     patch "/docs/:doc_id/line", LineController, :update
   end
 
@@ -46,13 +49,9 @@ defmodule NicheNotesWeb.Router do
     get "/assetlinks.json", AssetLinksController, :show
   end
 
-  # A widget and a calendar app have no session. Their token says who they read for.
+  # A widget has no session. Its token says which note it reads.
   scope "/api", NicheNotesWeb do
     get "/widget", WidgetController, :show
-  end
-
-  scope "/calendar", NicheNotesWeb do
-    get "/:token", CalendarController, :show
   end
 
   scope "/", NicheNotesWeb do

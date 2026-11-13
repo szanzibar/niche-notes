@@ -13,8 +13,8 @@ defmodule NicheNotes.Reminders do
 
   def start_link(_), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
 
-  # %{doc_id => {title, lines}}, for the notes that have any.
-  def notes, do: GenServer.call(__MODULE__, :notes)
+  # %{doc_id => {title, lines}}, for the notes that have any. It waits out the first read of every note at boot.
+  def notes, do: GenServer.call(__MODULE__, :notes, :infinity)
 
   # Looks back a few minutes, so a restart doesn't skip what came due while it was down. A device shows an
   # alert sent twice in place of the first.
@@ -30,7 +30,7 @@ defmodule NicheNotes.Reminders do
     {:noreply, pass(state, DateTime.utc_now())}
   end
 
-  # A calendar app gets lines as they are now, not as of the last pass.
+  # Google Calendar gets lines as they are now, not as of the last pass.
   @impl true
   def handle_call(:notes, _from, state) do
     state = reread(state)

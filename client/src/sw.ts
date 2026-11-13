@@ -10,7 +10,7 @@ precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-    denylist: [/^\/api\//, /^\/auth\//, /^\/socket/, /^\/calendar\//],
+    denylist: [/^\/api\//, /^\/auth\//, /^\/socket/],
   }),
 )
 void self.skipWaiting()

@@ -13,7 +13,7 @@ defmodule NicheNotes.Application do
     children =
       children ++
         if Application.get_env(:niche_notes, :reminders, true),
-          do: [NicheNotes.Reminders],
+          do: [NicheNotes.Reminders, NicheNotes.GoogleCalendar],
           else: []
 
     Supervisor.start_link(children, strategy: :one_for_one, name: NicheNotes.Supervisor)

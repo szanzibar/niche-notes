@@ -28,4 +28,10 @@ if config_env() == :prod do
     # Pocket ID only puts name and email in the ID token when asked.
     authorization_params: [scope: "profile email"],
     http_adapter: {Assent.HTTPAdapter.Req, []}
+
+  # A server without a Google client still runs, and only Connect Google Calendar fails.
+  config :niche_notes, :google,
+    client_id: System.get_env("GOOGLE_CLIENT_ID"),
+    client_secret: System.get_env("GOOGLE_CLIENT_SECRET"),
+    redirect_uri: "https://#{host}/auth/google/callback"
 end

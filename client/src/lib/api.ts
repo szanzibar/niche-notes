@@ -30,6 +30,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ subscription, time_zone: timeZone }),
     }),
-  calendar: () => request<{ url: string }>('/calendar'),
+  googleCalendar: () => request<{ email: string | null }>('/google_calendar'),
+  disconnectGoogleCalendar: () => request<void>('/google_calendar', { method: 'DELETE' }),
   logout: () => fetch('/auth/logout', { method: 'DELETE' }),
 }

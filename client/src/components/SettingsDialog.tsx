@@ -45,22 +45,15 @@ export function SettingsDialog() {
   useEffect(() => {
     document.documentElement.dataset.density = density ?? ''
   }, [density])
-  // The calendar address is fetched when Settings opens, since a tap that opens a link can't wait for the server.
-  const [calendar, setCalendar] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const google =
-    calendar && `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(calendar.replace(/^https?:/, 'webcal:'))}`
-  // Google Calendar's Android app claims Google's links and can't add a calendar from one, so a phone pastes the
-  // link into a browser. Google's sign-in comes first, for a browser that isn't signed in yet.
-  const android = /Android/.test(navigator.userAgent)
-  const copy = android ? google && `https://accounts.google.com/ServiceLogin?service=cl&continue=${encodeURIComponent(google)}` : calendar
+  // The Google account whose calendar holds the dated lines, or null before Settings hears from the server.
+  const [google, setGoogle] = useState<{ email: string | null } | null>(null)
   const [alerts, setAlerts] = useState('Notification' in window ? Notification.permission : null)
   const open = (opened: boolean) => {
     if (!opened) return
     setAlerts('Notification' in window ? Notification.permission : null)
     api
-      .calendar()
-      .then(({ url }) => setCalendar(url))
+      .googleCalendar()
+      .then(setGoogle)
       .catch(() => {})
   }
 
@@ -137,28 +130,32 @@ export function SettingsDialog() {
             </>
           )}
           <p className="mt-5 font-medium">Calendar</p>
-          {android ? (
-            <p className="mb-2 text-sm text-ink-muted">
-              Dated checkbox lines in Google Calendar, refreshed about once a day. Copy the link and paste it into your
-              browser's address bar. If the Calendar app opens after you sign in, go back to the browser and add the
-              calendar there. Then turn on Sync for Niche Notes in the Calendar app's settings.
-            </p>
-          ) : (
-            <p className="mb-2 text-sm text-ink-muted">
-              Dated checkbox lines in your calendar. Google Calendar adds it on its website and refreshes it about once a
-              day. To see it on a phone, turn on Sync for Niche Notes in the Calendar app's settings.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {!android && (
-              <Button disabled={!calendar} onClick={() => window.open(google!, '_blank')}>
-                Add to Google Calendar
+          {google?.email ? (
+            <>
+              <p className="mb-2 text-sm text-ink-muted">
+                Dated checkbox lines are in the Niche Notes calendar of {google.email}, a minute after each change. Edit
+                them here, since changes made in Google Calendar don't come back.
+              </p>
+              <Button onClick={() => void api.disconnectGoogleCalendar().then(() => setGoogle({ email: null }))}>
+                Disconnect
               </Button>
-            )}
-            <Button disabled={!calendar} onClick={() => void navigator.clipboard.writeText(copy!).then(() => setCopied(true))}>
-              {copied ? 'Copied' : 'Copy link'}
-            </Button>
-          </div>
+            </>
+          ) : (
+            <>
+              <p className="mb-2 text-sm text-ink-muted">
+                Dated checkbox lines in a Niche Notes calendar in your Google Calendar, a minute after each change.
+              </p>
+              <Button
+                disabled={!google}
+                onClick={() => {
+                  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+                  window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
+                }}
+              >
+                Connect Google Calendar
+              </Button>
+            </>
+          )}
           <Dialog.Close asChild>
             <Button className="mt-5 w-full">Done</Button>
           </Dialog.Close>

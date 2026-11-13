@@ -15,6 +15,14 @@ config :phoenix, :plug_init_mode, :runtime
 
 config :niche_notes, :android, app_id: "app.nichenotes.test", cert_sha256: "AA:BB"
 
-# Tests run each reminders pass themselves, and catch pushes before they leave.
+# Tests run each reminders pass and calendar sync themselves, and catch pushes and Google's requests before
+# they leave.
 config :niche_notes, :reminders, false
 config :niche_notes, :push_req, plug: {Req.Test, NicheNotes.Push}
+
+config :niche_notes, :google,
+  client_id: "client",
+  client_secret: "secret",
+  http_adapter: {Assent.HTTPAdapter.Req, plug: {Req.Test, NicheNotes.GoogleCalendar}}
+
+config :niche_notes, :google_req, plug: {Req.Test, NicheNotes.GoogleCalendar}, retry: false

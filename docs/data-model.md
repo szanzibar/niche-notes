@@ -8,6 +8,7 @@ SQLite, one file. The server stores who owns what and a log of Y.js updates. It 
 - **docs** — a Y.js document: `id` (uuid, chosen by the client), `owner_id`. A user's tree has `id == owner_id` and is created with the user. Every other doc is a note.
 - **doc_shares** — `doc_id`, `user_id`, unique together. One row grants full access to one note.
 - **push_subscriptions** — one row per device that allowed alerts: `endpoint` (the push service's address, the key), `user_id`, `p256dh`, `auth` and the device's `time_zone`. Every launch writes it again, and a push service that no longer knows the device deletes it.
+- **google_calendars** — one row per person who connected Google Calendar: `user_id` (the key), `calendar_id` of the Niche Notes calendar the app made, the Google `email`, the `refresh_token` encrypted with `SECRET_KEY_BASE`, and the `time_zone` of the device that connected (ADR 007).
 - **doc_updates** — `id` (autoincrement, the sequence number), `doc_id`, `update` (Y.js binary), `inserted_at`. One row per edit, until a client folds a doc's rows into one snapshot (see the sync protocol).
 
 Access rule, used by every channel join and share endpoint: a user may open a doc if they own it or a share row names them.
@@ -55,6 +56,7 @@ Cookie session, JSON.
 - `GET /api/push_key` — the public key a device subscribes to alerts with (ADR 006)
 - `PUT /api/push_subscriptions` `{ subscription, time_zone }` — this device's push subscription, as the browser gives it
 - `PATCH /api/docs/:id/line` `{ due, text, checked: true }` or `{ due, text, move_to }` — an alert's Done or Snooze: changes the first unchecked line with that date and text, and broadcasts the change to the doc's channel. 404 once no line matches
-- `GET /api/calendar` — `{ url }`, the user's calendar address
-- `GET /calendar/:token` — no session; every dated, unchecked line in the notes the token's user can open, as iCalendar
+- `GET /api/google_calendar` — `{ email }`, the Google account holding the user's Niche Notes calendar, or `null`
+- `DELETE /api/google_calendar` — deletes the Niche Notes calendar and Google's grant
+- `GET /auth/google?time_zone=` and `GET /auth/google/callback` — Google's consent, then the Niche Notes calendar is made in that time zone
 - `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`

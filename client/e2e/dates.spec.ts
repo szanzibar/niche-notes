@@ -103,27 +103,6 @@ test('ticking a repeating line moves it to its next date instead of checking it'
   await expect(line(page, 'Bins')).toHaveAttribute('data-checked', 'false')
 })
 
-test('the calendar link in Settings serves dated lines to a calendar app, without a session', async ({ browser, request }) => {
-  const page = await signIn(browser, `alice-${uid()}`)
-  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
-  await newNote(page, 'Chores', 'Pay rent')
-  await tool(page, 'Checklist').click()
-  await tool(page, 'Date').click()
-  await tool(page, 'Tomorrow').click()
-
-  await page.getByRole('button', { name: 'Settings' }).click()
-  await page.context().route('https://calendar.google.com/**', (route) => route.fulfill({ body: '' }))
-  const google = page.waitForEvent('popup')
-  await page.getByRole('button', { name: 'Add to Google Calendar' }).click()
-  expect(decodeURIComponent((await google).url())).toMatch(/calendar\.google\.com\/calendar\/render\?cid=webcal:\/\/localhost/)
-  await page.getByRole('button', { name: 'Copy link' }).click()
-  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
-  const url = await page.evaluate(() => navigator.clipboard.readText())
-  await expect
-    .poll(async () => (await request.get(url)).text())
-    .toContain(`DTSTART;VALUE=DATE:${inDays(1).replaceAll('-', '')}\r\nSUMMARY:Pay rent\r\nDESCRIPTION:Chores`)
-})
-
 test("a calendar event's link opens its note with the cursor at the end of its line", async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Rent')
@@ -147,30 +126,6 @@ test("a calendar event's link opens its note with the cursor at the end of its l
   await expect(line(page, 'Rent!')).toBeVisible()
   await page.goBack()
   await expect(page).toHaveURL(/\/$/)
-})
-
-test('on Android, Copy link gives the Google Calendar link to paste into a browser', async ({ browser, request }) => {
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0 Mobile Safari/537.36',
-  })
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  const page = await context.newPage()
-  await page.goto(`/auth/login?as=alice-${uid()}`)
-  await newNote(page, 'Chores', 'Pay rent')
-  await tool(page, 'Checklist').click()
-  await tool(page, 'Date').click()
-  await tool(page, 'Tomorrow').click()
-
-  await page.getByRole('button', { name: 'Settings' }).click()
-  await page.getByRole('button', { name: 'Copy link' }).click()
-  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Add to Google Calendar' })).toHaveCount(0)
-  const signIn = new URL(await page.evaluate(() => navigator.clipboard.readText()))
-  expect(signIn.origin).toBe('https://accounts.google.com')
-  const add = new URL(signIn.searchParams.get('continue')!)
-  expect(add.origin + add.pathname).toBe('https://calendar.google.com/calendar/render')
-  const feed = add.searchParams.get('cid')!.replace(/^webcal:/, 'http:')
-  await expect.poll(async () => (await request.get(feed)).text()).toContain('SUMMARY:Pay rent')
 })
 
 test('a monthly repeat can be the nth or last weekday, several at once', async ({ browser }) => {

@@ -10,7 +10,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'cd ../server && rm -f data/e2e.db* && MIX_BUILD_ROOT=_build/e2e DATABASE_PATH=data/e2e.db PORT=4199 mix do ecto.create --quiet + ecto.migrate --quiet + phx.server',
+        'cd ../server && rm -f data/e2e.db* && MIX_BUILD_ROOT=_build/e2e DATABASE_PATH=data/e2e.db PORT=4199 GOOGLE_CLIENT_ID=e2e mix do ecto.create --quiet + ecto.migrate --quiet + phx.server',
       url: 'http://localhost:4199/api/me',
       timeout: 180_000,
     },
