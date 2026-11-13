@@ -238,7 +238,7 @@ defmodule NicheNotes.GoogleCalendar do
 
     %{
       summary: line.text,
-      description: "#{title}\nEdit in Niche Notes: #{url(~p"/n/#{id}?#{[line: line.text]}")}",
+      description: "#{title}\n\nEdit in Niche Notes: #{url(~p"/n/#{id}?#{[line: line.text]}")}",
       start: start,
       end: finish,
       recurrence: List.wrap(line.repeat && "RRULE:#{line.repeat}"),

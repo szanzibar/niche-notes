@@ -98,7 +98,7 @@ defmodule NicheNotes.GoogleCalendarTest do
 
     assert %{
              "summary" => "Pay rent, then bills",
-             "description" => "House\nEdit in Niche Notes: " <> rent_link,
+             "description" => "House\n\nEdit in Niche Notes: " <> rent_link,
              "start" => %{"date" => "2026-11-14"},
              "end" => %{"date" => "2026-11-15"},
              "recurrence" => ["RRULE:FREQ=MONTHLY;BYDAY=1SU,3SU"],
