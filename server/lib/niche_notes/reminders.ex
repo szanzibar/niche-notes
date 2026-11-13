@@ -2,8 +2,9 @@ defmodule NicheNotes.Reminders do
   @moduledoc """
   Every dated checkbox line, held in memory for alerts and calendars. Once a minute it rereads the notes that
   changed, then alerts everyone on a note about each line that came due since the last pass: at its time, or
-  at 9:00 without one, in each device's own time zone. Repeats need nothing here, since ticking a repeating
-  line moves its date.
+  at 9:00 without one, in each device's own time zone. A repeating line also alerts on each of its rule's
+  days after its date until someone ticks it, so a missed day doesn't silence the next ones. Ticking moves its
+  date past them.
 
   Boot reads every note once, a few seconds at family scale. Someone who left a note still gets its alerts
   until they leave it for good.
@@ -46,17 +47,21 @@ defmodule NicheNotes.Reminders do
 
     for {id, {title, lines}} <- notes,
         line <- lines,
-        abs(Date.diff(line.date, today)) <= 1,
+        date <- Date.range(Date.add(today, -1), Date.add(today, 1)),
+        date == line.date or
+          (line.repeat != nil and Date.after?(date, line.date) and
+             occurs?(line.repeat, line.date, date)),
         subscription <- Push.subscriptions(Docs.member_ids(id)),
-        at = due_at(line, subscription.time_zone),
+        at = due_at(date, line.time, subscription.time_zone),
         DateTime.after?(at, from) and not DateTime.after?(at, now) do
       text = String.slice(line.text, 0, 200)
 
+      # Each day gets its own tag, since one that matches yesterday's alert replaces it without a sound.
       Push.send(subscription, %{
         title: text,
         body: title,
         note: id,
-        tag: "#{id} #{line.due} #{text}",
+        tag: "#{id} #{date} #{line.time} #{text}",
         due: line.due,
         text: text,
         repeat: line.repeat
@@ -81,11 +86,54 @@ defmodule NicheNotes.Reminders do
   end
 
   # A time that a clock change skips alerts just after it, and one it repeats alerts the first time.
-  defp due_at(line, time_zone) do
-    case DateTime.new(line.date, line.time || ~T[09:00:00], time_zone) do
+  defp due_at(date, time, time_zone) do
+    case DateTime.new(date, time || ~T[09:00:00], time_zone) do
       {:ok, at} -> at
       {:ambiguous, first, _} -> first
       {:gap, _, after_gap} -> after_gap
+    end
+  end
+
+  @days ~w(MO TU WE TH FR SA SU)
+
+  # Whether `date` is one of the rule's days, counting intervals from `start`. The app's `occurs` in
+  # dates.ts says the same, and the tests hold both to the same cases.
+  @doc false
+  def occurs?(rule, start, date) do
+    parts = rule |> String.split(";") |> Map.new(&List.to_tuple(String.split(&1, "=", parts: 2)))
+    interval = String.to_integer(parts["INTERVAL"] || "1")
+    by_day = String.split(parts["BYDAY"] || "", ",", trim: true)
+    days = Enum.map(by_day, &String.slice(&1, -2, 2))
+
+    weeks =
+      by_day
+      |> Enum.map(&String.slice(&1, 0..-3//1))
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.map(&String.to_integer/1)
+
+    weekday = Enum.at(@days, Date.day_of_week(date) - 1)
+    months = (date.year - start.year) * 12 + date.month - start.month
+
+    case parts["FREQ"] do
+      "WEEKLY" ->
+        apart = div(Date.diff(Date.beginning_of_week(date), Date.beginning_of_week(start)), 7)
+
+        rem(apart, interval) == 0 and
+          weekday in if(days == [], do: [Enum.at(@days, Date.day_of_week(start) - 1)], else: days)
+
+      "YEARLY" ->
+        rem(months, 12 * interval) == 0 and date.day == start.day
+
+      "MONTHLY" when rem(months, interval) != 0 ->
+        false
+
+      "MONTHLY" when weeks == [] ->
+        date.day == String.to_integer(parts["BYMONTHDAY"] || "#{start.day}")
+
+      "MONTHLY" ->
+        nth = div(date.day + 6, 7)
+        last = date.day + 7 > Date.days_in_month(date)
+        weekday in days and Enum.any?(weeks, &(&1 == nth or (&1 == -1 and last)))
     end
   end
 end

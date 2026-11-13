@@ -2,8 +2,8 @@
 // time zone and each device alerts at its own 9:00 or 15:30.
 
 // A repeat is the calendar standard's rule (RFC 5545), in the shapes the date box writes: FREQ=WEEKLY;BYDAY=MO,TH,
-// FREQ=MONTHLY;BYDAY=1SU,3SU or BYMONTHDAY=15, and FREQ=YEARLY, each with an optional INTERVAL. The calendar
-// feed passes it on as it is.
+// FREQ=MONTHLY;BYDAY=1SU,3SU or BYMONTHDAY=15, and FREQ=YEARLY, each with an optional INTERVAL. Google Calendar
+// takes it as it is.
 export const DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
 export type Day = (typeof DAYS)[number]
 // The week starts on Monday, as it does in Switzerland.
@@ -61,7 +61,8 @@ export function inDays(days: number) {
 const monday = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7))
 
 // Whether `date` is one of the rule's days, counting intervals from `start`. Like a calendar, a monthly rule
-// on the 31st skips shorter months.
+// on the 31st skips shorter months. The server's `occurs?` in reminders.ex alerts by the same rules, so a new
+// shape needs both.
 function occurs(rule: Rule, start: Date, date: Date) {
   const months = (date.getFullYear() - start.getFullYear()) * 12 + date.getMonth() - start.getMonth()
   const weekday = DAYS[date.getDay()]
