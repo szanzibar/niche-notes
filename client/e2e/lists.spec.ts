@@ -180,6 +180,7 @@ test('a note set to delete checked lines hides them, then deletes them the next 
   await checklist(page, 'Milk', 'Eggs')
   const hide = page.getByRole('button', { name: 'Hide checked' })
   const remove = page.getByRole('button', { name: 'Delete when checked' })
+  // Both are offered as soon as the note has a checkbox, before anything is checked.
   await page.getByRole('button', { name: 'Checked lines' }).click()
   await hide.click()
   await remove.click()
