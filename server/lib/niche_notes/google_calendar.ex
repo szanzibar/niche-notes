@@ -222,7 +222,8 @@ defmodule NicheNotes.GoogleCalendar do
     end
   end
 
-  # All day, or half an hour from its time. Its only alert is the app's own, which has Done and Snooze.
+  # All day, or from its time for its duration, half an hour unless set. Its only alert is the app's own,
+  # which has Done and Snooze.
   defp event(id, title, line, time_zone) do
     {start, finish} =
       case line do
@@ -232,7 +233,7 @@ defmodule NicheNotes.GoogleCalendar do
         %{time: time} ->
           at = NaiveDateTime.new!(line.date, time)
           wall = &%{dateTime: NaiveDateTime.to_iso8601(&1), timeZone: time_zone}
-          {wall.(at), wall.(NaiveDateTime.add(at, 30, :minute))}
+          {wall.(at), wall.(NaiveDateTime.add(at, line.duration || 30, :minute))}
       end
 
     %{

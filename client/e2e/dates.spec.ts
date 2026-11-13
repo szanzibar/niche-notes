@@ -29,9 +29,13 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
   await expect(chip(page, 'Rent')).toHaveAttribute('data-label', 'Tomorrow')
   const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-US', { weekday: 'short' })
   await expect(page.locator('label:has([aria-label="Day"])')).toContainText(tomorrow)
-  // The box stays open for a time or a repeat, until a tap elsewhere.
+  // The box stays open for a time or a repeat, until a tap elsewhere. A time can have a length.
+  await expect(tool(page, '1 hour')).toBeHidden()
   await page.getByLabel('Time', { exact: true }).fill('18:00')
   await expect(line(page, 'Rent')).toHaveAttribute('data-due', `${inDays(1)}T18:00`)
+  await expect(tool(page, '30 minutes')).toHaveAttribute('aria-pressed', 'true')
+  await tool(page, '1 hour').click()
+  await expect(line(page, 'Rent')).toHaveAttribute('data-duration', '60')
   await page.keyboard.press('Escape')
   await expect(tool(page, 'Tomorrow')).toBeHidden()
 
@@ -55,6 +59,7 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
   await chip(page, 'Rent').click()
   await tool(page, 'Remove date').click()
   await expect(line(page, 'Rent')).not.toHaveAttribute('data-due')
+  await expect(line(page, 'Rent')).not.toHaveAttribute('data-duration')
 })
 
 test('on a phone, a tap right of a dated line puts the cursor at its end', async ({ browser }) => {

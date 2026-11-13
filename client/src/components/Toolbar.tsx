@@ -30,6 +30,14 @@ import { listPosition, toggleList } from './lists'
 import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
+// How long a timed line lasts in the calendar. Half an hour unless set.
+const DURATIONS = [
+  ['15m', '15 minutes', 15],
+  ['30m', '30 minutes', 30],
+  ['1h', '1 hour', 60],
+  ['2h', '2 hours', 120],
+  ['3h', '3 hours', 180],
+] as const
 const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:border-accent'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
@@ -77,14 +85,16 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   const due = line?.attrs.due as string | null | undefined
   const [day = '', time = ''] = due?.split('T') ?? []
   const rule = parseRule(line?.attrs.repeat)
-  const setDue = (next: string | null, repeat: string | null = rule && formatRule(rule)) => {
+  const setLine = (attrs: Record<string, unknown>) =>
     editor
       .chain()
       .command(({ tr }) => {
-        tr.setNodeMarkup(linePos!, undefined, { ...line!.attrs, due: next, repeat: next ? repeat : null })
+        tr.setNodeMarkup(linePos!, undefined, { ...line!.attrs, ...attrs })
         return true
       })
       .run()
+  const setDue = (next: string | null, repeat: string | null = rule && formatRule(rule)) => {
+    setLine({ due: next, repeat: next ? repeat : null, duration: next ? line!.attrs.duration : null })
     if (next) void enableAlerts()
   }
   const pick = (next: string) => setDue(time ? `${next}T${time}` : next)
@@ -182,6 +192,20 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                   className={`${FIELD} w-28`}
                 />
               </div>
+              {time && (
+                <Group className="[&>*]:flex-1">
+                  {DURATIONS.map(([text, label, minutes]) => (
+                    <Tool
+                      key={minutes}
+                      label={label}
+                      active={(line!.attrs.duration ?? 30) === minutes}
+                      onClick={() => setLine({ duration: minutes })}
+                    >
+                      {text}
+                    </Tool>
+                  ))}
+                </Group>
+              )}
               <Group className="[&>*]:flex-1">
                 {(
                   [

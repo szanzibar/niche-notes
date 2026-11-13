@@ -61,7 +61,9 @@ defmodule NicheNotes.GoogleCalendarTest do
                    "due" => "2026-11-14",
                    "repeat" => "FREQ=MONTHLY;BYDAY=1SU,3SU"
                  }},
-                {"Call the plumber", %{"checked" => false, "due" => "2026-11-14T15:30"}}
+                {"Call the plumber", %{"checked" => false, "due" => "2026-11-14T15:30"}},
+                {"See the dentist",
+                 %{"checked" => false, "due" => "2026-11-15T09:00", "duration" => 90}}
               ] do
             paragraph = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(line)])
             Yex.XmlElementPrelim.new("taskItem", [paragraph], attrs)
@@ -86,12 +88,13 @@ defmodule NicheNotes.GoogleCalendarTest do
 
     link = "#{NicheNotesWeb.Endpoint.url()}/n/#{note}?line="
 
-    assert_received {"POST", @events, rent}
-    assert_received {"POST", @events, plumber}
+    assert_received {"POST", @events, one}
+    assert_received {"POST", @events, two}
+    assert_received {"POST", @events, three}
     refute_received {"POST", @events, _}
 
-    [rent, plumber] =
-      Enum.sort_by([Jason.decode!(rent), Jason.decode!(plumber)], & &1["summary"], :desc)
+    %{"Pay rent, then bills" => rent, "Call the plumber" => plumber, "See the dentist" => dentist} =
+      Map.new([one, two, three], &{Jason.decode!(&1)["summary"], Jason.decode!(&1)})
 
     assert %{
              "summary" => "Pay rent, then bills",
@@ -112,6 +115,11 @@ defmodule NicheNotes.GoogleCalendarTest do
              "extendedProperties" => %{"private" => %{"key" => plumber_key}}
            } = plumber
 
+    assert %{
+             "end" => %{"dateTime" => "2026-11-15T10:30:00"},
+             "extendedProperties" => %{"private" => %{"key" => dentist_key}}
+           } = dentist
+
     # Nothing changed, so Google hears nothing.
     assert GoogleCalendar.sync(synced) == synced
     refute_received {_, _, _}
@@ -121,7 +129,8 @@ defmodule NicheNotes.GoogleCalendarTest do
 
     google([
       %{"id" => "rent", "extendedProperties" => %{"private" => %{"key" => rent_key}}},
-      %{"id" => "plumber", "extendedProperties" => %{"private" => %{"key" => plumber_key}}}
+      %{"id" => "plumber", "extendedProperties" => %{"private" => %{"key" => plumber_key}}},
+      %{"id" => "dentist", "extendedProperties" => %{"private" => %{"key" => dentist_key}}}
     ])
 
     GoogleCalendar.sync(synced)

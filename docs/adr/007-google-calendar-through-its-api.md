@@ -8,4 +8,4 @@ The grant is `calendar.app.created`, which reaches only calendars this app made.
 
 Sync goes one way. Once a minute the server compares each person's dated lines with what it last wrote, and talks to Google only when they differ. It then lists the calendar and adds and deletes events. Each event carries a key made from everything it says, so a changed line is one delete and one add. An edit made in Google Calendar stays until its line changes, so the calendar says edits belong in Niche Notes, and each event links to its line. Two-way sync waits until someone actually edits events in Google.
 
-A timed line lasts half an hour, in the time zone of the device that connected. Events carry no reminders, since the app's own alerts have Done and Snooze.
+A timed line lasts its duration from the date box, or half an hour without one, in the time zone of the device that connected. Events carry no reminders, since the app's own alerts have Done and Snooze.

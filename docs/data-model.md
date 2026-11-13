@@ -21,7 +21,7 @@ Access rule, used by every channel join and share endpoint: a user may open a do
 
 **Note doc**
 - `meta`: Y.Map with `title: string`, `deleted: boolean`, `deletedAt: number`, `hideChecked: boolean` and `deleteChecked: boolean`. The app sets one of the last two at a time, and if both are set, delete wins.
-- `content`: Y.XmlFragment bound to the TipTap editor. A checkbox line (`taskItem`) carries `checked`, and when it has a date, `due` and maybe `repeat`. `due` is wall-clock time, `2026-11-14` or `2026-11-14T15:30`, and `repeat` is an iCalendar rule in the shapes the date box writes: `FREQ=WEEKLY;BYDAY=MO,TH`, `FREQ=MONTHLY;BYDAY=1SU,-1SU` or `FREQ=MONTHLY;BYMONTHDAY=15`, and `FREQ=YEARLY`, each with an optional `INTERVAL`. A line's `due` is always one of its rule's days.
+- `content`: Y.XmlFragment bound to the TipTap editor. A checkbox line (`taskItem`) carries `checked`, and when it has a date, `due` and maybe `repeat`, and with a time maybe `duration` in minutes. `due` is wall-clock time, `2026-11-14` or `2026-11-14T15:30`, and `repeat` is an iCalendar rule in the shapes the date box writes: `FREQ=WEEKLY;BYDAY=MO,TH`, `FREQ=MONTHLY;BYDAY=1SU,-1SU` or `FREQ=MONTHLY;BYMONTHDAY=15`, and `FREQ=YEARLY`, each with an optional `INTERVAL`. A line's `due` is always one of its rule's days.
 
 Deleting a note sets `deleted`, so it syncs like any edit and vanishes for everyone shared on it, while the owner's placement stays so Restore puts it back where it was. The rows stay until the owner empties it from the trash or thirty days pass, when the owner's client calls the purge endpoint.
 

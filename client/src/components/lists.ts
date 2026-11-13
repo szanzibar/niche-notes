@@ -118,6 +118,13 @@ export const TaskItem = TipTapTaskItem.extend({
         parseHTML: (el) => el.getAttribute('data-repeat'),
         renderHTML: ({ repeat }) => (repeat ? { 'data-repeat': repeat } : {}),
       },
+      // Minutes, for a line with a time.
+      duration: {
+        default: null,
+        keepOnSplit: false,
+        parseHTML: (el) => Number(el.getAttribute('data-duration')) || null,
+        renderHTML: ({ duration }) => (duration ? { 'data-duration': duration } : {}),
+      },
     }
   },
   addNodeView() {

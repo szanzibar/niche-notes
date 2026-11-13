@@ -178,7 +178,17 @@ defmodule NicheNotes.Docs do
         if is_binary(attribute.("repeat")) and attribute.("repeat") =~ @repeat,
           do: attribute.("repeat")
 
-      [%{text: text(first), due: due, date: date, time: time, repeat: repeat} | nested]
+      # Minutes, up to a day.
+      duration =
+        with minutes when is_number(minutes) and minutes >= 1 and minutes <= 1440 <-
+               attribute.("duration"),
+             do: round(minutes),
+             else: (_ -> nil)
+
+      [
+        %{text: text(first), due: due, date: date, time: time, repeat: repeat, duration: duration}
+        | nested
+      ]
     else
       _ -> nested
     end
