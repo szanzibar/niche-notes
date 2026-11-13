@@ -6,8 +6,8 @@ defmodule NicheNotes.GoogleCalendar do
 
   The grant covers only calendars this app created, the narrowest one Google offers. Sync goes one way. Once a
   minute, each person whose dated lines changed has their calendar listed and corrected, so Google hears
-  nothing while nothing changes. An event edited in Google Calendar stays that way until its line changes,
-  so edits belong in Niche Notes.
+  nothing while nothing changes. A pass can catch a dated line mid-typing, and the next one corrects it. An
+  event edited in Google Calendar stays that way until its line changes, so edits belong in Niche Notes.
   """
   use GenServer
   use Phoenix.VerifiedRoutes, endpoint: NicheNotesWeb.Endpoint, router: NicheNotesWeb.Router
