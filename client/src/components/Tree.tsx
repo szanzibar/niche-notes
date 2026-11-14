@@ -37,7 +37,8 @@ import {
   trashed,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
 
@@ -49,7 +50,7 @@ interface Hint {
   zone: Zone
 }
 
-// The grip shown on touch screens drags at once. Anywhere else on a row needs the long press.
+// On a touch screen a row drags by its grip, at once, like a line in a note. A touch anywhere else taps or scrolls.
 class HandleSensor extends TouchSensor {
   static activators = [
     {
@@ -113,7 +114,6 @@ export function Tree({ selected }: { selected?: string }) {
   const sensors = useSensors(
     useSensor(HandleSensor),
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
   )
 
   // Top and bottom edges of a row mean "next to it", the middle means "inside it".
@@ -288,7 +288,7 @@ export function Tree({ selected }: { selected?: string }) {
   )
 }
 
-// A trashed note reads like a row, with Restore and the final action where the + would be.
+// A trashed note reads like a row, its title in line with theirs, with Restore and the final action where the + would be.
 function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const navigate = useNavigate()
   const showNote = useShowNote()
@@ -296,8 +296,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const active = selected === id
   return (
     <div
-      className={`flex items-center gap-3 pr-3 text-sm ${active ? 'bg-accent text-white' : 'hover:bg-bg'}`}
-      style={{ paddingLeft: 4 + 28 }}
+      className={`flex items-center gap-3 pr-3 pl-8 text-sm pointer-coarse:pl-15 ${active ? 'bg-accent text-white' : 'hover:bg-bg'}`}
     >
       <button
         type="button"
@@ -347,6 +346,8 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
   const s = useStore()
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
   const { setNodeRef: dropRef } = useDroppable({ id, disabled: isDragging })
+  // A line dragged out of the open note moves into the note it is dropped on.
+  const [taking, setTaking] = useState(false)
   if (inTrash(id)) return null
 
   const kids = children(id)
@@ -359,8 +360,19 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
     <>
       <div
         ref={dropRef}
-        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-white' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''}`}
+        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-white' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
         style={{ paddingLeft: 4 + depth * INDENT }}
+        onDragOver={(e) => {
+          if (!draggedLine()) return
+          e.preventDefault()
+          setTaking(true)
+        }}
+        onDragLeave={() => setTaking(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setTaking(false)
+          draggedLine()?.(id)
+        }}
       >
         {/* The drop line sits where the note will land, indented the way the note will be. */}
         {zone && (
@@ -369,6 +381,14 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
             style={{ left: 4 + (zone === 'inside' ? depth + 1 : depth) * INDENT }}
           />
         )}
+        <span
+          {...listeners}
+          data-handle
+          aria-hidden
+          className={`hidden h-11 w-7 shrink-0 touch-none items-center justify-center pointer-coarse:flex ${active ? 'text-white/80' : 'text-ink-muted'}`}
+        >
+          <GripIcon className="h-5 w-5" />
+        </span>
         {kids.length > 0 ? (
           <button
             type="button"
@@ -408,14 +428,6 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
         >
           +
         </button>
-        <span
-          {...listeners}
-          data-handle
-          aria-hidden
-          className={`hidden h-11 w-8 shrink-0 touch-none items-center justify-center text-lg pointer-coarse:flex ${active ? 'text-white/80' : 'text-ink-muted'}`}
-        >
-          ⋮⋮
-        </span>
       </div>
       {open && kids.map((kid) => <Row key={kid} id={kid} depth={depth + 1} selected={selected} hint={hint} />)}
     </>

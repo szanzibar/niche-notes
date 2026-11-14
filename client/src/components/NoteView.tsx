@@ -1,14 +1,20 @@
 import Collaboration from '@tiptap/extension-collaboration'
-import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import Highlight from '@tiptap/extension-highlight'
 import { TaskList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
-import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
+import { Plugin } from '@tiptap/pm/state'
+import { EditorContent, Extension, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { absolutePositionToRelativePosition, relativePositionToAbsolutePosition, ySyncPluginKey } from '@tiptap/y-tiptap'
+import {
+  absolutePositionToRelativePosition,
+  relativePositionToAbsolutePosition,
+  yCursorPlugin,
+  ySyncPluginKey,
+} from '@tiptap/y-tiptap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { useDoc, useStore, useY } from '../sync/hooks'
 import { getAwareness, getDoc } from '../sync/store'
@@ -30,7 +36,6 @@ import {
 import { Button, IconButton } from './Button'
 import {
   CheckedIcon,
-  DeleteCheckedIcon,
   DeleteWhenCheckedIcon,
   GripIcon,
   HideCheckedIcon,
@@ -43,7 +48,19 @@ import {
 import { OfflineIcon } from './OfflineIcon'
 import { Popover } from './Popover'
 import { ShareDialog } from './ShareDialog'
-import { deleteChecked, HideChecked, JoinLists, LINGER_MS, ListTabs, TaskItem, uncheckAll } from './lists'
+import {
+  deleteChecked,
+  dragByTouch,
+  HideChecked,
+  inList,
+  JoinLists,
+  LineGrips,
+  ListTabs,
+  moveLine,
+  TaskItem,
+  uncheckAll,
+} from './lists'
+import { MoveDialog } from './MoveDialog'
 import { Toolbar } from './Toolbar'
 
 // One per note for the app's lifetime, so undo survives leaving and reopening the note.
@@ -68,42 +85,56 @@ function caretColor(userId: string) {
   return caretColors[hash % caretColors.length]
 }
 
-// A finger never starts the browser's own drag, so a touch on the grip plays the drag events the editor
-// moves lines with. Dragging past the visible part of a long note doesn't scroll it.
-function dragByTouch(grip: HTMLElement | null) {
-  if (!grip) return
-  const start = (down: TouchEvent) => {
-    down.preventDefault()
-    const dataTransfer = new DataTransfer()
-    let at = down.touches[0]
-    let dragging = false
-    const fire = (type: string, target: Element | null) =>
-      target?.dispatchEvent(
-        new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: at.clientX, clientY: at.clientY }),
-      )
-    const move = (e: TouchEvent) => {
-      e.preventDefault()
-      if (!dragging) fire('dragstart', grip)
-      dragging = true
-      at = e.touches[0]
-      fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
-    }
-    const end = (e: TouchEvent) => {
-      if (dragging) {
-        if (e.type === 'touchend') fire('drop', document.elementFromPoint(at.clientX, at.clientY))
-        fire('dragend', grip)
+// Other people's carets. Each one's name shows while that device moves its cursor and fades once it has been still
+// for a few seconds, so a name doesn't sit over the text for good.
+const Carets = (awareness: Awareness, user: { name: string; color: string }) =>
+  Extension.create({
+    name: 'carets',
+    addProseMirrorPlugins() {
+      const labels = new Map<number, HTMLElement>()
+      const active = new Map<number, number>()
+      const moved = ({ added, updated }: { added: number[]; updated: number[] }) => {
+        for (const client of [...added, ...updated]) {
+          clearTimeout(active.get(client))
+          labels.get(client)?.removeAttribute('data-idle')
+          const timer = window.setTimeout(() => {
+            active.delete(client)
+            labels.get(client)?.setAttribute('data-idle', '')
+          }, 5000)
+          active.set(client, timer)
+        }
       }
-      document.removeEventListener('touchmove', move)
-      document.removeEventListener('touchend', end)
-      document.removeEventListener('touchcancel', end)
-    }
-    document.addEventListener('touchmove', move, { passive: false })
-    document.addEventListener('touchend', end)
-    document.addEventListener('touchcancel', end)
-  }
-  grip.addEventListener('touchstart', start, { passive: false })
-  return () => grip.removeEventListener('touchstart', start)
-}
+      return [
+        yCursorPlugin(awareness, {
+          cursorBuilder: ({ name, color }, client) => {
+            const caret = document.createElement('span')
+            caret.className = 'collaboration-carets__caret'
+            caret.style.borderColor = color
+            const label = document.createElement('div')
+            label.className = 'collaboration-carets__label'
+            label.style.backgroundColor = color
+            label.textContent = name
+            label.toggleAttribute('data-idle', !active.has(client))
+            caret.append(label)
+            labels.set(client, label)
+            return caret
+          },
+        }),
+        new Plugin({
+          view: () => {
+            awareness.setLocalStateField('user', user)
+            awareness.on('change', moved)
+            return {
+              destroy: () => {
+                awareness.off('change', moved)
+                for (const timer of active.values()) clearTimeout(timer)
+              },
+            }
+          },
+        }),
+      ]
+    },
+  })
 
 export function NoteView({ id }: { id: string }) {
   const doc = useDoc(id)
@@ -144,6 +175,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         Highlight,
         ListTabs,
         JoinLists,
+        LineGrips(id),
         Placeholder.configure({ placeholder: 'Write…' }),
         HideChecked(() => meta.get('hideChecked') === true || meta.get('deleteChecked') === true),
         Collaboration.configure({
@@ -151,10 +183,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           field: 'content',
           yUndoOptions: { undoManager: undoManagerFor(id, doc) },
         }),
-        CollaborationCaret.configure({
-          provider: { awareness: getAwareness(id) },
-          user: { name: s.me!.name, color: caretColor(s.me!.id) },
-        }),
+        Carets(getAwareness(id), { name: s.me!.name, color: caretColor(s.me!.id) }),
       ],
       editorProps: { attributes: { class: 'editor-body' } },
     },
@@ -174,16 +203,18 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     },
   })
 
-  // Delete checked shows hidden checked lines on this device for a moment first, so you see what goes.
-  const [clearing, setClearing] = useState(false)
+  // List lines have their own grips, so the floating handle stays off them. It stays laid out while unseen, since
+  // it measures where to go even then.
+  const [onList, setOnList] = useState(false)
+  // The line whose grip was tapped, until a note is picked for it.
+  const [moving, setMoving] = useState<(() => number | undefined) | null>(null)
   useEffect(() => {
-    if (!clearing || !editor) return
-    const timer = setTimeout(() => {
-      deleteChecked(editor)
-      setClearing(false)
-    }, LINGER_MS)
-    return () => clearTimeout(timer)
-  }, [clearing, editor])
+    if (!editor) return
+    const ask = (e: Event) => setMoving(() => (e as CustomEvent<() => number | undefined>).detail)
+    const dom = editor.view.dom
+    dom.addEventListener('move-line', ask)
+    return () => dom.removeEventListener('move-line', ask)
+  }, [editor])
 
   // Lines ticked while the note is open stay, hidden, until it opens again. Someone ticking in it right then
   // loses the line a moment early.
@@ -197,16 +228,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   }, [editor, deleted])
 
   // Opening a note means writing in it: an empty title first, otherwise where this device left the
-  // cursor, or the end of the text. A calendar event's link names its checkbox line instead. A line that
-  // reaches this device only after the note opens isn't found, so the note opens as usual.
+  // cursor, or the end of the text. A link from a calendar event or a widget line names its line instead. A line
+  // that reaches this device only after the note opens isn't found, so the note opens as usual.
   useEffect(() => {
     if (!editor || deleted) return
     const line = new URLSearchParams(location.search).get('line')
     let end: number | null = null
     editor.state.doc.descendants((node, pos) => {
-      if (end == null && node.type.name === 'taskItem' && node.firstChild?.textContent === line) {
-        end = pos + node.firstChild.nodeSize
-      }
+      if (end == null && line && node.isTextblock && node.textContent === line) end = pos + node.nodeSize - 1
       return end == null
     })
     if (end != null) {
@@ -281,16 +310,18 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   )
 
   const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
-  // Every action folds at once. Behind the dots, the checked-line options get their own row instead of a box
-  // inside the box.
-  const actions = (children: React.ReactNode, checked?: React.ReactNode) =>
+  // Every action folds at once, except Share, which stays beside the dots. Elsewhere a people icon stays there
+  // when the note is shared. Behind the dots, the checked-line options get their own row instead of a box inside
+  // the box.
+  const actions = (share: React.ReactNode, children: React.ReactNode, checked?: React.ReactNode) =>
     folded ? (
       <>
-        {(!mine || shareCount(id) > 0) && (
-          <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
-            <UsersIcon />
-          </span>
-        )}
+        {share ||
+          ((!mine || shareCount(id) > 0) && (
+            <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
+              <UsersIcon />
+            </span>
+          ))}
         <Popover
           side="bottom"
           open={panel === 'more'}
@@ -323,6 +354,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             {checked}
           </Popover>
         )}
+        {share}
         {children}
       </div>
     )
@@ -343,6 +375,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           </span>
           <OfflineIcon />
           {actions(
+            null,
             <>
               {sharedBy}
               {canAct && (
@@ -377,8 +410,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         />
         <OfflineIcon />
         {actions(
+          mine && <ShareDialog id={id} />,
           <>
-            {mine ? <ShareDialog id={id} /> : sharedBy}
+            {sharedBy}
             <IconButton label={pinLabel} onClick={() => togglePin(id)}>
               <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
             </IconButton>
@@ -399,14 +433,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
                 <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent' : ''}`} />
               </IconButton>
               {tasks.checked && (
-                <>
-                  <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
-                    <UncheckAllIcon />
-                  </IconButton>
-                  <IconButton label="Delete checked" onClick={() => (hiding ? setClearing(true) : deleteChecked(editor))}>
-                    <DeleteCheckedIcon />
-                  </IconButton>
-                </>
+                <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
+                  <UncheckAllIcon />
+                </IconButton>
               )}
             </>
           ),
@@ -415,15 +444,26 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       <EditorContent
         editor={editor}
         className="relative flex-1 overflow-y-auto"
-        data-hide-checked={(hiding && !clearing) || undefined}
+        data-hide-checked={hiding || undefined}
       />
+      {editor && moving && (
+        <MoveDialog
+          note={id}
+          onClose={() => setMoving(null)}
+          onPick={(to) => {
+            void moveLine(editor, moving, id, to)
+            setMoving(null)
+          }}
+        />
+      )}
       {editor && (
-        // Pointing at a line shows its handle, and dragging the handle moves the line with what is nested under it.
-        // By default a pointer near a nested line's left edge picks its parent, and a nested checkbox sits on that edge.
+        // Pointing at a heading or paragraph shows its handle, and dragging the handle moves it. List lines have
+        // their own grips. By default a pointer near a nested block's left edge picks its parent.
         <DragHandle
           editor={editor}
           nested={{ edgeDetection: 'none' }}
-          className="drag-handle flex h-8 w-6 cursor-grab items-center justify-center text-ink-muted hover:text-accent"
+          onNodeChange={({ node, pos }) => setOnList(node != null && inList(editor.state.doc, pos))}
+          className={`drag-handle flex h-8 w-6 cursor-grab items-center justify-center text-ink-muted hover:text-accent ${onList ? 'invisible!' : ''}`}
         >
           <span ref={dragByTouch} className="flex h-full w-full items-center justify-center">
             <GripIcon className="h-5 w-5" />

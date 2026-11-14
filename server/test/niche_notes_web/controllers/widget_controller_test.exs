@@ -38,7 +38,8 @@ defmodule NicheNotesWeb.WidgetControllerTest do
   test "a widget reads its note with the token the picker got", %{conn: conn, note: note} do
     assert json_response(read(token(conn, note)), 200) == %{
              "title" => "Groceries",
-             "lines" => ["☑ milk"]
+             "lines" => ["☑ milk"],
+             "texts" => ["milk"]
            }
   end
 
@@ -82,7 +83,8 @@ defmodule NicheNotesWeb.WidgetControllerTest do
       )
     end)
 
-    assert json_response(read(token(conn, note)), 200)["lines"] == ["☑ trip", "    ☐ charger"]
+    assert %{"lines" => ["☑ trip", "    ☐ charger"], "texts" => ["trip", "charger"]} =
+             json_response(read(token(conn, note)), 200)
   end
 
   test "a token stops reading once the note is unshared or in the trash", %{

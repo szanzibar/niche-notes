@@ -42,7 +42,7 @@ public class NoteWidget extends AppWidgetProvider {
 
     static SharedPreferences.Editor forget(SharedPreferences.Editor editor, int widget) {
         return editor.remove("note." + widget).remove("title." + widget)
-                .remove("token." + widget).remove("lines." + widget);
+                .remove("token." + widget).remove("lines." + widget).remove("texts." + widget);
     }
 
     static void show(Context context, int widget) {
@@ -65,10 +65,12 @@ public class NoteWidget extends AppWidgetProvider {
         RemoteViews.RemoteCollectionItems.Builder rows = new RemoteViews.RemoteCollectionItems.Builder();
         try {
             JSONArray lines = new JSONArray(picks.getString("lines." + widget, "[]"));
+            JSONArray texts = new JSONArray(picks.getString("texts." + widget, "[]"));
             for (int i = 0; i < lines.length(); i++) {
                 RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_line);
                 row.setTextViewText(R.id.line, lines.getString(i));
-                row.setOnClickFillInIntent(R.id.line, new Intent());
+                // A tap on a line opens the note at that line.
+                row.setOnClickFillInIntent(R.id.line, new Intent().putExtra(Launcher.LINE, texts.optString(i, null)));
                 rows.addItem(i, row);
             }
         } catch (JSONException e) {
@@ -99,9 +101,12 @@ public class NoteWidget extends AppWidgetProvider {
                         body = reader.lines().collect(Collectors.joining("\n"));
                     }
                     JSONObject read = new JSONObject(body);
+                    // A server from before line texts sends none.
+                    JSONArray texts = read.optJSONArray("texts");
                     picks.edit()
                             .putString("title." + widget, read.getString("title"))
                             .putString("lines." + widget, read.getJSONArray("lines").toString())
+                            .putString("texts." + widget, texts == null ? "[]" : texts.toString())
                             .apply();
                 } else if (status == 401 || status == 404) {
                     // Deleted or no longer shared, so the widget offers the picker again.

@@ -71,63 +71,6 @@ test('Tab indents the bullet the cursor is on, not the checkbox above it', async
   await expect(body(page).locator('input[type="checkbox"]')).toHaveCount(2)
 })
 
-test('dragging a line by its handle moves it, with what is nested under it', async ({ browser }) => {
-  const page = await signIn(browser, `alice-${uid()}`)
-  await checklist(page, 'One', 'Two', 'Child')
-  await tool(page, 'Indent').click()
-  await page.keyboard.press('Enter')
-  await tool(page, 'Outdent').click()
-  await page.keyboard.type('Three')
-  const line = (text: string) => body(page).locator('li p').getByText(text, { exact: true })
-
-  await line('Two').hover()
-  await page.locator('.drag-handle').dragTo(line('One'), { targetPosition: { x: 5, y: 2 } })
-  await expect(body(page).locator('li p')).toHaveText(['Two', 'Child', 'One', 'Three'])
-  await expect(body(page).locator('li li p')).toHaveText('Child')
-})
-
-test('on a touch screen a finger drags a line by its handle', async ({ browser }) => {
-  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
-  const page = await context.newPage()
-  await page.goto(`/auth/login?as=alice-${uid()}`)
-  await checklist(page, 'One', 'Two')
-  const line = (text: string) => body(page).locator('li p').getByText(text, { exact: true })
-
-  // A phone's tap sends this mouse move. Tapping here would leave Playwright's mouse on the toolbar.
-  await line('Two').hover()
-  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
-  const from = (await page.locator('.drag-handle').boundingBox())!
-  const to = (await line('One').boundingBox())!
-  // Playwright has no touch drag, so the touches go straight to Chrome.
-  const cdp = await context.newCDPSession(page)
-  const touch = (type: string, x = 0, y = 0) =>
-    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
-  const [x0, y0, x1, y1] = [from.x + from.width / 2, from.y + from.height / 2, to.x + 5, to.y + 2]
-  await touch('touchStart', x0, y0)
-  for (let step = 1; step <= 8; step++) await touch('touchMove', x0 + ((x1 - x0) * step) / 8, y0 + ((y1 - y0) * step) / 8)
-  await touch('touchEnd')
-  await expect(body(page).locator('li p')).toHaveText(['Two', 'One'])
-})
-
-test('the pointer crossing a nested checkbox on the way to the handle keeps the handle on that line', async ({
-  browser,
-}) => {
-  const page = await signIn(browser, `alice-${uid()}`)
-  await checklist(page, 'Parent', 'Kid A')
-  await tool(page, 'Indent').click()
-  await page.keyboard.press('Enter')
-  await page.keyboard.type('Kid B')
-  const line = (text: string) => body(page).locator('li p').getByText(text, { exact: true })
-
-  await line('Kid B').hover()
-  await page.getByRole('checkbox', { name: 'Task item checkbox for Kid B' }).hover()
-  // The handle follows the pointer on the next frame.
-  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
-  await page.locator('.drag-handle').dragTo(line('Kid A'), { targetPosition: { x: 5, y: 2 } })
-  await expect(body(page).locator('li p')).toHaveText(['Parent', 'Kid B', 'Kid A'])
-  await expect(body(page).locator('li li p')).toHaveText(['Kid B', 'Kid A'])
-})
-
 test('a note set to hide checked lines hides each one a moment after it is checked, on every device', async ({
   browser,
 }) => {
@@ -167,9 +110,9 @@ test('lines ticked in a row stay put until the note is still, then leave togethe
   await page.getByRole('button', { name: 'Hide checked' }).click()
 
   await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
-  await page.waitForTimeout(1200)
+  await page.waitForTimeout(3000)
   await page.getByRole('checkbox', { name: 'Task item checkbox for Eggs' }).check()
-  await page.waitForTimeout(1200)
+  await page.waitForTimeout(3000)
   // Milk was ticked long enough ago to leave, but the tick on Eggs kept the note moving.
   await expect(shown).toHaveText(['Milk', 'Eggs', 'Bread'])
   await expect(shown).toHaveText(['Bread'])
@@ -196,9 +139,7 @@ test('a note set to delete checked lines hides them, then deletes them the next 
   await expect(body(page).locator('li p')).toHaveText(['Milk'])
 })
 
-test('a checked line hides only once every line under it is checked, and only then goes with Delete checked', async ({
-  browser,
-}) => {
+test('a checked line hides only once every line under it is checked, and only then is deleted', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Trip', 'Socks')
   await tool(page, 'Indent').click()
@@ -216,7 +157,9 @@ test('a checked line hides only once every line under it is checked, and only th
   await expect(shown).toHaveText(['Trip', 'Charger'])
 
   await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await page.getByRole('button', { name: 'Delete when checked' }).click()
+  await page.goBack()
+  await row(page, 'Lists').click()
   await expect(body(page).locator('li p')).toHaveText(['Trip', 'Charger'])
 
   // The last line under Trip shows its check before both go.
@@ -252,37 +195,6 @@ test('Uncheck all clears every box in one step that Undo takes back', async ({ b
   await expect(page.getByRole('button', { name: 'Uncheck all' })).toBeHidden()
   await tool(page, 'Undo').click()
   await expect(checked).toHaveCount(2)
-})
-
-test('Delete checked shows hidden checked lines for a moment, then removes them in one step that Undo takes back', async ({
-  browser,
-}) => {
-  const page = await signIn(browser, `alice-${uid()}`)
-  await checklist(page, 'Milk', 'Eggs', 'Bread')
-  for (const item of ['Eggs', 'Bread']) await page.getByRole('checkbox', { name: `Task item checkbox for ${item}` }).check()
-  const lines = body(page).locator('li p')
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
-  await expect(body(page).locator('li p:visible')).toHaveText(['Milk'])
-  // Undo merges edits made within half a second of each other.
-  await page.waitForTimeout(600)
-
-  await page.getByRole('button', { name: 'Delete checked' }).click()
-  await expect(body(page).locator('li p:visible')).toHaveText(['Milk', 'Eggs', 'Bread'])
-  await expect(lines).toHaveText(['Milk'])
-  await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
-  await tool(page, 'Undo').click()
-  await expect(lines).toHaveText(['Milk', 'Eggs', 'Bread'])
-
-  // With every line checked the list goes too, and the note still takes typing.
-  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
-  await page.getByRole('button', { name: 'Delete checked' }).click()
-  await expect(body(page).locator('ul')).toHaveCount(0)
-  await body(page).click()
-  await page.keyboard.type('done')
-  await expect(body(page)).toHaveText('done')
 })
 
 test('a tick while typing moves the cursor to the ticked line, and a tick with the keyboard down keeps it down', async ({

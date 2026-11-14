@@ -49,5 +49,35 @@ test('a widget reads its note as lines with the token from the hand-off, without
   const headers = { authorization: `Bearer ${(await picked).get('token')}` }
   await expect
     .poll(async () => (await request.get('/api/widget', { headers })).json())
-    .toEqual({ title: 'Groceries', lines: ['☑ milk', '    • eggs'] })
+    .toEqual({ title: 'Groceries', lines: ['☑ milk', '    • eggs'], texts: ['milk', 'eggs'] })
+})
+
+test('a tap on a line in a widget opens the note at that line', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Trip', 'Passport')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Bullet list', exact: true }).click()
+  await page.keyboard.type('Charger')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Socks')
+  const note = page.url()
+  // The widget opens a note this device saved long ago.
+  const saved = (id: string) =>
+    new Promise<boolean>((resolve) => {
+      indexedDB.open('niche-notes').onsuccess = (e) => {
+        const rows = (e.target as IDBOpenDBRequest).result.transaction('updates').objectStore('updates').getAll()
+        rows.onsuccess = () => resolve(rows.result.filter((row) => row.doc === id).every((row) => row.seq != null))
+      }
+    })
+  await expect.poll(() => page.evaluate(saved, note.split('/n/')[1])).toBe(true)
+
+  for (const [line, typed] of [
+    ['Charger', 'Charger!'],
+    ['Passport', 'Passport!'],
+  ]) {
+    await page.goto(`${note}?line=${line}`)
+    await expect(page.locator('.editor-body')).toBeFocused()
+    await page.keyboard.type('!')
+    await expect(page.locator('.editor-body p').getByText(typed, { exact: true })).toBeVisible()
+  }
 })

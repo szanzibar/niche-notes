@@ -43,16 +43,32 @@ test('a pinned note sits above its siblings until unpinned', async ({ browser })
   expect(await rowTitles(page)).toEqual(['Cherry', 'Banana', 'Apple'])
 })
 
-test('on a touch screen every row shows a drag handle', async ({ browser }) => {
+test('on a touch screen every row has a grip on its left, like the lines of a note, that a finger drags at once', async ({
+  browser,
+}) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)
-  await page.getByRole('button', { name: 'New note', exact: true }).click()
-  await expect(page.getByPlaceholder('Title')).toBeFocused()
-  await page.keyboard.type('Phone')
-  await page.getByRole('button', { name: 'Back' }).click()
-  await expect(row(page, 'Phone')).toBeVisible()
-  await expect(page.locator('[data-handle]')).toBeVisible()
+  for (const title of ['Apple', 'Banana']) {
+    await page.getByRole('button', { name: 'New note', exact: true }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(title)
+    await page.getByRole('button', { name: 'Back' }).click()
+  }
+  const grip = row(page, 'Banana').locator('..').locator('[data-handle]')
+  const from = (await grip.boundingBox())!
+  const to = (await row(page, 'Apple').boundingBox())!
+  expect(from.x).toBeLessThan(to.x)
+
+  // A touch that starts moving straight away, with no long press.
+  const cdp = await context.newCDPSession(page)
+  const touch = (type: string, y = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: from.x + from.width / 2, y }] })
+  const [y0, y1] = [from.y + from.height / 2, to.y + to.height * 0.9]
+  await touch('touchStart', y0)
+  for (let step = 1; step <= 8; step++) await touch('touchMove', y0 + ((y1 - y0) * step) / 8)
+  await touch('touchEnd')
+  expect(await rowTitles(page)).toEqual(['Apple', 'Banana'])
 })
 
 test('a note dropped inside another becomes its first child, and the header puts it on top', async ({ browser }) => {

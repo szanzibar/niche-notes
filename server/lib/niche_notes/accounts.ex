@@ -17,6 +17,15 @@ defmodule NicheNotes.Accounts do
     end
   end
 
+  @colors ~w(Amber Coral Indigo Jade Olive Plum Ruby Saffron Slate Teal)
+  @animals ~w(Badger Fox Gecko Heron Koala Lynx Otter Panda Puffin Walrus)
+
+  # Named like "Teal Otter", so a guest's cursor reads as someone without them typing a name.
+  def create_guest do
+    name = "#{Enum.random(@colors)} #{Enum.random(@animals)}"
+    create_user(%{sub: "guest:" <> Ecto.UUID.generate(), name: name})
+  end
+
   # A user's tree doc shares the user's id, and creating it here keeps anyone else from claiming that id first.
   defp create_user(attrs) do
     Repo.transaction(fn ->

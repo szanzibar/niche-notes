@@ -4,8 +4,8 @@ SQLite, one file. The server stores who owns what and a log of Y.js updates. It 
 
 ## Tables
 
-- **users** — one row per person, created on first Pocket ID login: `id`, `sub` (OIDC subject, unique), `name`, `email`.
-- **docs** — a Y.js document: `id` (uuid, chosen by the client), `owner_id`. A user's tree has `id == owner_id` and is created with the user. Every other doc is a note.
+- **users** — one row per person, created on first Pocket ID login: `id`, `sub` (OIDC subject, unique), `name`, `email`. A guest who came in through a note's link has `sub` `guest:<uuid>` and a generated name (ADR 008).
+- **docs** — a Y.js document: `id` (uuid, chosen by the client), `owner_id`, `link` (the token in a note's share link, unique, null while it has none). A user's tree has `id == owner_id` and is created with the user. Every other doc is a note.
 - **doc_shares** — `doc_id`, `user_id`, unique together. One row grants full access to one note.
 - **push_subscriptions** — one row per device that allowed alerts: `endpoint` (the push service's address, the key), `user_id`, `p256dh`, `auth` and the device's `time_zone`. Every launch writes it again, and a push service that no longer knows the device deletes it.
 - **google_calendars** — one row per person who connected Google Calendar: `user_id` (the key), `calendar_id` of the Niche Notes calendar the app made, the Google `email`, the `refresh_token` encrypted with `SECRET_KEY_BASE`, and the `time_zone` of the device that connected, used until a device with alerts on reports one (ADR 007).
@@ -46,11 +46,13 @@ The client also keeps a copy of each note's `meta` in IndexedDB, so a launch dra
 Cookie session, JSON.
 
 - `GET /api/me`
-- `GET /api/users` — everyone, for the share picker
+- `GET /api/users` — everyone, for the share picker, with `guest` set for link guests
 - `GET /api/shares` — every share on a doc the user owns or is named on: `doc_id`, `user_id`, `owner_id`
 - `DELETE /api/docs/:id` — owner only, removes the doc and its updates and shares for good
 - `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc
 - `DELETE /api/docs/:id/shares/:user_id` — the owner for anyone, or a recipient for themselves
+- `GET`, `PUT`, `DELETE /api/docs/:id/link` — owner only: `{ link }`, creating it on `PUT`. `DELETE` drops the guests it let in
+- `GET /s/:link` — signs in a visitor without a session as a new guest, shares the note with whoever opened it, and redirects to the note. 404 once the link is off
 - `GET /api/docs/:id/widget_token` — anyone who can open the note: `{ token }` for a widget (ADR 005)
 - `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines }`, one line per paragraph or list item, without checked items when the note hides or deletes them. 404 once the note is in the trash or no longer shared, 401 for any other token
 - `GET /api/push_key` — the public key a device subscribes to alerts with (ADR 006)

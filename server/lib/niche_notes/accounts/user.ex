@@ -13,6 +13,9 @@ defmodule NicheNotes.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
+  # A guest came in through a note's link, without an account, so its id only ever comes from that link.
+  def guest?(%__MODULE__{sub: sub}), do: String.starts_with?(sub, "guest:")
+
   def changeset(user, attrs) do
     user
     |> cast(attrs, [:sub, :name, :email])

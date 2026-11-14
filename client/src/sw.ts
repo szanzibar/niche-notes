@@ -10,7 +10,7 @@ precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-    denylist: [/^\/api\//, /^\/auth\//, /^\/socket/],
+    denylist: [/^\/api\//, /^\/auth\//, /^\/socket/, /^\/s\//],
   }),
 )
 void self.skipWaiting()
@@ -56,11 +56,12 @@ self.addEventListener('notificationclick', (event) => {
         ? { move_to: `${dayOf(later)}T${later.toTimeString().slice(0, 5)}` }
         : null
   const note = `/n/${alert.note}?${new URLSearchParams({ line: alert.text })}`
+  // A running app opens the note itself, as it does for a tap.
   const open = () =>
     self.clients
       .matchAll({ type: 'window' })
       .then(([window]) =>
-        window ? window.focus().then((focused) => focused.navigate(note)) : self.clients.openWindow(note),
+        window ? window.focus().then((focused) => void focused.postMessage({ open: note })) : self.clients.openWindow(note),
       )
   event.waitUntil(
     change

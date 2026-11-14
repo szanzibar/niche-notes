@@ -65,12 +65,14 @@ defmodule NicheNotes.Docs do
     rows > @compact_rows or (rows > 1 and idle)
   end
 
-  # A note as plain lines for a widget. One the user can no longer open, or that is in the trash, is gone.
+  # A note as plain lines for a widget, and each line's own text, which a tap on it opens the note at. One the user
+  # can no longer open, or that is in the trash, is gone.
   def read_note(doc_id, user_id) do
     with true <- can_access?(doc_id, user_id),
          {_doc, title, meta, content} <- load(doc_id) do
       hide = meta["hideChecked"] == true or meta["deleteChecked"] == true
-      {:ok, %{title: title, lines: Enum.flat_map(content, &lines(&1, 0, hide))}}
+      {lines, texts} = content |> Enum.flat_map(&lines(&1, 0, hide)) |> Enum.unzip()
+      {:ok, %{title: title, lines: lines, texts: texts}}
     else
       _ -> :error
     end
@@ -211,7 +213,7 @@ defmodule NicheNotes.Docs do
           [first | rest] = Enum.to_list(Yex.XmlElement.children(item))
 
           [
-            indent <> mark(list, item, n) <> text(first)
+            {indent <> mark(list, item, n) <> text(first), text(first)}
             | Enum.flat_map(rest, &lines(&1, depth + 1, hide))
           ]
         end)
@@ -222,7 +224,7 @@ defmodule NicheNotes.Docs do
       _ ->
         case text(element) do
           "" -> []
-          text -> [indent <> text]
+          text -> [{indent <> text, text}]
         end
     end
   end
@@ -277,6 +279,43 @@ defmodule NicheNotes.Docs do
          %User{} <- Repo.get(User, user_id) || {:error, :not_found} do
       Repo.insert(%DocShare{doc_id: doc.id, user_id: user_id}, on_conflict: :nothing)
     end
+  end
+
+  def link(doc_id, owner_id) do
+    with {:ok, doc} <- owned_note(doc_id, owner_id), do: {:ok, doc.link}
+  end
+
+  def create_link(doc_id, owner_id) do
+    with {:ok, doc} <- owned_note(doc_id, owner_id) do
+      link = doc.link || Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
+      {:ok, Repo.update!(Ecto.Changeset.change(doc, link: link)).link}
+    end
+  end
+
+  # The guests the link let in go with it. People with an account keep the note, since the owner can see and
+  # unshare them by name.
+  def delete_link(doc_id, owner_id) do
+    with {:ok, doc} <- owned_note(doc_id, owner_id) do
+      guests =
+        from(u in User, join: s in DocShare, on: s.user_id == u.id, where: s.doc_id == ^doc.id)
+        |> Repo.all()
+        |> Enum.filter(&User.guest?/1)
+        |> Enum.map(& &1.id)
+
+      Repo.delete_all(from s in DocShare, where: s.doc_id == ^doc.id and s.user_id in ^guests)
+      Repo.update!(Ecto.Changeset.change(doc, link: nil))
+      {:ok, guests}
+    end
+  end
+
+  def by_link(link), do: Repo.get_by(Doc, link: link)
+
+  # Opening a link shares its note with whoever opened it.
+  def join(%Doc{} = doc, user_id) do
+    if doc.owner_id != user_id,
+      do: Repo.insert!(%DocShare{doc_id: doc.id, user_id: user_id}, on_conflict: :nothing)
+
+    :ok
   end
 
   # Deleting a note is a flag inside the doc. This is the trash being emptied: rows gone for good.

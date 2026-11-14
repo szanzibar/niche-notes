@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { display, newNote, row, rowTitles, shareWith, signIn, uid } from './helpers'
+import { display, newNote, row, rowTitles, shareWith, signIn, typeAtEnd, uid } from './helpers'
 
 test('a shared note lands under the other person\'s pins, can be left via their trash, and goes when unshared', async ({
   browser,
@@ -47,4 +47,48 @@ test('a shared note lands under the other person\'s pins, can be left via their 
   await shareWith(alice, b)
   await expect(row(bob, 'Groceries')).toHaveCount(0)
   await expect(bob.getByText('no longer shared')).toBeVisible()
+})
+
+test('a link lets someone without an account edit the note under a made-up name, until the owner turns it off', async ({
+  browser,
+}) => {
+  const alice = await signIn(browser, `alice-${uid()}`)
+  await newNote(alice, 'Party', 'Chips')
+  await alice.getByRole('button', { name: 'Share', exact: true }).click()
+  await alice.getByRole('button', { name: 'Create link' }).click()
+  const link = await alice.getByRole('textbox', { name: 'Link' }).inputValue()
+  await alice.getByRole('button', { name: 'Done' }).click()
+
+  // A phone that has never seen the app.
+  const phone = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
+  const guest = await phone.newPage()
+  await guest.goto(link)
+  await expect(guest.getByPlaceholder('Title')).toHaveValue('Party')
+  await typeAtEnd(guest, ' and dip')
+  await expect(alice.locator('.editor-body')).toContainText('Chips and dip')
+  const name = alice.locator('.collaboration-carets__label')
+  await expect(name).toHaveText(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
+
+  await alice.getByRole('button', { name: 'Shared with 1' }).click()
+  await expect(alice.getByText(`Opened by ${await name.textContent()}`)).toBeVisible()
+  await alice.getByRole('button', { name: 'Turn off' }).click()
+  await expect(guest.getByText('no longer shared')).toBeVisible()
+  await alice.getByRole('button', { name: 'Done' }).click()
+  await expect(alice.getByRole('button', { name: 'Share', exact: true })).toBeVisible()
+})
+
+test('with many people at a large size, the share dialog scrolls to every button', async ({ browser, request }) => {
+  for (let n = 0; n < 12; n++) await request.get(`/auth/login?as=friend${n}-${uid()}`)
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 700 } })
+  await context.addInitScript(() => localStorage.setItem('density', 'large'))
+  const page = await context.newPage()
+  await page.goto(`/auth/login?as=alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await page.keyboard.type('Party')
+
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('button', { name: 'Create link' }).click()
+  await page.getByRole('button', { name: 'Turn off' }).click()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
 })

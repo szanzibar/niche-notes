@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, useMatch } from 'react-router-dom'
+import { BrowserRouter, useMatch, useNavigate } from 'react-router-dom'
 import { NoteView } from './components/NoteView'
 import { Tree } from './components/Tree'
 import { registerAlerts } from './lib/alerts'
@@ -9,6 +9,12 @@ import type { User } from './lib/types'
 interface Session {
   user: User
   token: string
+}
+
+declare global {
+  interface Window {
+    launchQueue?: { setConsumer(consumer: (params: { targetURL?: string }) => void): void }
+  }
 }
 import { useY } from './sync/hooks'
 import { start } from './sync/store'
@@ -50,6 +56,26 @@ export default function App() {
 
 function Shell() {
   const noteId = useMatch('/n/:id')?.params.id
+  const navigate = useNavigate()
+  // A link from a widget, a calendar event or an alert, arriving while the app runs, opens like a tap in the app
+  // instead of loading a page over it. So a note always sits right over the list, and back from the list leaves.
+  useEffect(() => {
+    const open = (link: string) => {
+      const { pathname, search } = new URL(link, location.origin)
+      // A note's share link signs in on the server.
+      if (pathname.startsWith('/s/')) return location.assign(link)
+      const onNote = location.pathname.startsWith('/n/')
+      if (pathname.startsWith('/n/')) return navigate(pathname + search, { replace: onNote })
+      // Anything else, such as the widget picker, takes the list's place, so an open note closes first.
+      if (!onNote) return navigate(pathname, { replace: true })
+      addEventListener('popstate', () => navigate(pathname, { replace: true }), { once: true })
+      navigate(-1)
+    }
+    window.launchQueue?.setConsumer(({ targetURL }) => targetURL && open(targetURL))
+    const message = ({ data }: MessageEvent<{ open?: string }>) => data.open && open(data.open)
+    navigator.serviceWorker?.addEventListener('message', message)
+    return () => navigator.serviceWorker?.removeEventListener('message', message)
+  }, [navigate])
   const prefs = settings()
   useY(prefs)
   const accent = prefs.get('accent') as string | undefined

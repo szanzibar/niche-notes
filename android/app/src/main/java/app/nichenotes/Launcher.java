@@ -5,6 +5,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.net.Uri;
 import android.os.Bundle;
 import androidx.browser.customtabs.CustomTabsCallback;
 import androidx.core.content.FileProvider;
@@ -26,6 +27,16 @@ import org.json.JSONObject;
 // Opens the app, first offering an update when a newer release is already downloaded.
 // Each launch looks for a newer release in the background, so the offer comes on a later launch.
 public class Launcher extends LauncherActivity {
+    // The text of the line a widget tap was on, which the note opens at.
+    static final String LINE = "line";
+
+    @Override
+    protected Uri getLaunchingUrl() {
+        String line = getIntent().getStringExtra(LINE);
+        Uri url = super.getLaunchingUrl();
+        return line == null ? url : url.buildUpon().appendQueryParameter("line", line).build();
+    }
+
     @Override
     protected boolean shouldLaunchImmediately() {
         File apk = new File(getCacheDir(), "update.apk");

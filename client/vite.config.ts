@@ -38,6 +38,7 @@ export default defineConfig({
     proxy: {
       '/api': `http://${phoenix}`,
       '/auth': `http://${phoenix}`,
+      '/s/': `http://${phoenix}`,
       '/socket': { target: `ws://${phoenix}`, ws: true },
     },
   },

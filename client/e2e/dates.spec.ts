@@ -162,6 +162,37 @@ test('repeat rules land on the right next day', () => {
   expect(nextDue('2026-11-14', 'FREQ=YEARLY', today)).toBe('2027-11-14')
   // Ticked days late, a daily line comes back tomorrow, not on a day already gone.
   expect(nextDue('2026-11-10', 'FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA', today)).toBe('2026-11-17')
+  // Yesterday's 18:00 ticked this afternoon comes back tonight, and tomorrow once tonight's has passed.
+  const daily = 'FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA'
+  expect(nextDue('2026-11-15T18:00', daily, new Date(2026, 10, 16, 14))).toBe('2026-11-16T18:00')
+  expect(nextDue('2026-11-15T18:00', daily, new Date(2026, 10, 16, 19))).toBe('2026-11-17T18:00')
+  // Tonight's ticked this afternoon skips to tomorrow.
+  expect(nextDue('2026-11-16T18:00', daily, new Date(2026, 10, 16, 14))).toBe('2026-11-17T18:00')
   // A line given a repeat moves to the rule's first day.
   expect(onRule('2026-11-16T09:30', 'FREQ=MONTHLY;BYDAY=-1SU', today)).toBe('2026-11-29T09:30')
+})
+
+test('a dated line keeps its date beside its own text when a longer line is nested under it', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Clean office')
+  await tool(page, 'Checklist').click()
+  await tool(page, 'Date').click()
+  await tool(page, 'Tomorrow').click()
+  const office = page.locator('.editor-body p').getByText('Clean office', { exact: true })
+  await office.click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await tool(page, 'Indent').click()
+  await page.keyboard.type('and vacuum the whole bathroom too')
+  await expect(line(page, 'and vacuum the whole bathroom too').last()).toBeVisible()
+
+  // Where the words end, since the paragraph's box spans whatever holds it.
+  const end = await office.evaluate((p) => {
+    const words = document.createRange()
+    words.selectNodeContents(p)
+    return words.getBoundingClientRect()
+  })
+  const date = (await chip(page, 'Clean office').boundingBox())!
+  expect(date.x - end.right).toBeLessThan(20)
+  expect(Math.abs(date.y - end.y)).toBeLessThan(10)
 })

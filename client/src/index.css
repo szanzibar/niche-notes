@@ -72,13 +72,41 @@ body {
 .editor-body li { interpolate-size: allow-keywords; transition: height 0.2s, opacity 0.2s, display 0.2s allow-discrete; }
 [data-hide-checked] .editor-body li[data-checked="true"]:not([data-lingering]):not(:has(li[data-checked="false"], [data-lingering])) { display: none; height: 0; opacity: 0; overflow: hidden; }
 /* A checkbox line's date follows its text. The words come from the label attribute. */
-.editor-body ul[data-type="taskList"] > li[data-due] > div { flex-grow: 0; }
+/* Checkbox, text and date share the first row, and what is nested under the line goes below, so the date stays
+   beside the line's own text however wide the nested lines are. */
+.editor-body ul[data-type="taskList"] > li[data-due] { display: grid; grid-template-columns: auto minmax(0, max-content) auto 1fr; gap: 0 0.6rem; }
+.editor-body ul[data-type="taskList"] > li[data-due] > div { display: contents; }
+.editor-body ul[data-type="taskList"] > li[data-due] > div > p:first-of-type { grid-area: 1 / 2; }
+.editor-body ul[data-type="taskList"] > li[data-due] > .due-chip { grid-area: 1 / 3; }
+.editor-body ul[data-type="taskList"] > li[data-due] > div > :not(p:first-of-type, .line-grip) { grid-column: 2 / -1; }
 .editor-body .due-chip { flex: none; margin-top: 0.15rem; border: 2px solid var(--border); padding: 0 0.3rem; font-size: 0.8rem; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; user-select: none; }
 .editor-body .due-chip::after { content: attr(data-label); }
 .editor-body .due-chip:not([data-label]) { display: none; }
 .editor-body .due-chip[data-overdue] { color: var(--accent); border-color: var(--accent); }
 .editor-body li[data-checked="true"] > .due-chip { color: var(--ink-muted); border-color: var(--ink-muted); }
 .editor-body input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--accent); }
+/* Each list line's grip sits in the margin left of its checkbox or bullet. It is always there, so pointing at the
+   margin beside a nested line finds that line, and it shows on a touch screen or for the line under the pointer.
+   The floating handle covers everything else. */
+.editor-body li { position: relative; }
+.line-grip { position: absolute; top: 0; left: -1.75rem; width: 1.75rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; touch-action: none; user-select: none; }
+.line-grip svg { width: 1.25rem; height: 1.25rem; }
+.line-grip:hover { color: var(--accent); }
+.editor-body li:hover:not(:has(li:hover)) > .line-grip, .editor-body li:hover:not(:has(li:hover)) > div > .line-grip { opacity: 1; }
+.editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 1.75rem); }
+.editor-body[contenteditable="false"] .line-grip { display: none; }
+/* Where a dragged line will land, indented the way it will be, like the tree's drop line. */
+.line-drop { position: absolute; right: 0; height: 3px; margin-top: -2px; background: var(--accent); pointer-events: none; z-index: 10; }
+.line-drop::before { content: ''; position: absolute; left: 0; top: -4px; width: 11px; height: 11px; background: var(--accent); }
+.line-drop[data-inside] { margin-left: 1.75rem; }
+/* The editor's own drop line knows only above and below, so it gives way to this one. */
+:has(> .line-drop:not([hidden])) > :is(.prosemirror-dropcursor-block, .prosemirror-dropcursor-inline) { display: none; }
+/* A finger needs a wider grip, reaching left into the margin. */
+@media (pointer: coarse) {
+  .editor-body { padding-left: 2.5rem; }
+  .line-grip { opacity: 1; left: -2.5rem; width: 2.5rem; justify-content: flex-end; padding-right: 0.25rem; }
+  .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.5rem); }
+}
 .editor-body hr { border-top: 2px solid var(--border); margin: 1rem 0; }
 .editor-body hr.ProseMirror-selectednode { border-color: var(--accent); }
 .editor-body blockquote { border-left: 4px solid var(--accent); padding-left: 1rem; color: var(--ink-muted); }
@@ -98,7 +126,7 @@ body {
   pointer-events: none;
 }
 
-/* Other people's carets and names (CollaborationCaret). */
+/* Other people's carets and names (Carets in NoteView). A name fades once its person is still. */
 .collaboration-carets__caret {
   position: relative;
   margin-left: -1px;
@@ -120,4 +148,6 @@ body {
   white-space: nowrap;
   user-select: none;
   pointer-events: none;
+  transition: opacity 0.3s;
 }
+.collaboration-carets__label[data-idle] { opacity: 0; }

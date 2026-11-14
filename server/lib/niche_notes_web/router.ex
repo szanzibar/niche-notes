@@ -38,6 +38,9 @@ defmodule NicheNotesWeb.Router do
     post "/docs/:doc_id/shares", ShareController, :create
     delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
     get "/docs/:doc_id/widget_token", WidgetController, :token
+    get "/docs/:doc_id/link", LinkController, :show
+    put "/docs/:doc_id/link", LinkController, :create
+    delete "/docs/:doc_id/link", LinkController, :delete
     get "/push_key", PushController, :key
     put "/push_subscriptions", PushController, :subscribe
     get "/google_calendar", GoogleCalendarController, :show
@@ -57,6 +60,7 @@ defmodule NicheNotesWeb.Router do
   scope "/", NicheNotesWeb do
     pipe_through :browser
 
+    get "/s/:link", LinkController, :open
     get "/*path", SPAController, :index
   end
 end

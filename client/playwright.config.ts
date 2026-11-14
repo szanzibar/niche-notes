@@ -5,6 +5,8 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
+  // Checked lines take 5 seconds to hide.
+  expect: { timeout: 8_000 },
   workers: 1,
   use: { baseURL: 'http://localhost:5199', trace: 'retain-on-failure' },
   webServer: [

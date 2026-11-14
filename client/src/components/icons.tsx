@@ -41,9 +41,10 @@ export const CloudOffIcon = icon(
 )
 export const PlusIcon = icon('M5 12h14M12 5v14')
 export const CheckedIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 12l3 3 5-6')
-export const HideCheckedIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 12l3 3 5-6M2 2l20 20')
+export const HideCheckedIcon = icon(
+  'M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49M14.08 14.16a3 3 0 0 1-4.24-4.24M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14M2 2l20 20',
+)
 export const DeleteWhenCheckedIcon = icon('M4 7h16M6 7l1 13h10l1-13M9 7V4h6v3M9.5 13.5l2 2 3.5-4')
-export const DeleteCheckedIcon = icon('M11 12H3M16 6H3M16 18H3M19 10l-4 4M15 10l4 4')
 export const UncheckAllIcon = icon('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M9 9h6v6H9z')
 export const SettingsIcon = icon('M20 7h-9M14 17H5M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M10 7a3 3 0 1 1-6 0a3 3 0 1 1 6 0')
 
@@ -74,7 +75,8 @@ export const UnlinkIcon = icon(
 export const OpenLinkIcon = icon('M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6')
 export const CalendarIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 10h16M8 2v4M16 2v4')
 export const CheckIcon = icon('M20 6L9 17l-5-5')
-export const GripIcon = icon('M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01')
+export const GRIP = 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01'
+export const GripIcon = icon(GRIP)
 export const HighlightIcon = icon('M9 11l-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4')
 export const UndoIcon = icon('M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11')
 export const RedoIcon = icon('M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13')

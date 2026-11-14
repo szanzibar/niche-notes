@@ -94,12 +94,15 @@ const withTime = (date: Date | null, due: string) => {
   return date ? `${dayOf(date)}${time ? `T${time}` : ''}` : due
 }
 
-// The first day after today, so a line ticked late lands on its next coming day and one ticked early skips one.
+// The rule's first day after the line's own that hasn't gone by, so a line ticked late lands on its next coming
+// day and one ticked early skips one. Today hasn't gone by while its time is still to come.
 export function nextDue(due: string, repeat: string, today = new Date()) {
   const rule = parseRule(repeat)
-  const start = parseDay(due.split('T')[0])
-  const now = parseDay(dayOf(today))
-  return rule ? withTime(after(rule, start, now > start ? now : start), due) : due
+  const [day, time] = due.split('T')
+  const start = parseDay(day)
+  const from = parseDay(dayOf(today))
+  if (time && today.toTimeString().slice(0, 5) < time) from.setDate(from.getDate() - 1)
+  return rule ? withTime(after(rule, start, from > start ? from : start), due) : due
 }
 
 // A line given a repeat moves to the rule's first day from today, or from its own date when that is earlier,

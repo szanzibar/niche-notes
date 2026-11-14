@@ -34,6 +34,11 @@
             <meta-data
                 android:name="android.support.customtabs.trusted.DEFAULT_URL"
                 android:value="https://${host}" />
+            <!-- A link opened while the app runs goes to the open page, which opens it like a tap, so back from a
+                 note still goes to the list and then leaves. -->
+            <meta-data
+                android:name="android.support.customtabs.trusted.LAUNCH_HANDLER_CLIENT_MODE"
+                android:value="focus-existing" />
             <meta-data
                 android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
                 android:resource="@color/bar" />
