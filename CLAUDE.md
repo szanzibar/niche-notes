@@ -31,9 +31,10 @@ cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vi
 
 Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one.
 
-Steven keeps the running task list in a note on the prod server and ticks items himself as he checks them.
-Read it from the repo root with `curl -H "Authorization: Bearer $(grep TASKS_TOKEN .env | cut -d= -f2-)"
-https://$(grep PHX_HOST .env | cut -d= -f2-)/api/widget`. That token is a widget token, so it reads only that one note.
+Steven keeps the running task list in a note on the prod server, shared by the guest link in `.env` as
+`PUBLIC_DEV_TASK_LIST`. Read it from the repo root with
+`NOTES_LINK=$(grep PUBLIC_DEV_TASK_LIST .env | cut -d= -f2-) node client/scripts/note.mjs show ""`, and tick an item
+once it is done with `check "" "<item text>"`.
 
 In dev, `/auth/login` signs in a local user without Pocket ID, and `/auth/login?as=<name>` signs in another.
 

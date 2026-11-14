@@ -205,7 +205,14 @@ test('a tap on the grip of a line moves it to the end of the note picked for it,
   await page.getByRole('button', { name: 'Back' }).click()
   await checklist(page, 'Eggs', 'Bread')
 
-  await grip(page, 'Eggs').tap()
+  // A finger drifts a little during a tap.
+  const at = (await grip(page, 'Eggs').boundingBox())!
+  const cdp = await page.context().newCDPSession(page)
+  const touch = (type: string, x = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: at.y + at.height / 2 }] })
+  await touch('touchStart', at.x + at.width / 2)
+  await touch('touchMove', at.x + at.width / 2 + 3)
+  await touch('touchEnd')
   const dialog = page.getByRole('dialog', { name: 'Move to note' })
   await expect(dialog.getByRole('button', { name: 'Lists' })).toBeDisabled()
   await dialog.getByRole('button', { name: 'Groceries' }).tap()

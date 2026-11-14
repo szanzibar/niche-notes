@@ -4,15 +4,23 @@
 //   node scripts/note.mjs show "<title>"
 //   node scripts/note.mjs check "<title>" "<item text>"
 // NOTES_URL (default http://localhost:4000) and NOTES_AS (dev login name, default dev).
+// NOTES_LINK, a note's guest link, reads and ticks just that note on whichever server the link is for.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { Socket } from 'phoenix'
 import * as Y from 'yjs'
 
-const BASE = process.env.NOTES_URL ?? 'http://localhost:4000'
+const LINK = process.env.NOTES_LINK
+const BASE = LINK ? new URL(LINK).origin : (process.env.NOTES_URL ?? 'http://localhost:4000')
 const AS = process.env.NOTES_AS ?? 'dev'
 const [command, titleArg, itemArg] = process.argv.slice(2)
 
-const login = await fetch(`${BASE}/auth/login?as=${AS}`, { redirect: 'manual' })
-const cookie = login.headers.get('set-cookie').split(';')[0]
+// A visit without the guest's cookie would sign in yet another guest.
+const GUEST = new URL('../../.guest-cookie', import.meta.url)
+const saved = LINK && existsSync(GUEST) ? readFileSync(GUEST, 'utf8') : undefined
+const login = await fetch(LINK ?? `${BASE}/auth/login?as=${AS}`, { redirect: 'manual', headers: saved ? { cookie: saved } : {} })
+const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? saved
+if (LINK) writeFileSync(GUEST, cookie)
+const linked = LINK && login.headers.get('location').split('/n/')[1]
 const { user, token } = await (await fetch(`${BASE}/api/me`, { headers: { cookie } })).json()
 
 const socket = new Socket(BASE.replace(/^http/, 'ws') + '/socket', { params: { token } })
@@ -73,7 +81,7 @@ function* taskItems(node) {
 }
 
 const { doc: tree } = await openDoc(user.id)
-const ids = [...tree.getMap('nodes').keys()]
+const ids = linked ? [linked] : [...tree.getMap('nodes').keys()]
 const notes = await Promise.all(ids.map(async (id) => ({ id, ...(await openDoc(id)) })))
 const titled = notes
   .map((n) => ({ ...n, title: n.doc.getMap('meta').get('title') ?? '', deleted: n.doc.getMap('meta').get('deleted') === true }))

@@ -1,11 +1,8 @@
 import Collaboration from '@tiptap/extension-collaboration'
 import DragHandle from '@tiptap/extension-drag-handle-react'
-import Highlight from '@tiptap/extension-highlight'
-import { TaskList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
 import { Plugin } from '@tiptap/pm/state'
 import { EditorContent, Extension, useEditor, useEditorState } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
 import {
   absolutePositionToRelativePosition,
   relativePositionToAbsolutePosition,
@@ -45,6 +42,7 @@ import {
   UncheckAllIcon,
   UsersIcon,
 } from './icons'
+import { contentExtensions } from './content'
 import { OfflineIcon } from './OfflineIcon'
 import { Popover } from './Popover'
 import { ShareDialog } from './ShareDialog'
@@ -57,7 +55,6 @@ import {
   LineGrips,
   ListTabs,
   moveLine,
-  TaskItem,
   uncheckAll,
 } from './lists'
 import { MoveDialog } from './MoveDialog'
@@ -164,15 +161,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const editor = useEditor(
     {
       extensions: [
-        // A tap on a link places the cursor to edit it, and the toolbar shows the address to open it.
-        StarterKit.configure({
-          undoRedo: false,
-          dropcursor: { color: 'var(--accent)', width: 3 },
-          link: { openOnClick: false },
-        }),
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        Highlight,
+        ...contentExtensions,
         ListTabs,
         JoinLists,
         LineGrips(id),

@@ -102,7 +102,8 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
   const start = (down: TouchEvent) => {
     down.preventDefault()
     const dataTransfer = new DataTransfer()
-    let at = down.touches[0]
+    const first = down.touches[0]
+    let at = first
     let dragging = false
     const fire = (type: string, target: Element | null) =>
       target?.dispatchEvent(
@@ -110,9 +111,11 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
       )
     const move = (e: TouchEvent) => {
       e.preventDefault()
+      at = e.touches[0]
+      // A finger drifts a few pixels during a tap.
+      if (!dragging && Math.hypot(at.clientX - first.clientX, at.clientY - first.clientY) < 10) return
       if (!dragging) fire('dragstart', grip)
       dragging = true
-      at = e.touches[0]
       fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
     }
     const end = (e: TouchEvent) => {

@@ -1,9 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
 import { useY } from '../sync/hooks'
 import { settings } from '../sync/tree'
+import { importAmplenote } from './amplenote'
 import { Button, IconButton } from './Button'
 import { SettingsIcon } from './icons'
 
@@ -48,6 +49,8 @@ export function SettingsDialog() {
   // The Google account whose calendar holds the dated lines, or null before Settings hears from the server.
   const [google, setGoogle] = useState<{ email: string | null } | null>(null)
   const [alerts, setAlerts] = useState('Notification' in window ? Notification.permission : null)
+  const zip = useRef<HTMLInputElement>(null)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   const open = (opened: boolean) => {
     if (!opened) return
     setAlerts('Notification' in window ? Notification.permission : null)
@@ -68,7 +71,7 @@ export function SettingsDialog() {
         <Dialog.Overlay className="fixed inset-0 bg-black/40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 border-2 border-border bg-surface p-5 shadow-brutal"
+          className="fixed left-1/2 top-1/2 max-h-[92dvh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border-2 border-border bg-surface p-5 shadow-brutal"
         >
           <Dialog.Title className="mb-3 text-lg font-bold">Settings</Dialog.Title>
           <p className="mb-2 font-medium">Highlight color</p>
@@ -156,6 +159,28 @@ export function SettingsDialog() {
               </Button>
             </>
           )}
+          <p className="mt-5 font-medium">Import</p>
+          <p className="mb-2 text-sm text-ink-muted">
+            {importMessage ?? 'Notes and lists from the zip of an Amplenote export, inside a new Amplenote import note.'}
+          </p>
+          <input
+            ref={zip}
+            type="file"
+            accept=".zip"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              setImportMessage('Importing…')
+              importAmplenote(file).then(
+                (count) => setImportMessage(`Imported ${count} notes into Amplenote import.`),
+                () => setImportMessage("That file isn't an Amplenote export."),
+              )
+            }}
+          />
+          <Button disabled={importMessage === 'Importing…'} onClick={() => zip.current?.click()}>
+            Import from Amplenote
+          </Button>
           <Dialog.Close asChild>
             <Button className="mt-5 w-full">Done</Button>
           </Dialog.Close>

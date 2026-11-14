@@ -9,3 +9,5 @@ client/dist/
 client/test-results/
 client/playwright-report/
 /data/
+*.zip
+.guest-cookie

@@ -86,10 +86,10 @@ export function descendants(id: string, acc = new Set<string>()): Set<string> {
   return acc
 }
 
-export function createNote(parent: string | null): string {
+export function createNote(parent: string | null, order = Date.now()): string {
   const id = crypto.randomUUID()
   store.owners.set(id, store.me!.id)
-  nodes().set(id, { parent, order: Date.now() })
+  nodes().set(id, { parent, order })
   void openDoc(id)
   return id
 }

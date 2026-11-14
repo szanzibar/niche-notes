@@ -1,5 +1,6 @@
 defmodule NicheNotesWeb.UserSocket do
-  use Phoenix.Socket
+  # A device joins one channel per note, about 3 KB each on the server.
+  use Phoenix.Socket, max_channels_per_transport: 10_000
 
   channel "doc:*", NicheNotesWeb.DocChannel
   channel "user:*", NicheNotesWeb.UserChannel
