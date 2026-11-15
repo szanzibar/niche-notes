@@ -71,9 +71,10 @@ test('a link lets someone without an account edit the note under a made-up name,
   await expect(alice.locator('.editor-body')).toContainText('Chips and dip')
   const name = alice.locator('.collaboration-carets__label')
   await expect(name).toHaveText(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
+  const guestName = await name.textContent()
 
   await alice.getByRole('button', { name: 'Shared with 1' }).click()
-  await expect(alice.getByText(`Opened by ${await name.textContent()}`)).toBeVisible()
+  await expect(alice.getByText(`Opened by ${guestName}`)).toBeVisible()
   await alice.getByRole('button', { name: 'Turn off' }).click()
   await expect(guest.getByText('no longer shared')).toBeVisible()
   await alice.getByRole('button', { name: 'Done' }).click()

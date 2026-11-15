@@ -8,7 +8,7 @@ defmodule NicheNotesWeb.MeControllerTest do
     assert conn.resp_cookies["_niche_notes_key"].max_age == @year
 
     conn = conn |> recycle() |> get("/api/me")
-    assert %{"user" => %{"name" => "Me"}} = json_response(conn, 200)
+    assert %{"user" => %{"name" => "Me", "guest" => false}} = json_response(conn, 200)
     assert conn.resp_cookies["_niche_notes_key"].max_age == @year
   end
 end

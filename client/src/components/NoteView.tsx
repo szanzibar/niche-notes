@@ -7,6 +7,7 @@ import {
   absolutePositionToRelativePosition,
   relativePositionToAbsolutePosition,
   yCursorPlugin,
+  yCursorPluginKey,
   ySyncPluginKey,
 } from '@tiptap/y-tiptap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -88,28 +89,17 @@ function caretColor(userId: string) {
   return caretColors[hash % caretColors.length]
 }
 
-// Other people's carets. Each one's name shows while that device moves its cursor and fades once it has been still
-// for a few seconds, so a name doesn't sit over the text for good.
+// Other people's carets, each with its name, only while that person moves it. One still for a few seconds goes,
+// so a device left open elsewhere doesn't leave a caret in the text. A state that only just arrived isn't a move.
 const Carets = (awareness: Awareness, user: { name: string; color: string }) =>
   Extension.create({
     name: 'carets',
     addProseMirrorPlugins() {
-      const labels = new Map<number, HTMLElement>()
-      const active = new Map<number, number>()
-      const moved = ({ added, updated }: { added: number[]; updated: number[] }) => {
-        for (const client of [...added, ...updated]) {
-          clearTimeout(active.get(client))
-          labels.get(client)?.removeAttribute('data-idle')
-          const timer = window.setTimeout(() => {
-            active.delete(client)
-            labels.get(client)?.setAttribute('data-idle', '')
-          }, 5000)
-          active.set(client, timer)
-        }
-      }
+      const moving = new Map<number, number>()
       return [
         yCursorPlugin(awareness, {
-          cursorBuilder: ({ name, color }, client) => {
+          awarenessStateFilter: (mine, client) => client !== mine && moving.has(client),
+          cursorBuilder: ({ name, color }) => {
             const caret = document.createElement('span')
             caret.className = 'collaboration-carets__caret'
             caret.style.borderColor = color
@@ -117,20 +107,31 @@ const Carets = (awareness: Awareness, user: { name: string; color: string }) =>
             label.className = 'collaboration-carets__label'
             label.style.backgroundColor = color
             label.textContent = name
-            label.toggleAttribute('data-idle', !active.has(client))
             caret.append(label)
-            labels.set(client, label)
             return caret
           },
         }),
         new Plugin({
-          view: () => {
+          view: (view) => {
+            const redraw = () => view.isDestroyed || view.dispatch(view.state.tr.setMeta(yCursorPluginKey, { awarenessUpdated: true }))
+            const moved = ({ updated }: { updated: number[] }) => {
+              const others = updated.filter((client) => client !== awareness.clientID)
+              for (const client of others) {
+                clearTimeout(moving.get(client))
+                const timer = window.setTimeout(() => {
+                  moving.delete(client)
+                  redraw()
+                }, 5000)
+                moving.set(client, timer)
+              }
+              if (others.length > 0) redraw()
+            }
             awareness.setLocalStateField('user', user)
             awareness.on('change', moved)
             return {
               destroy: () => {
                 awareness.off('change', moved)
-                for (const timer of active.values()) clearTimeout(timer)
+                for (const timer of moving.values()) clearTimeout(timer)
               },
             }
           },
@@ -179,7 +180,11 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           field: 'content',
           yUndoOptions: { undoManager: undoManagerFor(id, doc) },
         }),
-        Carets(getAwareness(id), { name: s.me!.name, color: caretColor(s.me!.id) }),
+        // A family goes by first names, and a guest by the whole made-up one.
+        Carets(getAwareness(id), {
+          name: s.me!.guest ? s.me!.name : s.me!.name.split(' ')[0],
+          color: caretColor(s.me!.id),
+        }),
       ],
       editorProps: { attributes: { class: 'editor-body' } },
     },

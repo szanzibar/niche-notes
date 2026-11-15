@@ -147,7 +147,7 @@ body {
 .note-header .text-accent-ink { color: inherit; }
 .note-header .text-ink-muted, .note-header input::placeholder { color: color-mix(in oklab, var(--on-accent) 70%, var(--accent)); }
 
-/* Other people's carets and names (Carets in NoteView). A name fades once its person is still. */
+/* Other people's carets and names (Carets in NoteView). */
 .collaboration-carets__caret {
   position: relative;
   margin-left: -1px;
@@ -169,6 +169,4 @@ body {
   white-space: nowrap;
   user-select: none;
   pointer-events: none;
-  transition: opacity 0.3s;
 }
-.collaboration-carets__label[data-idle] { opacity: 0; }

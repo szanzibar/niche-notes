@@ -2,6 +2,7 @@ defmodule NicheNotesWeb.MeController do
   use NicheNotesWeb, :controller
 
   alias NicheNotes.Accounts
+  alias NicheNotes.Accounts.User
 
   def show(conn, _params) do
     user = Accounts.get_user(conn.assigns.current_user_id)
@@ -10,7 +11,7 @@ defmodule NicheNotesWeb.MeController do
     conn
     |> configure_session(renew: true)
     |> json(%{
-      user: %{id: user.id, name: user.name, email: user.email},
+      user: %{id: user.id, name: user.name, email: user.email, guest: User.guest?(user)},
       token: NicheNotesWeb.UserSocket.token(conn, user.id)
     })
   end

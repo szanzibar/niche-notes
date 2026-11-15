@@ -1,9 +1,12 @@
 import { expect } from '@playwright/test'
-import { display, newNote, row, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
+import { newNote, row, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
 
-test('two people typing in one note see each other, with a name that fades while its person is still', async ({ browser }) => {
+test('two people typing in one note see each other\'s caret and first name, until that person is still', async ({
+  browser,
+}) => {
   const a = `alice-${uid()}`
-  const b = `bob-${uid()}`
+  const id = uid()
+  const b = `bob-${id} jones`
   const bob = await signIn(browser, b)
   const alice = await signIn(browser, a)
 
@@ -14,14 +17,12 @@ test('two people typing in one note see each other, with a name that fades while
 
   await typeAtEnd(bob, ' bravo')
   await expect(alice.locator('.editor-body')).toContainText('bravo')
-  const name = alice.locator('.collaboration-carets__label')
-  await expect(name).toHaveText(display(b))
-  await expect(name).toHaveCSS('opacity', '1')
-  // Bob's name fades once he has been still a few seconds, and his caret stays.
-  await expect(name).toHaveCSS('opacity', '0')
-  await expect(alice.locator('.collaboration-carets__caret')).toBeVisible()
+  const caret = alice.locator('.collaboration-carets__caret')
+  await expect(caret).toHaveText(`Bob-${id}`)
+  // Bob's caret goes once he has been still a few seconds.
+  await expect(caret).toHaveCount(0)
   await typeAtEnd(bob, '!')
-  await expect(name).toHaveCSS('opacity', '1')
+  await expect(caret).toHaveText(`Bob-${id}`)
 
   await typeAtEnd(alice, ' charlie')
   await expect(bob.locator('.editor-body')).toContainText('charlie')
