@@ -18,7 +18,7 @@ import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
-import { wipeLocal } from '../sync/store'
+import { store, wipeLocal } from '../sync/store'
 import {
   children,
   createNote,
@@ -40,7 +40,7 @@ import {
   trashed,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { CheckedIcon, GripIcon, LeaveIcon, ListTreeIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -71,15 +71,17 @@ function useShowNote() {
   return (id: string) => navigate(`/n/${id}`, { replace: open })
 }
 
-// The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it.
-// The token lets the widget read the note from the server while the app is closed.
+// The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it, and
+// choosing the tree, which is the user's own doc, shows all of them. The token lets the widget read from the server
+// while the app is closed.
 function useOpenNote() {
   const showNote = useShowNote()
   const widget = useMatch('/widget/:id')?.params.id
   return (id: string) => {
     if (!widget) return showNote(id)
+    const tree = id === store.me!.id
     void api.widgetToken(id).then(({ token }) => {
-      const query = new URLSearchParams({ id: widget, note: id, title: titleOf(id), token })
+      const query = new URLSearchParams({ id: widget, note: tree ? 'tree' : id, title: tree ? 'Notes' : titleOf(id), token })
       window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;end`
     })
   }
@@ -182,9 +184,14 @@ export function Tree({ selected }: { selected?: string }) {
       }}
     >
       {picking && (
-        <p className="border-b-2 border-border bg-accent px-4 py-2 text-sm font-bold text-on-accent">
-          {s.online === false ? 'Connect to the internet to pick a note' : 'Tap a note to show it in the widget'}
-        </p>
+        <div className="flex items-center border-b-2 border-border bg-accent pr-1 pl-4 text-sm font-bold text-on-accent">
+          <p className="flex-1">
+            {s.online === false ? 'Connect to the internet to pick a note' : 'Tap a note to show it in the widget'}
+          </p>
+          <IconButton label="All notes" onClick={() => openNote(s.me!.id)}>
+            <ListTreeIcon />
+          </IconButton>
+        </div>
       )}
       <RootDropZone active={hint?.id === ROOT}>
         <div className="relative flex min-w-0 flex-1 items-center">

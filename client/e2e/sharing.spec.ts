@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test'
+import { expect, type Locator } from '@playwright/test'
 import { newNote, row, rowTitles, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
 
 test('a shared note lands under the other person\'s pins, can be left via their trash, and goes when unshared', async ({
@@ -15,14 +15,20 @@ test('a shared note lands under the other person\'s pins, can be left via their 
   await bob.getByRole('button', { name: 'Pin', exact: true }).click()
 
   await newNote(alice, 'Groceries', 'milk')
+  await alice.getByRole('button', { name: 'Checklist', exact: true }).click()
   await shareWith(alice, b)
   await expect(alice.getByRole('button', { name: 'Shared with 1' })).toBeVisible()
+  // Who it is shared with or by leads the header's buttons.
+  const x = async (l: Locator) => (await l.boundingBox())!.x
+  const checked = (page: typeof alice) => x(page.getByRole('button', { name: 'Checked lines' }))
+  expect(await x(alice.getByRole('button', { name: 'Shared with 1' }))).toBeLessThan(await checked(alice))
   await expect(row(alice, 'Groceries')).toContainText('shared')
 
   await expect(row(bob, 'Groceries')).toContainText(first)
   expect(await rowTitles(bob)).toEqual(['Mine', 'Groceries'])
   await row(bob, 'Groceries').click()
   await expect(bob.getByText(`Shared by ${first}`, { exact: true })).toBeVisible()
+  expect(await x(bob.getByText(`Shared by ${first}`, { exact: true }))).toBeLessThan(await checked(bob))
   await expect(bob.getByRole('button', { name: /^Share/ })).toHaveCount(0)
   await expect(bob.getByRole('button', { name: 'Delete' })).toHaveCount(0)
   await expect(bob.locator('.editor-body')).toContainText('milk')

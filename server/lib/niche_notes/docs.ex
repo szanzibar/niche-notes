@@ -65,14 +65,21 @@ defmodule NicheNotes.Docs do
     rows > @compact_rows or (rows > 1 and idle)
   end
 
-  # A note as plain lines for a widget, each line's own text, which a tap on it opens the note at, and its heading
-  # level, 0 for any other line. Blank lines stay, except at either end. One the user can no longer open, or that is
-  # in the trash, is gone.
-  def read_note(doc_id, user_id) do
+  # What a widget shows, under a header in the color the app gives it: the user's notes as their tree draws them, or
+  # one note's lines with blank lines kept except at either end. A note the user can no longer open, or that is in
+  # the trash, is gone.
+  def widget(user_id, user_id) do
+    {nodes, _settings} = tree = tree(user_id)
+    children = Enum.group_by(nodes, fn {_id, node} -> node["parent"] end)
+    rows = tree_rows(children, MapSet.new(note_ids(user_id)), nil, 0)
+    {:ok, Map.merge(%{title: "Notes", rows: rows}, theme(tree, nil))}
+  end
+
+  def widget(doc_id, user_id) do
     with true <- can_access?(doc_id, user_id),
          {_doc, title, meta, content} <- load(doc_id) do
       hide = meta["hideChecked"] == true or meta["deleteChecked"] == true
-      blank? = fn {line, _text, _heading} -> String.trim(line) == "" end
+      blank? = &(String.trim(&1.line) == "")
 
       rows =
         content
@@ -82,16 +89,80 @@ defmodule NicheNotes.Docs do
         |> Enum.drop_while(blank?)
         |> Enum.reverse()
 
-      {:ok,
-       %{
-         title: title,
-         lines: Enum.map(rows, &elem(&1, 0)),
-         texts: Enum.map(rows, &elem(&1, 1)),
-         headings: Enum.map(rows, &elem(&1, 2))
-       }}
+      {:ok, Map.merge(%{title: title, rows: rows}, theme(tree(user_id), doc_id))}
     else
       _ -> :error
     end
+  end
+
+  defp tree(user_id) do
+    doc = Yex.Doc.new()
+    updates = from u in DocUpdate, where: u.doc_id == ^user_id, order_by: u.id, select: u.update
+    {:ok, update} = Yex.merge_updates(Repo.all(updates))
+    :ok = Yex.apply_update(doc, update)
+
+    {doc |> Yex.Doc.get_map("nodes") |> Yex.Map.to_map(),
+     doc |> Yex.Doc.get_map("settings") |> Yex.Map.to_map()}
+  end
+
+  # Pinned first, then newest, and nothing under a folded note. Each row loads its note for the title, about 0.15 ms,
+  # so 10,000 unfolded notes take a second or two.
+  defp tree_rows(children, notes, parent, depth) do
+    children
+    |> Map.get(parent, [])
+    |> Enum.filter(fn {id, node} -> MapSet.member?(notes, id) and node["leftAt"] == nil end)
+    |> Enum.sort_by(fn {_id, node} -> {node["pinned"] != true, -(node["order"] || 0)} end)
+    |> Enum.flat_map(fn {id, node} ->
+      case load(id) do
+        nil ->
+          []
+
+        {_doc, title, _meta, _content} ->
+          under = if node["collapsed"], do: [], else: tree_rows(children, notes, id, depth + 1)
+          [%{line: title, depth: depth, note: id} | under]
+      end
+    end)
+  end
+
+  # The themes in client/src/components/themes.ts, in the same order, since Confetti picks one by position.
+  @themes [
+    {"#FF4F3B", "#FFFFFF"},
+    {"#2F6BFF", "#FFFFFF"},
+    {"#1A9E5C", "#FFFFFF"},
+    {"#8B3DFF", "#FFFFFF"},
+    {"#E8700A", "#FFFFFF"},
+    {"#E0338A", "#FFFFFF"},
+    {"#0E9494", "#FFFFFF"},
+    {"#FF9F85", "#111111"},
+    {"#6CC6FF", "#111111"},
+    {"#B5E853", "#111111"},
+    {"#C3A3FF", "#111111"},
+    {"#FFD23F", "#111111"},
+    {"#FF8AD0", "#111111"},
+    {"#5FE0BF", "#111111"}
+  ]
+
+  # The note's color and the text on it, as the app's `noteTheme` and `appTheme` pick them for this user. The tree
+  # wears the user's own theme.
+  defp theme({nodes, settings}, doc_id) do
+    {color, ink} =
+      List.keyfind(@themes, nodes[doc_id]["color"], 0) ||
+        (doc_id && settings["scheme"] == "confetti" && confetti(doc_id)) ||
+        List.keyfind(@themes, settings["accent"], 0) || hd(@themes)
+
+    %{color: color, ink: ink}
+  end
+
+  # The same 32-bit string hash the app picks by.
+  defp confetti(id) do
+    hash =
+      for <<c <- id>>, reduce: 0 do
+        h ->
+          <<h::signed-32>> = <<h * 31 + c::32>>
+          h
+      end
+
+    Enum.at(@themes, rem(abs(hash), length(@themes)))
   end
 
   def title(doc_id) do
@@ -253,11 +324,10 @@ defmodule NicheNotes.Docs do
 
   defp dated(_text), do: []
 
-  # One line per paragraph, heading, list item or table row, with nested items indented under their parent. A note
+  # One row per paragraph, heading, list item or table row: what it shows, its own text, which a tap on it opens the
+  # note at, and how deep it is nested. A checkbox item says whether it is checked, and a heading its level. A note
   # that hides or deletes its checked items leaves out each one that is done, with what is nested under it.
   defp lines(element, depth, hide) do
-    indent = String.duplicate("    ", depth)
-
     case Yex.XmlElement.get_tag(element) do
       list when list in ["bulletList", "orderedList", "taskList"] ->
         element
@@ -266,11 +336,14 @@ defmodule NicheNotes.Docs do
         |> Enum.reject(fn {item, _n} -> hide && list == "taskList" && done?(item) end)
         |> Enum.flat_map(fn {item, n} ->
           [first | rest] = Enum.to_list(Yex.XmlElement.children(item))
+          row = %{line: mark(list, n) <> text(first), text: text(first), depth: depth}
 
-          [
-            {indent <> mark(list, item, n) <> text(first), text(first), 0}
-            | Enum.flat_map(rest, &lines(&1, depth + 1, hide))
-          ]
+          row =
+            if list == "taskList",
+              do: Map.put(row, :checked, Yex.XmlElement.get_attribute(item, "checked") == true),
+              else: row
+
+          [row | Enum.flat_map(rest, &lines(&1, depth + 1, hide))]
         end)
 
       "blockquote" ->
@@ -283,15 +356,15 @@ defmodule NicheNotes.Docs do
                 do: cell |> Yex.XmlElement.children() |> Enum.map_join(" ", &text/1)
 
           line = Enum.join(cells, " | ")
-          {indent <> line, line, 0}
+          %{line: line, text: line, depth: depth}
         end
 
       "heading" ->
         level = element |> Yex.XmlElement.get_attribute("level") |> trunc()
-        [{indent <> text(element), text(element), level}]
+        [%{line: text(element), text: text(element), depth: depth, heading: level}]
 
       _ ->
-        [{indent <> text(element), text(element), 0}]
+        [%{line: text(element), text: text(element), depth: depth}]
     end
   end
 
@@ -304,11 +377,10 @@ defmodule NicheNotes.Docs do
 
   defp done?(_text), do: true
 
-  defp mark("bulletList", _item, _n), do: "• "
-  defp mark("orderedList", _item, n), do: "#{n}. "
-
-  defp mark("taskList", item, _n),
-    do: if(Yex.XmlElement.get_attribute(item, "checked"), do: "☑ ", else: "☐ ")
+  # A widget draws a checkbox item's box itself.
+  defp mark("bulletList", _n), do: "• "
+  defp mark("orderedList", n), do: "#{n}. "
+  defp mark("taskList", _n), do: ""
 
   # The text without its bold and italic marks, which `to_string` would write as tags.
   defp text(element) do

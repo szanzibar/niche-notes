@@ -6,11 +6,13 @@ import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.RemoteViews;
 import java.io.BufferedReader;
@@ -24,8 +26,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-// Each widget shows the note picked for it, read from the server with the token that came with the pick.
-// A tap opens that note in the app, or the picker until one is picked.
+// Each widget shows the note picked for it, or all the notes as the tree shows them, read from the server with the
+// token that came with the pick. A tap opens that note in the app, the list for the tree, or the picker until one is
+// picked.
 public class NoteWidget extends AppWidgetProvider {
     static final String REFRESH = "app.nichenotes.REFRESH";
 
@@ -45,51 +48,63 @@ public class NoteWidget extends AppWidgetProvider {
     }
 
     static SharedPreferences.Editor forget(SharedPreferences.Editor editor, int widget) {
-        return editor.remove("note." + widget).remove("title." + widget)
-                .remove("token." + widget).remove("lines." + widget).remove("texts." + widget)
-                .remove("headings." + widget);
+        return editor.remove("note." + widget).remove("title." + widget).remove("token." + widget)
+                .remove("rows." + widget).remove("color." + widget).remove("ink." + widget);
     }
 
     static void show(Context context, int widget) {
         SharedPreferences picks = picks(context);
         String note = picks.getString("note." + widget, null);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget);
+        int ink = picks.getInt("ink." + widget, context.getColor(R.color.on_accent));
+        views.setInt(R.id.header, "setBackgroundColor", picks.getInt("color." + widget, context.getColor(R.color.accent)));
+        views.setTextColor(R.id.title, ink);
+        views.setInt(R.id.refresh, "setColorFilter", ink);
         views.setTextViewText(R.id.title,
                 note == null ? context.getString(R.string.widget_pick) : picks.getString("title." + widget, ""));
         views.setViewVisibility(R.id.refresh, note == null ? View.GONE : View.VISIBLE);
         views.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(context, widget,
                 refresh(context, widget), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
 
-        // Mutable, because a tap on a row fills its intent into this one.
-        PendingIntent open = PendingIntent.getActivity(context, widget,
-                inApp(context, note == null ? "/widget/" + widget : "/n/" + note),
-                PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        // Mutable, because a tap on a row fills its intent into this one, and a note in the tree names its own page.
+        String page = note == null ? "/widget/" + widget : note.equals("tree") ? "/" : "/n/" + note;
+        PendingIntent open = PendingIntent.getActivity(context, widget, inApp(context, page),
+                PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT | Intent.FILL_IN_DATA);
         views.setOnClickPendingIntent(android.R.id.background, open);
         views.setPendingIntentTemplate(R.id.lines, open);
 
-        RemoteViews.RemoteCollectionItems.Builder rows = new RemoteViews.RemoteCollectionItems.Builder();
+        RemoteViews.RemoteCollectionItems.Builder items = new RemoteViews.RemoteCollectionItems.Builder();
         try {
-            JSONArray lines = new JSONArray(picks.getString("lines." + widget, "[]"));
-            JSONArray texts = new JSONArray(picks.getString("texts." + widget, "[]"));
-            JSONArray headings = new JSONArray(picks.getString("headings." + widget, "[]"));
-            for (int i = 0; i < lines.length(); i++) {
-                RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_line);
-                SpannableString line = new SpannableString(lines.getString(i));
+            JSONArray rows = new JSONArray(picks.getString("rows." + widget, "[]"));
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.getJSONObject(i);
+                RemoteViews item = new RemoteViews(context.getPackageName(), R.layout.widget_line);
+                SpannableString line = new SpannableString(row.getString("line"));
                 // Headings are bold, and the first two levels a little bigger, like in the note.
-                int level = headings.optInt(i);
+                int level = row.optInt("heading");
                 if (level > 0) {
                     line.setSpan(new StyleSpan(Typeface.BOLD), 0, line.length(), 0);
                     line.setSpan(new RelativeSizeSpan(1.3f - 0.1f * level), 0, line.length(), 0);
                 }
-                row.setTextViewText(R.id.line, line);
-                // A tap on a line opens the note at that line.
-                row.setOnClickFillInIntent(R.id.line, new Intent().putExtra(Launcher.LINE, texts.optString(i, null)));
-                rows.addItem(i, row);
+                item.setTextViewText(R.id.line, line);
+                float indent = 18 * row.getInt("depth");
+                boolean box = row.has("checked");
+                item.setViewVisibility(R.id.box, box ? View.VISIBLE : View.GONE);
+                item.setImageViewResource(R.id.box,
+                        row.optBoolean("checked") ? R.drawable.widget_checked : R.drawable.widget_unchecked);
+                item.setViewLayoutMargin(R.id.box, RemoteViews.MARGIN_START, indent, TypedValue.COMPLEX_UNIT_DIP);
+                item.setViewLayoutMargin(R.id.line, RemoteViews.MARGIN_START, box ? 0 : indent,
+                        TypedValue.COMPLEX_UNIT_DIP);
+                // A tap on a line opens the note at that line, and a tap on a note in the tree opens that note.
+                item.setOnClickFillInIntent(R.id.row, row.has("note")
+                        ? new Intent().setData(Uri.parse(context.getString(R.string.site) + "/n/" + row.getString("note")))
+                        : new Intent().putExtra(Launcher.LINE, row.getString("text")));
+                items.addItem(i, item);
             }
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
-        views.setRemoteAdapter(R.id.lines, rows.build());
+        views.setRemoteAdapter(R.id.lines, items.build());
         AppWidgetManager.getInstance(context).updateAppWidget(widget, views);
     }
 
@@ -114,14 +129,11 @@ public class NoteWidget extends AppWidgetProvider {
                         body = reader.lines().collect(Collectors.joining("\n"));
                     }
                     JSONObject read = new JSONObject(body);
-                    // A server from before line texts or headings sends none.
-                    JSONArray texts = read.optJSONArray("texts");
-                    JSONArray headings = read.optJSONArray("headings");
                     picks.edit()
                             .putString("title." + widget, read.getString("title"))
-                            .putString("lines." + widget, read.getJSONArray("lines").toString())
-                            .putString("texts." + widget, texts == null ? "[]" : texts.toString())
-                            .putString("headings." + widget, headings == null ? "[]" : headings.toString())
+                            .putString("rows." + widget, read.getJSONArray("rows").toString())
+                            .putInt("color." + widget, Color.parseColor(read.getString("color")))
+                            .putInt("ink." + widget, Color.parseColor(read.getString("ink")))
                             .apply();
                 } else if (status == 401 || status == 404) {
                     // Deleted or no longer shared, so the widget offers the picker again.

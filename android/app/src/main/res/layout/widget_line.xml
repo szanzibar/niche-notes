@@ -1,8 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/line"
+<!-- A checkbox item's box is drawn rather than a character, which a home screen may take from a bigger font. It sits
+     on the text's first line. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingVertical="3dp"
-    android:textColor="@color/widget_ink"
-    android:textSize="15sp" />
+    android:orientation="horizontal"
+    android:paddingVertical="3dp">
+
+    <ImageView
+        android:id="@+id/box"
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_marginEnd="8dp"
+        android:baseline="11dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/widget_unchecked" />
+
+    <TextView
+        android:id="@+id/line"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:fontFamily="@font/space_grotesk"
+        android:textColor="@color/widget_ink"
+        android:textSize="15sp" />
+</LinearLayout>

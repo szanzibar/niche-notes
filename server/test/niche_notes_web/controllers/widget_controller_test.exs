@@ -38,9 +38,9 @@ defmodule NicheNotesWeb.WidgetControllerTest do
   test "a widget reads its note with the token the picker got", %{conn: conn, note: note} do
     assert json_response(read(token(conn, note)), 200) == %{
              "title" => "Groceries",
-             "lines" => ["☑ milk"],
-             "texts" => ["milk"],
-             "headings" => [0]
+             "color" => "#FF4F3B",
+             "ink" => "#FFFFFF",
+             "rows" => [%{"line" => "milk", "text" => "milk", "depth" => 0, "checked" => true}]
            }
   end
 
@@ -68,8 +68,12 @@ defmodule NicheNotesWeb.WidgetControllerTest do
       Yex.XmlFragment.push(content, paragraph.(""))
     end)
 
-    assert %{"lines" => ["Shop", "☑ milk", "", "bread"], "headings" => [2, 0, 0, 0]} =
-             json_response(read(token(conn, note)), 200)
+    assert [
+             %{"line" => "Shop", "heading" => 2},
+             %{"line" => "milk"},
+             %{"line" => ""},
+             %{"line" => "bread"}
+           ] = json_response(read(token(conn, note)), 200)["rows"]
   end
 
   test "a note that hides its checked items leaves them out", %{conn: conn, note: note} do
@@ -79,13 +83,13 @@ defmodule NicheNotesWeb.WidgetControllerTest do
       Yex.XmlFragment.push(Yex.Doc.get_xml_fragment(doc, "content"), eggs)
     end)
 
-    assert json_response(read(token(conn, note)), 200)["lines"] == ["eggs"]
+    assert [%{"line" => "eggs"}] = json_response(read(token(conn, note)), 200)["rows"]
   end
 
   test "a note that deletes its checked items leaves them out too", %{conn: conn, note: note} do
     edit!(note, fn doc -> Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "deleteChecked", true) end)
 
-    assert json_response(read(token(conn, note)), 200)["lines"] == []
+    assert json_response(read(token(conn, note)), 200)["rows"] == []
   end
 
   test "a checked item stays while an item under it is unchecked, without its checked ones", %{
@@ -112,8 +116,10 @@ defmodule NicheNotesWeb.WidgetControllerTest do
       )
     end)
 
-    assert %{"lines" => ["☑ trip", "    ☐ charger"], "texts" => ["trip", "charger"]} =
-             json_response(read(token(conn, note)), 200)
+    assert [
+             %{"line" => "trip", "depth" => 0, "checked" => true},
+             %{"line" => "charger", "depth" => 1, "checked" => false}
+           ] = json_response(read(token(conn, note)), 200)["rows"]
   end
 
   test "a table row is one line, its cells apart", %{conn: conn, note: note} do
@@ -132,8 +138,79 @@ defmodule NicheNotesWeb.WidgetControllerTest do
       )
     end)
 
-    assert %{"lines" => ["☑ milk", "Dose | Yield", "18g | 36g"]} =
-             json_response(read(token(conn, note)), 200)
+    assert [_milk, %{"line" => "Dose | Yield"}, %{"line" => "18g | 36g"}] =
+             json_response(read(token(conn, note)), 200)["rows"]
+  end
+
+  test "a widget wears the color its user's app gives the note", %{conn: conn, me: me, note: note} do
+    {:ok, _} = Docs.open(me.id, me.id)
+
+    set = fn map, key, value ->
+      edit!(me.id, &Yex.Map.set(Yex.Doc.get_map(&1, map), key, value))
+    end
+
+    colors = fn id -> Map.take(json_response(read(token(conn, id)), 200), ["color", "ink"]) end
+
+    set.("settings", "accent", "#1A9E5C")
+    assert colors.(note) == %{"color" => "#1A9E5C", "ink" => "#FFFFFF"}
+
+    set.("nodes", note, %{"parent" => nil, "order" => 1, "color" => "#FFD23F"})
+    assert colors.(note) == %{"color" => "#FFD23F", "ink" => "#111111"}
+
+    # The app gives this id Sky under Confetti.
+    unpicked = "7d3c2a1e-9f4b-4c8d-a6e5-0b1f2c3d4e5f"
+    {:ok, _} = Docs.open(unpicked, me.id)
+    set.("settings", "scheme", "confetti")
+    assert colors.(unpicked) == %{"color" => "#6CC6FF", "ink" => "#111111"}
+    assert colors.(me.id) == %{"color" => "#1A9E5C", "ink" => "#FFFFFF"}
+  end
+
+  test "the user's own tree reads as their notes, the way their tree draws them", %{
+    conn: conn,
+    me: me,
+    other: other
+  } do
+    {:ok, _} = Docs.open(me.id, me.id)
+
+    note = fn title, owner, meta ->
+      id = Ecto.UUID.generate()
+      {:ok, _} = Docs.open(id, owner.id)
+
+      edit!(id, fn doc ->
+        for {k, v} <- [{"title", title} | meta],
+            do: Yex.Map.set(Yex.Doc.get_map(doc, "meta"), k, v)
+      end)
+
+      id
+    end
+
+    place = fn id, node -> edit!(me.id, &Yex.Map.set(Yex.Doc.get_map(&1, "nodes"), id, node)) end
+
+    [old, new, pinned, kid, folded, hidden] =
+      for t <- ~w(Old New Pinned Kid Folded Hidden), do: note.(t, me, [])
+
+    place.(old, %{"parent" => nil, "order" => 1})
+    place.(new, %{"parent" => nil, "order" => 3})
+    place.(pinned, %{"parent" => nil, "order" => 0, "pinned" => true})
+    place.(kid, %{"parent" => new, "order" => 1})
+    place.(folded, %{"parent" => old, "order" => 1, "collapsed" => true})
+    place.(hidden, %{"parent" => folded, "order" => 1})
+    place.(note.("Deleted", me, [{"deleted", true}]), %{"parent" => nil, "order" => 4})
+    place.(note.("Theirs", other, []), %{"parent" => nil, "order" => 5})
+
+    left = note.("Left", other, [])
+    {:ok, _} = Docs.share(left, other.id, me.id)
+    place.(left, %{"parent" => nil, "order" => 6, "leftAt" => 1})
+
+    assert %{"title" => "Notes", "rows" => rows} = json_response(read(token(conn, me.id)), 200)
+
+    assert rows == [
+             %{"line" => "Pinned", "depth" => 0, "note" => pinned},
+             %{"line" => "New", "depth" => 0, "note" => new},
+             %{"line" => "Kid", "depth" => 1, "note" => kid},
+             %{"line" => "Old", "depth" => 0, "note" => old},
+             %{"line" => "Folded", "depth" => 1, "note" => folded}
+           ]
   end
 
   test "a token stops reading once the note is unshared or in the trash", %{

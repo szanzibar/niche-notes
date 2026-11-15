@@ -20,8 +20,8 @@ defmodule NicheNotesWeb.WidgetController do
   def show(conn, _params) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {:ok, {user_id, doc_id}} <- Phoenix.Token.verify(conn, @salt, token, max_age: :infinity),
-         {:ok, note} <- Docs.read_note(doc_id, user_id) do
-      json(conn, note)
+         {:ok, widget} <- Docs.widget(doc_id, user_id) do
+      json(conn, widget)
     else
       :error -> conn |> put_status(:not_found) |> json(%{error: "not found"})
       _ -> conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})

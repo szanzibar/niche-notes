@@ -376,13 +376,18 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         >
           <div className="flex flex-col items-end gap-2">
             {checked && <div className="flex items-center gap-2">{checked}</div>}
-            <div className="flex items-center gap-2">{buttons}</div>
+            <div className="flex items-center gap-2">
+              {sharedBy}
+              {buttons}
+            </div>
             {(panel === 'remove' || panel === 'color') && <div className="flex items-center gap-2">{choices}</div>}
           </div>
         </Popover>
       </>
     ) : (
       <div className="flex items-center justify-end gap-2">
+        {share}
+        {sharedBy}
         {checked && (
           <Popover
             side="bottom"
@@ -397,7 +402,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             {checked}
           </Popover>
         )}
-        {share}
         {buttons}
       </div>
     )
@@ -422,17 +426,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           <OfflineIcon />
           {actions(
             null,
-            <>
-              {sharedBy}
-              {canAct && (
-                <>
-                  <Button onClick={() => restoreNote(id)}>Restore</Button>
-                  <Button disabled={!s.online} onClick={purge}>
-                    {final}
-                  </Button>
-                </>
-              )}
-            </>,
+            canAct && (
+              <>
+                <Button onClick={() => restoreNote(id)}>Restore</Button>
+                <Button disabled={!s.online} onClick={purge}>
+                  {final}
+                </Button>
+              </>
+            ),
           )}
         </header>
         {/* Sunken and muted: readable, clearly not for writing. */}
@@ -461,7 +462,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         {actions(
           mine && <ShareDialog id={id} />,
           <>
-            {sharedBy}
             {folded ? (
               <IconButton label="Note color" onClick={() => setPanel(panel === 'color' ? 'more' : 'color')}>
                 <PaletteIcon />

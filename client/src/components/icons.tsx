@@ -31,6 +31,7 @@ export function PinIcon({ filled, className = SIZE }: { filled?: boolean; classN
 export const TrashIcon = icon('M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3')
 // Lucide's list-tree on a tighter grid: a note with two notes in it, crossed out alone or with them.
 const TREE = 'M3 5v4.5a2.5 2.5 0 0 0 2.5 2.5H7M3 9v7.5a2.5 2.5 0 0 0 2.5 2.5H7M8 5h7M18 3l4 4M22 3l-4 4'
+export const ListTreeIcon = icon('M21 12h-8M21 6H8M21 18h-8M3 6v4c0 1.1.9 2 2 2h3M3 10v6c0 1.1.9 2 2 2h3')
 export const RemoveNoteIcon = icon(`${TREE}M10 12h11M10 19h11`)
 export const RemoveWithNotesIcon = icon(`${TREE}M10 12h5M18 10l4 4M22 10l-4 4M10 19h5M18 17l4 4M22 17l-4 4`)
 export const LeaveIcon = icon('M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9')

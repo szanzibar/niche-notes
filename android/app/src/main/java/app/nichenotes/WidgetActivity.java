@@ -26,7 +26,7 @@ public class WidgetActivity extends Activity {
                     .putString("note." + widget, pick.getQueryParameter("note"))
                     .putString("title." + widget, pick.getQueryParameter("title"))
                     .putString("token." + widget, pick.getQueryParameter("token"))
-                    .remove("lines." + widget)
+                    .remove("rows." + widget)
                     .apply();
             NoteWidget.show(this, widget);
             sendBroadcast(NoteWidget.refresh(this, widget));

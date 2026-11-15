@@ -49,7 +49,37 @@ test('a widget reads its note as lines with the token from the hand-off, without
   const headers = { authorization: `Bearer ${(await picked).get('token')}` }
   await expect
     .poll(async () => (await request.get('/api/widget', { headers })).json())
-    .toEqual({ title: 'Groceries', lines: ['☑ milk', '    • eggs'], texts: ['milk', 'eggs'], headings: [0, 0] })
+    .toEqual({
+      title: 'Groceries',
+      color: '#FF4F3B',
+      ink: '#FFFFFF',
+      rows: [
+        { line: 'milk', text: 'milk', depth: 0, checked: true },
+        { line: '• eggs', text: 'eggs', depth: 1 },
+      ],
+    })
+})
+
+test('the picker can give a widget all the notes instead, as the tree shows them', async ({ browser, request }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores')
+  const chores = page.url().split('/n/')[1]
+  await page.getByRole('button', { name: 'Pin', exact: true }).click()
+  await newNote(page, 'Groceries')
+  const groceries = page.url().split('/n/')[1]
+
+  await page.goto('/widget/7')
+  const picked = handOff(page)
+  await page.getByRole('button', { name: 'All notes' }).click()
+  const query = await picked
+  expect(Object.fromEntries(query)).toEqual({ id: '7', note: 'tree', title: 'Notes', token: expect.any(String) })
+  const headers = { authorization: `Bearer ${query.get('token')}` }
+  await expect
+    .poll(async () => (await (await request.get('/api/widget', { headers })).json()).rows)
+    .toEqual([
+      { line: 'Chores', depth: 0, note: chores },
+      { line: 'Groceries', depth: 0, note: groceries },
+    ])
 })
 
 test('a tap on a line in a widget opens the note at that line', async ({ browser }) => {
