@@ -49,7 +49,7 @@ test('a widget reads its note as lines with the token from the hand-off, without
   const headers = { authorization: `Bearer ${(await picked).get('token')}` }
   await expect
     .poll(async () => (await request.get('/api/widget', { headers })).json())
-    .toEqual({ title: 'Groceries', lines: ['☑ milk', '    • eggs'], texts: ['milk', 'eggs'] })
+    .toEqual({ title: 'Groceries', lines: ['☑ milk', '    • eggs'], texts: ['milk', 'eggs'], headings: [0, 0] })
 })
 
 test('a tap on a line in a widget opens the note at that line', async ({ browser }) => {

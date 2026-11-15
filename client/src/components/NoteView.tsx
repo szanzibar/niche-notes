@@ -385,7 +385,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             onOpenChange={(open) => setPanel(open ? 'checked' : null)}
             trigger={
               <IconButton label="Checked lines">
-                {deleting ? <DeleteWhenCheckedIcon /> : hiding ? <HideCheckedIcon /> : <CheckedIcon />}
+                <CheckedIcon />
               </IconButton>
             }
           >

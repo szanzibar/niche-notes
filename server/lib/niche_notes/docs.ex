@@ -65,14 +65,30 @@ defmodule NicheNotes.Docs do
     rows > @compact_rows or (rows > 1 and idle)
   end
 
-  # A note as plain lines for a widget, and each line's own text, which a tap on it opens the note at. One the user
-  # can no longer open, or that is in the trash, is gone.
+  # A note as plain lines for a widget, each line's own text, which a tap on it opens the note at, and its heading
+  # level, 0 for any other line. Blank lines stay, except at either end. One the user can no longer open, or that is
+  # in the trash, is gone.
   def read_note(doc_id, user_id) do
     with true <- can_access?(doc_id, user_id),
          {_doc, title, meta, content} <- load(doc_id) do
       hide = meta["hideChecked"] == true or meta["deleteChecked"] == true
-      {lines, texts} = content |> Enum.flat_map(&lines(&1, 0, hide)) |> Enum.unzip()
-      {:ok, %{title: title, lines: lines, texts: texts}}
+      blank? = fn {line, _text, _heading} -> String.trim(line) == "" end
+
+      rows =
+        content
+        |> Enum.flat_map(&lines(&1, 0, hide))
+        |> Enum.drop_while(blank?)
+        |> Enum.reverse()
+        |> Enum.drop_while(blank?)
+        |> Enum.reverse()
+
+      {:ok,
+       %{
+         title: title,
+         lines: Enum.map(rows, &elem(&1, 0)),
+         texts: Enum.map(rows, &elem(&1, 1)),
+         headings: Enum.map(rows, &elem(&1, 2))
+       }}
     else
       _ -> :error
     end
@@ -237,8 +253,8 @@ defmodule NicheNotes.Docs do
 
   defp dated(_text), do: []
 
-  # One line per paragraph, list item or table row, with nested items indented under their parent. A note that
-  # hides or deletes its checked items leaves out each one that is done, with what is nested under it.
+  # One line per paragraph, heading, list item or table row, with nested items indented under their parent. A note
+  # that hides or deletes its checked items leaves out each one that is done, with what is nested under it.
   defp lines(element, depth, hide) do
     indent = String.duplicate("    ", depth)
 
@@ -252,7 +268,7 @@ defmodule NicheNotes.Docs do
           [first | rest] = Enum.to_list(Yex.XmlElement.children(item))
 
           [
-            {indent <> mark(list, item, n) <> text(first), text(first)}
+            {indent <> mark(list, item, n) <> text(first), text(first), 0}
             | Enum.flat_map(rest, &lines(&1, depth + 1, hide))
           ]
         end)
@@ -267,14 +283,15 @@ defmodule NicheNotes.Docs do
                 do: cell |> Yex.XmlElement.children() |> Enum.map_join(" ", &text/1)
 
           line = Enum.join(cells, " | ")
-          {indent <> line, line}
+          {indent <> line, line, 0}
         end
 
+      "heading" ->
+        level = element |> Yex.XmlElement.get_attribute("level") |> trunc()
+        [{indent <> text(element), text(element), level}]
+
       _ ->
-        case text(element) do
-          "" -> []
-          text -> [{indent <> text, text}]
-        end
+        [{indent <> text(element), text(element), 0}]
     end
   end
 

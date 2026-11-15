@@ -39,8 +39,37 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     assert json_response(read(token(conn, note)), 200) == %{
              "title" => "Groceries",
              "lines" => ["☑ milk"],
-             "texts" => ["milk"]
+             "texts" => ["milk"],
+             "headings" => [0]
            }
+  end
+
+  test "a heading carries its level, and a blank line stays between lines but not at either end",
+       %{
+         conn: conn,
+         note: note
+       } do
+    paragraph = fn text ->
+      Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(text)])
+    end
+
+    edit!(note, fn doc ->
+      content = Yex.Doc.get_xml_fragment(doc, "content")
+      Yex.XmlFragment.insert(content, 0, paragraph.(""))
+
+      Yex.XmlFragment.insert(
+        content,
+        1,
+        Yex.XmlElementPrelim.new("heading", [Yex.XmlTextPrelim.from("Shop")], %{"level" => 2})
+      )
+
+      Yex.XmlFragment.push(content, paragraph.(""))
+      Yex.XmlFragment.push(content, paragraph.("bread"))
+      Yex.XmlFragment.push(content, paragraph.(""))
+    end)
+
+    assert %{"lines" => ["Shop", "☑ milk", "", "bread"], "headings" => [2, 0, 0, 0]} =
+             json_response(read(token(conn, note)), 200)
   end
 
   test "a note that hides its checked items leaves them out", %{conn: conn, note: note} do

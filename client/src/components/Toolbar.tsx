@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/react'
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
 import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
 import {
@@ -45,6 +46,10 @@ const DURATIONS = [
   ['3h', '3 hours', 180],
 ] as const
 const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink'
+// Each change to these sends the menu a transaction, and the bar redraws on every transaction, so they are made once.
+// The box sits under the link, or over it when the keyboard leaves no room below.
+const LINK_BOX = { placement: 'bottom-start', offset: 6, shift: { padding: 8 } } as const
+const inLink: BubbleMenuProps['shouldShow'] = ({ editor, view }) => view.hasFocus() && editor.isActive('link')
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
@@ -69,11 +74,15 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   useEffect(() => {
     if (inTable) tableTools.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
   }, [inTable])
+  const link = editor?.getAttributes('link').href as string | undefined
+  // The box places itself before its address is drawn in it, so it measures again once it is.
+  useLayoutEffect(() => {
+    if (link) editor!.view.dispatch(editor!.state.tr.setMeta('linkBox', 'updatePosition'))
+  }, [editor, link])
   if (!editor) return null
 
   const { item, list, depth } = listPosition(editor)
   const listItem = item ?? 'listItem'
-  const link = editor.getAttributes('link').href as string | undefined
   const chain = () => editor.chain().focus()
   // The link box's input holds focus, and TipTap only takes it back on the next frame, so the editor
   // takes it before the box goes.
@@ -134,19 +143,19 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   }
 
   return (
-    <div className="relative shrink-0 border-t-2 border-border bg-surface">
-      {!row && link && (
+    <div className="shrink-0 border-t-2 border-border bg-surface">
+      <BubbleMenu editor={editor} pluginKey="linkBox" shouldShow={inLink} options={LINK_BOX} className="z-10 w-max">
         <a
           href={link}
           target="_blank"
           rel="noopener noreferrer"
           title="Open link"
-          className="absolute bottom-full left-2 mb-2 flex h-9 max-w-[calc(100%-1rem)] items-center gap-2 border-2 border-border bg-surface px-2 font-bold shadow-brutal"
+          className="flex h-9 max-w-[min(24rem,calc(100vw-2rem))] items-center gap-2 border-2 border-border bg-surface px-2 font-bold shadow-brutal"
         >
           <OpenLinkIcon className={`${ICON} shrink-0`} />
-          <span className="truncate">{link}</span>
+          <span className="truncate">{link?.replace(/^https?:\/\//, '')}</span>
         </a>
-      )}
+      </BubbleMenu>
       <div className="flex gap-2 overflow-x-auto p-2">
         <Group>
           <Tool

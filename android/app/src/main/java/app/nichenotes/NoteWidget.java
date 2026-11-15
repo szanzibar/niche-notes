@@ -6,7 +6,11 @@ import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Typeface;
 import android.net.Uri;
+import android.text.SpannableString;
+import android.text.style.RelativeSizeSpan;
+import android.text.style.StyleSpan;
 import android.view.View;
 import android.widget.RemoteViews;
 import java.io.BufferedReader;
@@ -42,7 +46,8 @@ public class NoteWidget extends AppWidgetProvider {
 
     static SharedPreferences.Editor forget(SharedPreferences.Editor editor, int widget) {
         return editor.remove("note." + widget).remove("title." + widget)
-                .remove("token." + widget).remove("lines." + widget).remove("texts." + widget);
+                .remove("token." + widget).remove("lines." + widget).remove("texts." + widget)
+                .remove("headings." + widget);
     }
 
     static void show(Context context, int widget) {
@@ -66,9 +71,17 @@ public class NoteWidget extends AppWidgetProvider {
         try {
             JSONArray lines = new JSONArray(picks.getString("lines." + widget, "[]"));
             JSONArray texts = new JSONArray(picks.getString("texts." + widget, "[]"));
+            JSONArray headings = new JSONArray(picks.getString("headings." + widget, "[]"));
             for (int i = 0; i < lines.length(); i++) {
                 RemoteViews row = new RemoteViews(context.getPackageName(), R.layout.widget_line);
-                row.setTextViewText(R.id.line, lines.getString(i));
+                SpannableString line = new SpannableString(lines.getString(i));
+                // Headings are bold, and the first two levels a little bigger, like in the note.
+                int level = headings.optInt(i);
+                if (level > 0) {
+                    line.setSpan(new StyleSpan(Typeface.BOLD), 0, line.length(), 0);
+                    line.setSpan(new RelativeSizeSpan(1.3f - 0.1f * level), 0, line.length(), 0);
+                }
+                row.setTextViewText(R.id.line, line);
                 // A tap on a line opens the note at that line.
                 row.setOnClickFillInIntent(R.id.line, new Intent().putExtra(Launcher.LINE, texts.optString(i, null)));
                 rows.addItem(i, row);
@@ -101,12 +114,14 @@ public class NoteWidget extends AppWidgetProvider {
                         body = reader.lines().collect(Collectors.joining("\n"));
                     }
                     JSONObject read = new JSONObject(body);
-                    // A server from before line texts sends none.
+                    // A server from before line texts or headings sends none.
                     JSONArray texts = read.optJSONArray("texts");
+                    JSONArray headings = read.optJSONArray("headings");
                     picks.edit()
                             .putString("title." + widget, read.getString("title"))
                             .putString("lines." + widget, read.getJSONArray("lines").toString())
                             .putString("texts." + widget, texts == null ? "[]" : texts.toString())
+                            .putString("headings." + widget, headings == null ? "[]" : headings.toString())
                             .apply();
                 } else if (status == 401 || status == 404) {
                     // Deleted or no longer shared, so the widget offers the picker again.

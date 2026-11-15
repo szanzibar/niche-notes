@@ -39,8 +39,10 @@ defmodule NicheNotesWeb.ShareController do
 
   # Every device of theirs with alerts on says who shared which note, and a tap opens it.
   defp tell_recipient(doc_id, owner_id, user_id) do
+    [first_name | _] = String.split(Accounts.get_user(owner_id).name, " ")
+
     message = %{
-      title: "#{Accounts.get_user(owner_id).name} shared a note",
+      title: "#{first_name} shared a note",
       body: Docs.title(doc_id),
       note: doc_id,
       tag: "shared #{doc_id}"

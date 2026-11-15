@@ -17,6 +17,7 @@ interface DocRow {
   owner?: string
   meta?: Record<string, unknown>
   text?: string
+  checked?: string
 }
 interface KvRow {
   key: string
@@ -29,6 +30,17 @@ const db = new Dexie('niche-notes') as Dexie & {
   kv: EntityTable<KvRow, 'key'>
 }
 db.version(2).stores({ updates: '++id, doc, seq', docs: 'id', kv: 'key' })
+// Copies from before checked lines were kept apart are redone from each note's rows, once.
+db.version(3).upgrade(async (tx) => {
+  for (const row of await tx.table<DocRow>('docs').toArray()) {
+    if (row.text == null) continue
+    const doc = new Y.Doc()
+    for (const { update } of await tx.table<UpdateRow>('updates').where('doc').equals(row.id).toArray()) {
+      Y.applyUpdate(doc, update)
+    }
+    await tx.table<DocRow>('docs').update(row.id, plain(doc.getXmlFragment('content')))
+  }
+})
 
 // The server says when to fold a doc's log into one snapshot. This local limit catches a device
 // whose own log keeps growing after another device already folded the server's.
@@ -41,7 +53,7 @@ export const store = {
   owners: new Map<string, string>(),
   // A copy of each note's meta map and plain text, so the tree and search cover notes that aren't open.
   meta: new Map<string, Record<string, unknown>>(),
-  texts: new Map<string, string>(),
+  texts: new Map<string, Text>(),
   // Docs the server refused since startup. The tree prunes their placements.
   lost: new Set<string>(),
   // Unknown until the first connection attempt settles, so a launch doesn't flash Offline.
@@ -75,19 +87,29 @@ export function getAwareness(id: string) {
   return awarenesses.get(id)!
 }
 
-function plain(node: Y.XmlFragment | Y.XmlText | Y.XmlHook): string {
-  if (node instanceof Y.XmlText) {
-    return (node.toDelta() as { insert?: unknown }[]).map((d) => (typeof d.insert === 'string' ? d.insert : '')).join('')
+// Search leaves out checked lines unless asked, so their text sits apart. The lines nested under one stay in.
+export type Text = { text: string; checked: string }
+
+function plain(content: Y.XmlFragment): Text {
+  const text: string[] = []
+  const checked: string[] = []
+  const walk = (node: Y.XmlFragment | Y.XmlText | Y.XmlHook, into: string[]) => {
+    if (node instanceof Y.XmlText) {
+      into.push((node.toDelta() as { insert?: unknown }[]).map((d) => (typeof d.insert === 'string' ? d.insert : '')).join(''))
+    } else if (node instanceof Y.XmlFragment) {
+      const done = node instanceof Y.XmlElement && node.nodeName === 'taskItem' && Boolean(node.getAttribute('checked'))
+      node.toArray().forEach((kid, i) => walk(kid, done && i === 0 ? checked : into))
+    }
   }
-  if (node instanceof Y.XmlFragment) return node.toArray().map(plain).join(' ')
-  return ''
+  walk(content, text)
+  return { text: text.join(' '), checked: checked.join(' ') }
 }
 
 // An open note's edits empty its entry, and the next lookup rebuilds it.
-export function textOf(id: string) {
+export function textOf(id: string): Text {
   const doc = docs.get(id)
   if (doc && !store.texts.has(id)) store.texts.set(id, plain(doc.getXmlFragment('content')))
-  return store.texts.get(id) ?? ''
+  return store.texts.get(id) ?? { text: '', checked: '' }
 }
 
 let starting: Promise<void> | undefined
@@ -131,7 +153,7 @@ async function run(me: User) {
   document.addEventListener('visibilitychange', () => {
     // A launch reads search text from this copy, which open notes keep only in memory.
     if (document.visibilityState !== 'visible') {
-      for (const id of docs.keys()) if (id !== me.id) void db.docs.upsert(id, { text: textOf(id) })
+      for (const id of docs.keys()) if (id !== me.id) void db.docs.upsert(id, textOf(id))
       return
     }
     const dead = setTimeout(
@@ -152,7 +174,7 @@ async function run(me: User) {
   for (const row of await db.docs.toArray()) {
     if (row.owner) store.owners.set(row.id, row.owner)
     if (row.meta) store.meta.set(row.id, row.meta)
-    if (row.text != null) store.texts.set(row.id, row.text)
+    if (row.text != null) store.texts.set(row.id, { text: row.text, checked: row.checked ?? '' })
   }
   cursor = ((await db.kv.get('cursor'))?.value as number | undefined) ?? 0
 
@@ -269,16 +291,16 @@ async function pullBatch(ids: string[]) {
     for (const row of local) Y.applyUpdate(doc, row.update)
     for (const [, update] of updates) Y.applyUpdate(doc, fromBase64(update))
     const meta = doc.getMap('meta').toJSON()
-    const text = plain(doc.getXmlFragment('content'))
+    const { text, checked } = plain(doc.getXmlFragment('content'))
     await db.transaction('rw', db.updates, db.docs, async () => {
       await db.updates.bulkDelete(local.filter((row) => row.seq != null).map((row) => row.id))
       await db.updates.add({ doc: id, seq, update: Y.encodeStateAsUpdate(doc) })
-      await db.docs.put({ id, seq, owner, meta, text })
+      await db.docs.put({ id, seq, owner, meta, text, checked })
     })
     redraw ||= owner !== store.owners.get(id) || JSON.stringify(meta) !== JSON.stringify(store.meta.get(id))
     store.owners.set(id, owner)
     store.meta.set(id, meta)
-    store.texts.set(id, text)
+    store.texts.set(id, { text, checked })
   }
   if (redraw) notify()
 }

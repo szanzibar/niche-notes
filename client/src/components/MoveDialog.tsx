@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useState } from 'react'
 import { useY } from '../sync/hooks'
 import { search } from '../sync/search'
-import { children, inTrash, isMine, nodes, ownerName, titleOf } from '../sync/tree'
+import { children, isMine, nodes, ownerName, titleOf } from '../sync/tree'
 
 // Asks which note a line moves to: every note in tree order, indented like the tree, or the notes a search finds.
 // The note the line is in shows too, so the tree keeps its shape, but can't be picked.
@@ -17,7 +17,7 @@ export function MoveDialog({ note, onPick, onClose }: { note: string; onPick: (i
     }
   }
   if (!query) walk(null, 0)
-  else for (const { id } of search(query)) if (!inTrash(id)) rows.push([id, 0])
+  else for (const { id } of search(query, { trash: false, checked: true })) rows.push([id, 0])
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>

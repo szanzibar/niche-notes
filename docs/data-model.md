@@ -17,7 +17,7 @@ Access rule, used by every channel join and share endpoint: a user may open a do
 
 **Tree doc**, one per user, id = user id.
 - `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number, pinned?: boolean, collapsed?: boolean, leftAt?: number }`. `collapsed` hides the row's children on all of the user's devices. `leftAt` is set when the user puts someone else's note in their trash; it only ever touches their own tree. Siblings sort pinned first, then by `order` descending. A new note gets the current time, so it lands on top. A drop next to a sibling takes that sibling's pin state and renumbers the whole group it lands in, so orders never tie.
-- `settings`: Y.Map of per-user preferences, `accent` (a hex color) and `theme`. Living in the tree doc, they sync to every device with no server change. Density stays in each device's `localStorage`.
+- `settings`: Y.Map of per-user preferences, `accent` (a hex color), `theme`, and whether search covers the trash (`searchTrash`, unless false) and checked lines (`searchChecked`, only when true). Living in the tree doc, they sync to every device with no server change. Density stays in each device's `localStorage`.
 
 **Note doc**
 - `meta`: Y.Map with `title: string`, `deleted: boolean`, `deletedAt: number`, `hideChecked: boolean` and `deleteChecked: boolean`. The app sets one of the last two at a time, and if both are set, delete wins.
@@ -42,7 +42,7 @@ Socket at `/socket`, authenticated by the token that `/api/me` returns.
 
 **Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`. A join reply is applied as one Y.js transaction, so a note opened on a new device appears whole. When the join reply asks for it, or its own local log has grown past a few dozen rows, the client sends a snapshot and folds its own rows the same way.
 
-A launch loads only the user's tree, and a note loads when it opens and stays for the session. The client keeps a copy of each note's `meta` and plain text in IndexedDB, which the tree and search read, so a note that isn't open costs no memory beyond that copy. Notes that aren't open sync by `pull`: the ones a join reply names, then each one a `changed` push names, and a note shared with the user that has no copy yet. A pull folds the note's rows into one and redoes its copy. The cursor `after` advances only once every note a join reply named is pulled, the same way `since` does. A note with rows the server hasn't acknowledged loads at launch, so they go out.
+A launch loads only the user's tree, and a note loads when it opens and stays for the session. The client keeps a copy of each note's `meta` and plain text in IndexedDB, with its checked lines' text apart, which the tree and search read, so a note that isn't open costs no memory beyond that copy. Notes that aren't open sync by `pull`: the ones a join reply names, then each one a `changed` push names, and a note shared with the user that has no copy yet. A pull folds the note's rows into one and redoes its copy. The cursor `after` advances only once every note a join reply named is pulled, the same way `since` does. A note with rows the server hasn't acknowledged loads at launch, so they go out.
 
 ## REST
 
@@ -57,7 +57,7 @@ Cookie session, JSON.
 - `GET`, `PUT`, `DELETE /api/docs/:id/link` — owner only: `{ link }`, creating it on `PUT`. `DELETE` drops the guests it let in
 - `GET /s/:link` — signs in a visitor without a session as a new guest, shares the note with whoever opened it, and redirects to the note. 404 once the link is off
 - `GET /api/docs/:id/widget_token` — anyone who can open the note: `{ token }` for a widget (ADR 005)
-- `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines }`, one line per paragraph or list item, without checked items when the note hides or deletes them. 404 once the note is in the trash or no longer shared, 401 for any other token
+- `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. The note as `{ title, lines, texts, headings }`: one line per paragraph, heading, list item or table row, each line's own text, and each line's heading level, 0 for any other line. Checked items are left out when the note hides or deletes them, and blank lines stay except at either end. 404 once the note is in the trash or no longer shared, 401 for any other token
 - `GET /api/push_key` — the public key a device subscribes to alerts with (ADR 006)
 - `PUT /api/push_subscriptions` `{ subscription, time_zone }` — this device's push subscription, as the browser gives it
 - `PATCH /api/docs/:id/line` `{ due, text, checked: true }` or `{ due, text, move_to }` — an alert's Done or Snooze: changes the first unchecked line with that date and text, and broadcasts the change to the doc's channel. 404 once no line matches

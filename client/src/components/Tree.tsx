@@ -40,7 +40,7 @@ import {
   trashed,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -87,7 +87,8 @@ function useOpenNote() {
 
 export function Tree({ selected }: { selected?: string }) {
   const s = useStore()
-  useY(settings())
+  const prefs = settings()
+  useY(prefs)
   const navigate = useNavigate()
   const showNote = useShowNote()
   const openNote = useOpenNote()
@@ -96,8 +97,11 @@ export function Tree({ selected }: { selected?: string }) {
   const trash = trashed()
   const [trashOpen, setTrashOpen] = useState(false)
   const [query, setQuery] = useState('')
+  // The row arrow keys and Enter act on. Opening a result moves it there too, so the arrows go on from the open note.
   const [cursor, setCursor] = useState(0)
-  const hits = search(query)
+  const searchTrash = prefs.get('searchTrash') !== false
+  const searchChecked = prefs.get('searchChecked') === true
+  const hits = search(query, { trash: searchTrash, checked: searchChecked })
   const [dragging, setDragging] = useState<string | null>(null)
   const [hint, setHint] = useState<Hint | null>(null)
   const latestHint = useRef<Hint | null>(null)
@@ -207,6 +211,26 @@ export function Tree({ selected }: { selected?: string }) {
             </button>
           )}
         </div>
+        {query && (
+          <>
+            <IconButton
+              label="Include trash"
+              aria-pressed={searchTrash}
+              className={searchTrash ? 'text-accent-ink' : ''}
+              onClick={() => prefs.set('searchTrash', !searchTrash)}
+            >
+              <TrashIcon />
+            </IconButton>
+            <IconButton
+              label="Include checked lines"
+              aria-pressed={searchChecked}
+              className={searchChecked ? 'text-accent-ink' : ''}
+              onClick={() => prefs.set('searchChecked', !searchChecked)}
+            >
+              <CheckedIcon />
+            </IconButton>
+          </>
+        )}
         <OfflineIcon />
         <Button
           variant="primary"
@@ -224,23 +248,31 @@ export function Tree({ selected }: { selected?: string }) {
             <p className="p-6 text-ink-muted">No matches.</p>
           ) : (
             <ul role="listbox" aria-label="Search results">
-              {hits.map((hit, i) => (
-                <li key={hit.id} role="option" aria-selected={i === cursor}>
-                  <button
-                    type="button"
-                    className={`flex w-full flex-col px-4 py-2 text-left ${i === cursor ? 'bg-bg outline-2 -outline-offset-2 outline-accent-ink' : 'hover:bg-bg'}`}
-                    onMouseEnter={() => setCursor(i)}
-                    onClick={() => openNote(hit.id)}
-                  >
-                    <span className="flex w-full items-baseline gap-2">
-                      <span className="truncate font-medium">{titleOf(hit.id)}</span>
-                      {!isMine(hit.id) && <span className="shrink-0 text-xs text-ink-muted">{ownerName(hit.id)}</span>}
-                      {inTrash(hit.id) && <span className="shrink-0 text-xs text-ink-muted">trash</span>}
-                    </span>
-                    {hit.snippet && <span className="w-full truncate text-xs text-ink-muted">{hit.snippet}</span>}
-                  </button>
-                </li>
-              ))}
+              {hits.map((hit, i) => {
+                // The open note is filled like its row in the tree, and the arrow keys' row is outlined.
+                const active = selected === hit.id
+                const muted = active ? 'text-on-accent/80' : 'text-ink-muted'
+                return (
+                  <li key={hit.id} role="option" aria-selected={i === cursor}>
+                    <button
+                      type="button"
+                      aria-current={active ? 'page' : undefined}
+                      className={`flex w-full flex-col px-4 py-2 text-left ${active ? 'bg-accent text-on-accent' : i === cursor ? 'bg-bg' : 'hover:bg-bg'} ${i === cursor ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
+                      onClick={() => {
+                        setCursor(i)
+                        openNote(hit.id)
+                      }}
+                    >
+                      <span className="flex w-full items-baseline gap-2">
+                        <span className="truncate font-medium">{titleOf(hit.id)}</span>
+                        {!isMine(hit.id) && <span className={`shrink-0 text-xs ${muted}`}>{ownerName(hit.id)}</span>}
+                        {inTrash(hit.id) && <span className={`shrink-0 text-xs ${muted}`}>trash</span>}
+                      </span>
+                      {hit.snippet && <span className={`w-full truncate text-xs ${muted}`}>{hit.snippet}</span>}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )
         ) : (

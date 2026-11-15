@@ -53,8 +53,9 @@ export function isMine(id: string) {
   return ownerOf(id) === store.me!.id
 }
 
+// A family knows each other by first name, and a full one crowds the row.
 export function ownerName(id: string) {
-  return store.users.find((u) => u.id === ownerOf(id))?.name ?? 'shared with me'
+  return store.users.find((u) => u.id === ownerOf(id))?.name.split(' ')[0] ?? 'shared with me'
 }
 
 export function shareCount(id: string) {

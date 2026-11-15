@@ -173,3 +173,20 @@ test('a link from a widget, calendar or alert that arrives while the app runs op
   await expect(page).toHaveURL(/\/widget\/w1$/)
   expect(await at()).toBe(list)
 })
+
+test('on a phone, back from a search result marks that result, not the first one opened', async ({ browser }) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  for (const title of ['Apples', 'Apricots']) {
+    await page.getByRole('button', { name: 'New note', exact: true }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(title)
+    await page.getByRole('button', { name: 'Back' }).click()
+  }
+  await page.getByPlaceholder('Search notes').fill('ap')
+  for (const title of ['Apples', 'Apricots']) {
+    await page.getByRole('option').filter({ hasText: title }).tap()
+    await expect(page.getByPlaceholder('Title')).toHaveValue(title)
+    await page.getByRole('button', { name: 'Back' }).click()
+    await expect(page.getByRole('option', { selected: true })).toContainText(title)
+  }
+})

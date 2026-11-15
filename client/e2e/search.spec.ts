@@ -41,3 +41,66 @@ test('search matches titles and text as you type, and arrow keys open a result',
   await box.press('Enter')
   await expect(page.locator('main').getByRole('button', { name: 'Restore' })).toBeVisible()
 })
+
+test('the open note is the highlighted result, and the arrow keys go on from it', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  for (const title of ['Apples', 'Apricots', 'Avocados']) await newNote(page, title)
+  const box = page.getByPlaceholder('Search notes')
+  const option = (title: string) => page.getByRole('option').filter({ hasText: title })
+  const open = page.locator('aside [aria-current="page"]')
+  const cursor = page.getByRole('option', { selected: true })
+
+  await box.fill('a')
+  await option('Apricots').click()
+  await expect(open).toContainText('Apricots')
+  await option('Apples').hover()
+  await expect(cursor).toContainText('Apricots')
+
+  await box.focus()
+  await box.press('ArrowDown')
+  await expect(cursor).toContainText('Avocados')
+  await expect(open).toContainText('Apricots')
+  await box.press('Enter')
+  await expect(open).toContainText('Avocados')
+})
+
+test('search leaves out checked lines unless asked, and both choices follow the person to every device', async ({
+  browser,
+}) => {
+  const name = `alice-${uid()}`
+  const page = await signIn(browser, name)
+  await newNote(page, 'Baking', 'flour')
+  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('sugar')
+  await page.getByRole('checkbox', { name: 'Task item checkbox for flour' }).click()
+  await newNote(page, 'Old recipe', 'flour')
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+
+  const box = page.getByPlaceholder('Search notes')
+  const options = page.getByRole('option')
+  const checked = page.getByRole('button', { name: 'Include checked lines' })
+  const trash = page.getByRole('button', { name: 'Include trash' })
+  await expect(checked).toHaveCount(0)
+  await box.fill('flour')
+  await expect(checked).toHaveAttribute('aria-pressed', 'false')
+  await expect(trash).toHaveAttribute('aria-pressed', 'true')
+  await expect(options).toHaveCount(1)
+  await expect(options.first()).toContainText('Old recipe')
+
+  await checked.click()
+  await expect(options).toHaveCount(2)
+  await trash.click()
+  await expect(options).toHaveCount(1)
+  await expect(options.first()).toContainText('Baking')
+
+  // Another device, where neither note is open, searches the same way.
+  const other = await signIn(browser, name)
+  await other.getByPlaceholder('Search notes').fill('flour')
+  await expect(other.getByRole('button', { name: 'Include checked lines' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(other.getByRole('button', { name: 'Include trash' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(other.getByRole('option')).toHaveCount(1)
+  await expect(other.getByRole('option').first()).toContainText('Baking')
+  await other.getByRole('button', { name: 'Include checked lines' }).click()
+  await expect(other.getByText('No matches')).toBeVisible()
+})

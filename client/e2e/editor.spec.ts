@@ -38,7 +38,7 @@ test('Quote and Code block turn a line into one and back, and Divider adds a lin
   await expect(body(page).locator('p').first()).toHaveText('Big')
 })
 
-test('Link adds, changes and removes a link, and a click on a link edits it while the bar opens it', async ({
+test('Link adds, changes and removes a link, and a click on a link edits it while a box under it opens it', async ({
   browser,
 }) => {
   const page = await signIn(browser, `alice-${uid()}`)
@@ -73,6 +73,10 @@ test('Link adds, changes and removes a link, and a click on a link edits it whil
   await links.click()
   await expect(open).toHaveAttribute('href', 'https://tiptap.dev')
   await expect(open).toHaveAttribute('target', '_blank')
+  await expect(open).toHaveText('tiptap.dev')
+  const [link, box] = [(await links.boundingBox())!, (await open.boundingBox())!]
+  expect(box.y).toBeGreaterThanOrEqual(link.y + link.height)
+  expect(box.y).toBeLessThan(link.y + link.height + 20)
   await page.keyboard.type('X')
   await expect(links).toContainText('X')
   expect(await popup).toBeNull()
