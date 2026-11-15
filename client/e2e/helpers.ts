@@ -1,4 +1,15 @@
-import { expect, type Browser, type Locator, type Page } from '@playwright/test'
+import { test as base, expect, type Browser, type Locator, type Page } from '@playwright/test'
+
+// Every window a test opens closes when it ends, since a suite's worth of open ones slows the tests after them.
+export const test = base.extend<{ closeWindows: void }>({
+  closeWindows: [
+    async ({ browser }, use) => {
+      await use()
+      for (const context of browser.contexts()) await context.close()
+    },
+    { auto: true },
+  ],
+})
 
 export const uid = () => Math.random().toString(36).slice(2, 8)
 

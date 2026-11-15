@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { display, newNote, row, rowTitles, shareWith, signIn, typeAtEnd, uid } from './helpers'
+import { expect } from '@playwright/test'
+import { display, newNote, row, rowTitles, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
 
 test('a shared note lands under the other person\'s pins, can be left via their trash, and goes when unshared', async ({
   browser,

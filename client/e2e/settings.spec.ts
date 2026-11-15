@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { signIn, uid } from './helpers'
+import { expect, type Page } from '@playwright/test'
+import { signIn, test, uid } from './helpers'
 
 const accent = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())

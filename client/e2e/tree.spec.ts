@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { drag, newNote, row, rowTitles, shareWith, signIn, uid } from './helpers'
+import { expect } from '@playwright/test'
+import { drag, newNote, row, rowTitles, shareWith, signIn, test, uid } from './helpers'
 
 test('dragging a note onto another nests it, and onto the header puts it back at the top', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)

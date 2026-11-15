@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { strToU8, zipSync } from 'fflate'
-import { row, rowTitles, signIn, uid } from './helpers'
+import { row, rowTitles, signIn, test, uid } from './helpers'
 
 // Shaped like Amplenote's export: front matter, markdown, task details in comments, and ticked tasks under a
 // heading of Amplenote's own at the end.

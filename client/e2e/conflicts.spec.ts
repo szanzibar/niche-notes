@@ -1,5 +1,5 @@
-import { expect, test, type Browser, type Page } from '@playwright/test'
-import { newNote, row, shareWith, signIn, uid } from './helpers'
+import { expect, type Browser, type Page } from '@playwright/test'
+import { newNote, row, shareWith, signIn, test, uid } from './helpers'
 
 const item = (page: Page, text: string) => page.locator('.editor-body li', { hasText: text })
 const check = (page: Page, text: string) => item(page, text).locator('input[type="checkbox"]').click()

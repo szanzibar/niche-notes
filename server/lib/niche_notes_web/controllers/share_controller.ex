@@ -1,7 +1,7 @@
 defmodule NicheNotesWeb.ShareController do
   use NicheNotesWeb, :controller
 
-  alias NicheNotes.Docs
+  alias NicheNotes.{Accounts, Docs, Push}
 
   def index(conn, _params) do
     json(conn, %{shares: Docs.list_shares(conn.assigns.current_user_id)})
@@ -13,6 +13,7 @@ defmodule NicheNotesWeb.ShareController do
     case Docs.share(doc_id, me, user_id) do
       {:ok, _share} ->
         shares_changed([me, user_id])
+        tell_recipient(doc_id, me, user_id)
         send_resp(conn, :created, "")
 
       {:error, :not_found} ->
@@ -34,6 +35,18 @@ defmodule NicheNotesWeb.ShareController do
       {:error, :forbidden} ->
         conn |> put_status(:forbidden) |> json(%{error: "forbidden"})
     end
+  end
+
+  # Every device of theirs with alerts on says who shared which note, and a tap opens it.
+  defp tell_recipient(doc_id, owner_id, user_id) do
+    message = %{
+      title: "#{Accounts.get_user(owner_id).name} shared a note",
+      body: Docs.title(doc_id),
+      note: doc_id,
+      tag: "shared #{doc_id}"
+    }
+
+    for subscription <- Push.subscriptions([user_id]), do: Push.send(subscription, message)
   end
 
   defp shares_changed(user_ids) do

@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { display, newNote, row, shareWith, signIn, typeAtEnd, uid } from './helpers'
+import { expect } from '@playwright/test'
+import { display, newNote, row, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
 
 test('two people typing in one note see each other, with a name that fades while its person is still', async ({ browser }) => {
   const a = `alice-${uid()}`

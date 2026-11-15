@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { newNote, row, signIn, uid } from './helpers'
+import { expect, type Page } from '@playwright/test'
+import { newNote, row, rowTitles, signIn, test, uid } from './helpers'
 
 test('a new note starts in the title, Enter moves to the body, and it survives a reload', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
@@ -103,6 +103,72 @@ test('a note opened while another is open takes its place, so back returns to th
   await row(page, 'First').click()
   await page.goBack()
   await expect(page.getByText('Pick a note, or make a new one.')).toBeVisible()
+})
+
+test('deleting a note with notes under it asks whether they go too, and notes deleted together come back together', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Trip')
+  await page.getByRole('button', { name: 'New note inside' }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Socks')
+  await row(page, 'Socks').locator('..').getByRole('button', { name: 'New note inside' }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Wool')
+  await expect.poll(() => rowTitles(page)).toEqual(['Trip', 'Socks', 'Wool'])
+
+  // Alone, the notes under it move up, newer than it, so above it once it is back.
+  await row(page, 'Trip').click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'Just this note' }).click()
+  await expect.poll(() => rowTitles(page)).toEqual(['Socks', 'Wool'])
+  await page.getByRole('button', { name: 'Trash (1)' }).click()
+  await page.locator('aside').getByRole('button', { name: 'Restore' }).click()
+  await expect.poll(() => rowTitles(page)).toEqual(['Socks', 'Wool', 'Trip'])
+
+  // With its notes, they are one entry in the trash and come back where they were.
+  await row(page, 'Socks').click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'With its notes' }).click()
+  await expect.poll(() => rowTitles(page)).toEqual(['Trip'])
+  await expect(page.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
+  await page.locator('aside').getByRole('button', { name: 'Restore' }).click()
+  await expect.poll(() => rowTitles(page)).toEqual(['Socks', 'Wool', 'Trip'])
+  await page.getByRole('button', { name: 'Collapse' }).click()
+  await expect(row(page, 'Wool')).toBeHidden()
+
+  await row(page, 'Socks').click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'With its notes' }).click()
+  await page.locator('aside').getByRole('button', { name: 'Delete forever' }).click()
+  await expect(page.getByRole('button', { name: /^Trash/ })).toHaveCount(0)
+  await page.reload()
+  await expect.poll(() => rowTitles(page)).toEqual(['Trip'])
+  await page.getByPlaceholder('Search notes').fill('Wool')
+  await expect(page.getByText('No matches')).toBeVisible()
+})
+
+test('the trash sweep leaves a note alone while its trash date is unknown', async ({ browser }) => {
+  const name = `alice-${uid()}`
+  const page = await signIn(browser, name)
+  await newNote(page, 'Keep', 'precious')
+  const id = new URL(page.url()).pathname.split('/n/')[1]
+  // At launch the sweep reads each note's cached meta before the note loads, and a reload between a delete's two
+  // writes leaves a copy that says deleted without a date.
+  await page.evaluate(
+    async ([id, storeModule, treeModule]) => {
+      const { store } = await import(storeModule)
+      const { purgeExpired } = await import(treeModule)
+      store.meta.set(id, { ...store.meta.get(id), deleted: true })
+      await purgeExpired()
+    },
+    [id, '/src/sync/store.ts', '/src/sync/tree.ts'],
+  )
+
+  const other = await signIn(browser, name)
+  await row(other, 'Keep').click()
+  await expect(other.locator('.editor-body')).toContainText('precious')
 })
 
 test('+ on a row makes a nested note', async ({ browser }) => {

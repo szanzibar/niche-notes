@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { newNote, row, signIn, uid } from './helpers'
+import { expect, type Page } from '@playwright/test'
+import { newNote, row, signIn, test, uid } from './helpers'
 
 // Desktop Chromium can't open the Android app, so the hand-off shows up as a failed request.
 const handOff = async (page: Page) => {

@@ -16,14 +16,15 @@ registerRoute(
 void self.skipWaiting()
 clientsClaim()
 
+// A dated line coming due, or, without a line, a note someone shared.
 interface Alert {
   title: string
   body: string
   note: string
   tag: string
-  due: string
-  text: string
-  repeat: string | null
+  due?: string
+  text?: string
+  repeat?: string | null
 }
 
 self.addEventListener('push', (event) => {
@@ -33,10 +34,12 @@ self.addEventListener('push', (event) => {
     tag: alert.tag,
     data: alert,
     icon: '/icons/icon-192.png',
-    actions: [
-      { action: 'done', title: 'Done' },
-      { action: 'snooze', title: 'Snooze 1 hour' },
-    ],
+    actions: alert.due
+      ? [
+          { action: 'done', title: 'Done' },
+          { action: 'snooze', title: 'Snooze 1 hour' },
+        ]
+      : [],
   }
   event.waitUntil(self.registration.showNotification(alert.title, options))
 })
@@ -50,12 +53,12 @@ self.addEventListener('notificationclick', (event) => {
   const change =
     event.action === 'done'
       ? parseRule(alert.repeat)
-        ? { move_to: nextDue(alert.due, alert.repeat!) }
+        ? { move_to: nextDue(alert.due!, alert.repeat!) }
         : { checked: true }
       : event.action === 'snooze'
         ? { move_to: `${dayOf(later)}T${later.toTimeString().slice(0, 5)}` }
         : null
-  const note = `/n/${alert.note}?${new URLSearchParams({ line: alert.text })}`
+  const note = alert.text ? `/n/${alert.note}?${new URLSearchParams({ line: alert.text })}` : `/n/${alert.note}`
   // A running app opens the note itself, as it does for a tap.
   const open = () =>
     self.clients

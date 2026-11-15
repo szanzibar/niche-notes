@@ -78,6 +78,13 @@ defmodule NicheNotes.Docs do
     end
   end
 
+  def title(doc_id) do
+    case load(doc_id) do
+      {_doc, title, _meta, _content} -> title
+      nil -> "Untitled"
+    end
+  end
+
   # A note's title and its unchecked checkbox lines that have a date, at any depth. A note in the trash has none.
   def dated_lines(doc_id) do
     case load(doc_id) do

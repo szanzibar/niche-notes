@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { newNote, row, signIn, uid } from './helpers'
+import { expect, type Page } from '@playwright/test'
+import { newNote, row, signIn, test, uid } from './helpers'
 
 // Rows in the local update log, and how many the server has not acknowledged yet.
 const localRows = (page: Page) =>

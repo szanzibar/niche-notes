@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { newNote, row, shareWith, signIn, typeAtEnd, uid } from './helpers'
+import { expect } from '@playwright/test'
+import { newNote, row, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
 
 test('edits made offline arrive when back online, and the other side catches up', async ({ browser }) => {
   const a = `alice-${uid()}`

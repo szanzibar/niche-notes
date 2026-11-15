@@ -134,49 +134,76 @@ export function removeFromTree(id: string) {
   nodes().delete(id)
 }
 
-// Deleting is a flag in the note, so it syncs everywhere. The placement stays, which is what Restore puts back.
-export function deleteNote(id: string) {
-  liftChildren(id)
-  const meta = getDoc(id)?.getMap('meta')
-  meta?.set('deleted', true)
-  meta?.set('deletedAt', Date.now())
-}
-
-export function leaveNote(id: string) {
-  const node = nodes().get(id)
-  if (node) nodes().set(id, { ...node, leftAt: Date.now() })
-}
-
-// The trash lists notes that may not have loaded yet.
-export async function restoreNote(id: string) {
-  const node = nodes().get(id)
-  if (node?.leftAt != null) {
-    nodes().set(id, { parent: node.parent, order: node.order, pinned: node.pinned })
-    return
+// Deleting our own note is a flag in it, so it syncs everywhere, and leaving someone else's is a mark in our tree.
+// The placement stays, which is what Restore puts back. Alone, a note's children move up to its parent. With its
+// notes, everything under it goes at the same moment, which is how it all comes back together.
+export function removeNote(id: string, withNotes: boolean) {
+  const at = Date.now()
+  if (!withNotes) liftChildren(id)
+  for (const note of withNotes ? [id, ...descendants(id)] : [id]) {
+    if (isMine(note)) {
+      const meta = getDoc(note)?.getMap('meta')
+      meta?.set('deleted', true)
+      meta?.set('deletedAt', at)
+    } else nodes().set(note, { ...nodes().get(note)!, leftAt: at })
   }
-  const meta = (await openDoc(id)).getMap('meta')
-  meta.set('deleted', false)
-  meta.delete('deletedAt')
-  if (!node) nodes().set(id, { parent: null, order: Date.now() })
 }
 
+// The note and every note under it that went to the trash at the same moment.
+function trashedWith(id: string): string[] {
+  const under = [...nodes()].filter(([kid, node]) => node.parent === id && inTrash(kid) && trashedAt(kid) === trashedAt(id))
+  return [id, ...under.flatMap(([kid]) => trashedWith(kid))]
+}
+
+// Under a note that is gone or still in the trash, a restored note would stay out of sight, so it comes back at the
+// top. The trash lists notes that may not have loaded yet, so they all load first, then come back in one step
+// instead of one redraw each.
+export async function restoreNote(id: string) {
+  const parent = nodes().get(id)?.parent
+  const hidden = parent != null && (!nodes().has(parent) || inTrash(parent))
+  const notes = trashedWith(id)
+  const docs = await Promise.all(notes.map(openDoc))
+  notes.forEach((note, i) => {
+    const node = nodes().get(note)
+    if (node?.leftAt != null) {
+      nodes().set(note, { parent: node.parent, order: node.order, pinned: node.pinned })
+      return
+    }
+    const meta = docs[i].getMap('meta')
+    meta.set('deleted', false)
+    meta.delete('deletedAt')
+    if (!node) nodes().set(note, { parent: null, order: Date.now() })
+  })
+  if (hidden) nodes().set(id, { ...nodes().get(id)!, parent: null })
+}
+
+// A note that went to the trash with the one above it is part of that one's entry.
 export function trashed(): string[] {
-  return [...nodes().keys()]
-    .filter((id) => (isDeleted(id) && isMine(id)) || hasLeft(id))
+  return [...nodes()]
+    .filter(([id, { parent }]) => {
+      if (!((isDeleted(id) && isMine(id)) || hasLeft(id))) return false
+      return !(parent != null && inTrash(parent) && trashedAt(parent) === trashedAt(id))
+    })
+    .map(([id]) => id)
     .sort((a, b) => trashedAt(b) - trashedAt(a))
 }
 
-// Gone for good: our own note with all its rows, or just our share of someone else's.
+// Gone for good, with what went to the trash with it: our own notes with all their rows, or just our share of
+// someone else's. The deepest go first, so a failure leaves the rest in the trash as they were.
 export async function purgeNote(id: string) {
-  if (isMine(id)) await api.deleteDoc(id)
-  else await api.unshare(id, store.me!.id)
-  nodes().delete(id)
-  await purgeLocal(id)
+  for (const note of trashedWith(id).reverse()) {
+    if (isMine(note)) await api.deleteDoc(note)
+    else await api.unshare(note, store.me!.id)
+    nodes().delete(note)
+    await purgeLocal(note)
+  }
 }
 
 export async function purgeExpired() {
   const cutoff = Date.now() - TRASH_DAYS * 24 * 60 * 60 * 1000
   for (const id of trashed()) {
-    if (trashedAt(id) < cutoff) await purgeNote(id).catch(() => {})
+    // A note's cached meta can say deleted before its date arrives, which is no proof it is old.
+    const at = trashedAt(id)
+    if (at && at < cutoff) await purgeNote(id).catch(() => {})
   }
 }

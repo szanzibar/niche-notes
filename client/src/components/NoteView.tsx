@@ -16,15 +16,15 @@ import * as Y from 'yjs'
 import { useDoc, useStore, useY } from '../sync/hooks'
 import { getAwareness, getDoc } from '../sync/store'
 import {
-  deleteNote,
+  children,
   hasLeft,
   inTrash,
   isMine,
   isPinned,
-  leaveNote,
   nodes,
   ownerName,
   purgeNote,
+  removeNote,
   restoreNote,
   shareCount,
   titleOf,
@@ -155,8 +155,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       meta.set('hideChecked', on && mode === 'hideChecked')
       meta.set('deleteChecked', on && mode === 'deleteChecked')
     })
-  // One box opens under the title at a time: the folded actions, or what to do with checked lines.
-  const [panel, setPanel] = useState<'more' | 'checked' | null>(null)
+  // One box opens under the title at a time: the folded actions, what to do with checked lines, or whether the notes
+  // under this one go with it.
+  const [panel, setPanel] = useState<'more' | 'checked' | 'remove' | null>(null)
 
   const editor = useEditor(
     {
@@ -287,11 +288,17 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const leave = () => navigate(-1)
   const pinLabel = isPinned(id) ? 'Unpin' : 'Pin'
   const removeLabel = mine ? 'Delete' : 'Leave'
-  const remove = () => {
-    if (mine) deleteNote(id)
-    else leaveNote(id)
+  const remove = (withNotes: boolean) => {
+    removeNote(id, withNotes)
     leave()
   }
+  const nested = children(id).length > 0
+  const removeChoices = (
+    <>
+      <Button onClick={() => remove(false)}>Just this note</Button>
+      <Button onClick={() => remove(true)}>With its notes</Button>
+    </>
+  )
   const back = (
     <button type="button" className="px-2 py-1 text-xl md:hidden" onClick={leave} aria-label="Back">
       ←
@@ -300,9 +307,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
 
   const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
   // Every action folds at once, except Share, which stays beside the dots. Elsewhere a people icon stays there
-  // when the note is shared. Behind the dots, the checked-line options get their own row instead of a box inside
-  // the box.
-  const actions = (share: React.ReactNode, children: React.ReactNode, checked?: React.ReactNode) =>
+  // when the note is shared. Behind the dots, the checked-line options and the choice of what to delete get their
+  // own rows instead of a box inside the box.
+  const actions = (share: React.ReactNode, buttons: React.ReactNode, checked?: React.ReactNode, choices?: React.ReactNode) =>
     folded ? (
       <>
         {share ||
@@ -313,7 +320,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           ))}
         <Popover
           side="bottom"
-          open={panel === 'more'}
+          open={panel === 'more' || panel === 'remove'}
           onOpenChange={(open) => setPanel(open ? 'more' : null)}
           trigger={
             <button type="button" aria-label="More" className="h-10 w-10 shrink-0 text-2xl leading-none">
@@ -323,7 +330,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         >
           <div className="flex flex-col items-end gap-2">
             {checked && <div className="flex items-center gap-2">{checked}</div>}
-            <div className="flex items-center gap-2">{children}</div>
+            <div className="flex items-center gap-2">{buttons}</div>
+            {panel === 'remove' && <div className="flex items-center gap-2">{choices}</div>}
           </div>
         </Popover>
       </>
@@ -344,7 +352,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           </Popover>
         )}
         {share}
-        {children}
+        {buttons}
       </div>
     )
 
@@ -405,9 +413,28 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             <IconButton label={pinLabel} onClick={() => togglePin(id)}>
               <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
             </IconButton>
-            <IconButton label={removeLabel} onClick={remove}>
-              {mine ? <TrashIcon /> : <LeaveIcon />}
-            </IconButton>
+            {nested && !folded ? (
+              <Popover
+                side="bottom"
+                open={panel === 'remove'}
+                onOpenChange={(open) => setPanel(open ? 'remove' : null)}
+                trigger={
+                  <IconButton label={removeLabel} className={panel === 'remove' ? 'text-accent' : ''}>
+                    {mine ? <TrashIcon /> : <LeaveIcon />}
+                  </IconButton>
+                }
+              >
+                {removeChoices}
+              </Popover>
+            ) : (
+              <IconButton
+                label={removeLabel}
+                className={panel === 'remove' ? 'text-accent' : ''}
+                onClick={() => (nested ? setPanel(panel === 'remove' ? 'more' : 'remove') : remove(false))}
+              >
+                {mine ? <TrashIcon /> : <LeaveIcon />}
+              </IconButton>
+            )}
           </>,
           tasks?.any && editor && (
             <>
@@ -428,6 +455,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
               )}
             </>
           ),
+          removeChoices,
         )}
       </header>
       <EditorContent

@@ -1,6 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { nextDue, onRule } from '../src/components/dates'
-import { newNote, signIn, uid } from './helpers'
+import { newNote, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const line = (page: Page, text: string) =>

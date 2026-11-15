@@ -1,5 +1,5 @@
-import { expect, test, type Browser } from '@playwright/test'
-import { row, shareWith, uid } from './helpers'
+import { expect, type Browser } from '@playwright/test'
+import { row, shareWith, test, uid } from './helpers'
 
 const phone = async (browser: Browser, name: string) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
@@ -28,6 +28,25 @@ test('on a phone the header keeps the title, and the dots reveal the usual actio
   await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
   await page.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
+})
+
+test('behind the dots, deleting a note with notes under it asks in a row of its own', async ({ browser }) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('A rather long title for a phone screen')
+  await page.getByRole('button', { name: 'Back' }).click()
+  await page.getByRole('button', { name: 'New note inside' }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Inside')
+  await page.getByRole('button', { name: 'Back' }).click()
+
+  await row(page, 'A rather long title').click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'With its notes' }).click()
+  await expect(page.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
+  await expect(row(page, 'Inside')).toHaveCount(0)
 })
 
 test('a short title keeps the actions beside it until typing makes it too long', async ({ browser }) => {

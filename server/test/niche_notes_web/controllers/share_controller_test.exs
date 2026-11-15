@@ -25,6 +25,41 @@ defmodule NicheNotesWeb.ShareControllerTest do
     refute Docs.can_access?(note, other.id)
   end
 
+  test "the person a note is shared with hears about it on each device with alerts on", %{
+    conn: conn,
+    me: me,
+    other: other,
+    note: note
+  } do
+    for {user, place} <- [{other, "phone"}, {other, "laptop"}, {me, "mine"}] do
+      {public, _} = :crypto.generate_key(:ecdh, :prime256v1)
+
+      keys = %{
+        "p256dh" => Base.url_encode64(public, padding: false),
+        "auth" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+      }
+
+      {:ok, _} =
+        NicheNotes.Push.subscribe(
+          user.id,
+          %{"endpoint" => "https://push.example/#{place}", "keys" => keys},
+          "Europe/Zurich"
+        )
+    end
+
+    test = self()
+
+    Req.Test.stub(NicheNotes.Push, fn push ->
+      send(test, {:push, push.request_path})
+      Plug.Conn.send_resp(push, 201, "")
+    end)
+
+    assert conn |> post("/api/docs/#{note}/shares", %{user_id: other.id}) |> response(201)
+    assert_received {:push, "/phone"}
+    assert_received {:push, "/laptop"}
+    refute_received {:push, _}
+  end
+
   test "only the owner shares, and never the tree", %{
     conn: conn,
     me: me,

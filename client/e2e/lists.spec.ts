@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { newNote, row, signIn, uid } from './helpers'
+import { expect, type Page } from '@playwright/test'
+import { newNote, row, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')

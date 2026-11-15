@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { newNote, signIn, uid } from './helpers'
+import { expect } from '@playwright/test'
+import { newNote, signIn, test, uid } from './helpers'
 
 test('search matches titles and text as you type, and arrow keys open a result', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
