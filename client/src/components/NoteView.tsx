@@ -37,6 +37,8 @@ import {
   HideCheckedIcon,
   LeaveIcon,
   PinIcon,
+  RemoveNoteIcon,
+  RemoveWithNotesIcon,
   TrashIcon,
   UncheckAllIcon,
   UsersIcon,
@@ -293,8 +295,12 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const nested = children(id).length > 0
   const removeChoices = (
     <>
-      <Button onClick={() => remove(false)}>Just this note</Button>
-      <Button onClick={() => remove(true)}>With its notes</Button>
+      <IconButton label="Just this note" onClick={() => remove(false)}>
+        <RemoveNoteIcon />
+      </IconButton>
+      <IconButton label="With its notes" onClick={() => remove(true)}>
+        <RemoveWithNotesIcon />
+      </IconButton>
     </>
   )
   const back = (
