@@ -15,6 +15,43 @@ owned by your user, so any SQLite backup tool on the host can snapshot it.
 
 In Pocket ID, register an OIDC client with redirect URI `https://<PHX_HOST>/auth/callback`.
 
+## Back up and restore
+
+Back up three things: `.env`, `docker-compose.yml`, and a snapshot of `data/niche_notes.db` taken with SQLite's
+own backup, such as `sqlite3 data/niche_notes.db ".backup copy.db"`. A plain copy of the live file may not
+restore. `SECRET_KEY_BASE` in `.env` signs every session, so with the same `.env` and address nobody signs in
+again. Logins also need your Pocket ID, which has its own data to back up.
+
+To restore, put `docker-compose.yml`, `.env` and [restore.sh](restore.sh) in one directory on a server with Docker
+and curl, then run:
+
+```bash
+./restore.sh nichenotes.db          # or a .db.gz
+```
+
+It checks the backup, moves a database that is already there to `data/before-restore-<time>/`, and starts the
+app. Each device then sends whatever the backup lacks the next time it opens the app, so nothing a device still
+holds is lost ([ADR 010](docs/adr/010-a-restore-starts-a-new-generation.md)). Shares and links made after the
+backup are on no device, so they have to be made again.
+
+To try a backup while the app keeps running:
+
+```bash
+./restore.sh --test nichenotes.db
+```
+
+The copy runs beside the app on a Docker network with no way out, so it sends no alerts, writes to no calendar
+and signs nobody in. The script prints each person's note count and the notes edited last, and says how to open a
+note that has a link. To look at another note, give it a link in the copy first, with the id from the note's
+address:
+
+```bash
+docker compose -p nichenotes-restore-test -f docker-compose.yml -f restore-test/compose.yml \
+  exec app sqlite3 /data/niche_notes.db "update docs set link = 'look' where id = '<id>'"
+```
+
+Then open `/s/look` on the copy.
+
 ## Develop
 
 ```bash

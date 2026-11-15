@@ -1,6 +1,6 @@
 import type * as Y from 'yjs'
 import { api } from '../lib/api'
-import { getDoc, openDoc, purgeLocal, store, subscribe } from './store'
+import { acknowledged, getDoc, openDoc, purgeLocal, store, subscribe } from './store'
 
 export interface Node {
   parent: string | null
@@ -235,8 +235,11 @@ export function trashed(): string[] {
 // someone else's. The deepest go first, so a failure leaves the rest in the trash as they were.
 export async function purgeNote(id: string) {
   for (const note of trashedWith(id).reverse()) {
-    if (isMine(note)) await api.deleteDoc(note)
-    else await api.unshare(note, store.me!.id)
+    if (isMine(note)) {
+      // The server empties only a note its own copy has in the trash, so the delete has to get there first.
+      await acknowledged(note)
+      await api.deleteDoc(note)
+    } else await api.unshare(note, store.me!.id)
     nodes().delete(note)
     await purgeLocal(note)
   }

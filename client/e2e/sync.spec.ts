@@ -1,5 +1,6 @@
+import { execFileSync } from 'node:child_process'
 import { expect, type Page } from '@playwright/test'
-import { newNote, row, signIn, test, uid } from './helpers'
+import { newNote, row, signIn, test, typeAtEnd, uid } from './helpers'
 
 // Rows in the local update log, and how many the server has not acknowledged yet.
 const localRows = (page: Page) =>
@@ -17,8 +18,8 @@ const localRows = (page: Page) =>
       }),
   )
 
-// One row per keystroke, so a few hundred characters cross the compaction limit.
-test('a long edit history is compacted into a snapshot and the note survives it everywhere', async ({ browser }) => {
+// One row per keystroke, so a few hundred characters cross the limit on the device and on the server.
+test('a long edit history is folded into one row and the note survives it everywhere', async ({ browser }) => {
   const name = `alice-${uid()}`
   const text = 'x'.repeat(600)
   const page = await signIn(browser, name)
@@ -73,4 +74,39 @@ test('a launch loads only the tree, and notes it never opened still show, search
 
   await row(laptop, 'Packing').click()
   await expect(laptop.locator('.editor-body')).toContainText('wool socks')
+})
+
+// What restoring a backup leaves: the server's log as it was at the backup, numbering new rows from there, under a
+// new generation.
+const restoreWithout = (note: string) =>
+  execFileSync('sqlite3', [
+    '-cmd',
+    '.timeout 5000',
+    '../server/data/e2e.db',
+    `delete from doc_updates where doc_id = '${note}';
+     update sqlite_sequence set seq = (select coalesce(max(id), 0) from doc_updates) where name = 'doc_updates';
+     update generation set id = lower(hex(randomblob(16)));`,
+  ])
+
+test('after the server is restored from a backup, a device sends back what the backup lacks and still gets new edits', async ({
+  browser,
+}) => {
+  const name = `alice-${uid()}`
+  const phone = await signIn(browser, name)
+  await newNote(phone, 'Groceries', 'oat milk')
+  await expect.poll(() => localRows(phone)).toMatchObject({ unsent: 0 })
+  const note = new URL(phone.url()).pathname.split('/n/')[1]
+
+  restoreWithout(note)
+  const laptop = await signIn(browser, name)
+  await expect(row(laptop, 'Untitled')).toBeVisible()
+
+  await phone.reload()
+  await expect(row(laptop, 'Groceries')).toBeVisible()
+  await row(laptop, 'Groceries').click()
+  await expect(laptop.locator('.editor-body')).toContainText('oat milk')
+
+  // The laptop's rows take numbers the phone held before the restore.
+  await typeAtEnd(laptop, ' and bread')
+  await expect(phone.locator('.editor-body')).toContainText('oat milk and bread')
 })

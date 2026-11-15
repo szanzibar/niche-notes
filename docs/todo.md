@@ -55,6 +55,13 @@ Dates, repeats and a time on checkbox lines, alerts through Web Push (ADR 006), 
 - [ ] Connect Google Calendar on Steven's phone and his wife's: a Niche Notes calendar appears and follows edits within a minute
 - Later: two-way sync, if someone edits events in Google Calendar instead of the note
 
+## Restore
+
+`restore.sh` and the generation it starts are built and tested with a made-up database (2026-11-15, ADR 010).
+
+- [ ] Steven runs `./restore.sh --test` on the server with a backup fetched from the off-site copy
+- [ ] One restore for real on a spare server, with a phone that holds newer edits than the backup
+
 ## Later
 
 - Markdown export

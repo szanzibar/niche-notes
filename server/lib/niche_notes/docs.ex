@@ -9,15 +9,24 @@ defmodule NicheNotes.Docs do
   alias NicheNotes.Accounts.User
   alias NicheNotes.Docs.{Doc, DocShare, DocUpdate}
 
-  # The first join of an unknown id creates the doc. That is how a note written offline reaches the server.
+  # What a join does. The first join of an unknown id creates the doc, which is how a note written offline
+  # reaches the server. A long log is folded before the join reads it.
   def open(doc_id, user_id) do
     with {:ok, _} <- Ecto.UUID.cast(doc_id),
-         {:ok, _} <- Repo.insert(%Doc{id: doc_id, owner_id: user_id}, on_conflict: :nothing),
-         %Doc{owner_id: owner_id} <- Repo.get(Doc, doc_id),
+         %Doc{owner_id: owner_id} <- Repo.get(Doc, doc_id) || create(doc_id, user_id),
          true <- owner_id == user_id or shared_with?(doc_id, user_id) do
+      fold(doc_id)
       {:ok, owner_id}
     else
       _ -> :forbidden
+    end
+  end
+
+  # A guest has only the notes a link let them into.
+  defp create(doc_id, user_id) do
+    if not User.guest?(Repo.get!(User, user_id)) do
+      Repo.insert!(%Doc{id: doc_id, owner_id: user_id}, on_conflict: :nothing)
+      Repo.get(Doc, doc_id)
     end
   end
 
@@ -48,21 +57,54 @@ defmodule NicheNotes.Docs do
     {rows, seq}
   end
 
-  @compact_rows 50
-  @compact_idle_seconds 24 * 60 * 60
+  @fold_rows 50
+  @fold_idle_seconds 24 * 60 * 60
 
-  # Whether the joining client should fold the log into one snapshot: a busy doc, or one nobody has
-  # touched for a day that is still more than one row. Rows from before timestamps count as old.
-  def compact?(doc_id) do
-    {rows, last} =
-      Repo.one(
+  # A busy doc's log becomes one row, and so does one untouched for a day, where rows from before timestamps count
+  # as old. The row takes the last one's id, so a device's `since` keeps meaning "I hold everything up to here".
+  # A plain merge, since rebuilding the doc drops an edit that waits on a row the log lacks. Deleted text stays.
+  defp fold(doc_id) do
+    log = from u in DocUpdate, where: u.doc_id == ^doc_id
+
+    {rows, last, at} =
+      Repo.one(from u in log, select: {count(u.id), max(u.id), max(u.inserted_at)})
+
+    idle = at == nil or DateTime.diff(DateTime.utc_now(), at) > @fold_idle_seconds
+
+    with true <- rows > @fold_rows or (rows > 1 and idle),
+         folded = from(u in log, where: u.id <= ^last),
+         updates = Repo.all(from u in folded, order_by: u.id, select: u.update),
+         {:ok, update} <- Yex.merge_updates(updates) do
+      Repo.transaction(fn ->
+        Repo.delete_all(folded)
+        Repo.insert!(%DocUpdate{id: last, doc_id: doc_id, update: update})
+      end)
+    end
+  end
+
+  # Names this copy of the log. A restore gives it a new name, and a device that sees a new one sends its notes
+  # again.
+  def generation, do: Repo.one!(from g in "generation", select: g.id)
+
+  def new_generation, do: Repo.query!("update generation set id = lower(hex(randomblob(16)))")
+
+  # What the log holds, for someone checking a restored backup: each person's notes, and the notes edited last.
+  def summary do
+    people = for u <- Repo.all(User), do: "#{u.name}: #{length(note_ids(u.id))} notes"
+
+    newest =
+      Repo.all(
         from u in DocUpdate,
-          where: u.doc_id == ^doc_id,
-          select: {count(u.id), max(u.inserted_at)}
+          join: d in assoc(u, :doc),
+          where: d.id != d.owner_id,
+          group_by: u.doc_id,
+          order_by: [desc: max(u.id)],
+          limit: 5,
+          select: {u.doc_id, max(u.inserted_at)}
       )
 
-    idle = last == nil or DateTime.diff(DateTime.utc_now(), last) > @compact_idle_seconds
-    rows > @compact_rows or (rows > 1 and idle)
+    edited = for {id, at} <- newest, do: "#{at}  #{title(id)}"
+    Enum.join(people ++ ["Edited last:"] ++ edited, "\n")
   end
 
   # What a widget shows, under a header in the color the app gives it: the user's notes as their tree draws them, or
@@ -270,13 +312,22 @@ defmodule NicheNotes.Docs do
       Repo.all(from s in DocShare, where: s.user_id == ^user_id, select: s.doc_id)
   end
 
-  defp load(doc_id) do
+  # A doc rebuilt from its log, with its meta map.
+  defp read(doc_id) do
     doc = Yex.Doc.new()
     updates = from u in DocUpdate, where: u.doc_id == ^doc_id, order_by: u.id, select: u.update
 
     with {:ok, update} <- Yex.merge_updates(Repo.all(updates)),
-         :ok <- Yex.apply_update(doc, update),
-         meta = doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map(),
+         :ok <- Yex.apply_update(doc, update) do
+      {doc, doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map()}
+    else
+      _ -> nil
+    end
+  end
+
+  # A note in the trash reads as gone.
+  defp load(doc_id) do
+    with {doc, meta} <- read(doc_id),
          false <- Map.get(meta, "deleted", false) do
       title = if meta["title"] in [nil, ""], do: "Untitled", else: meta["title"]
       {doc, title, meta, doc |> Yex.Doc.get_xml_fragment("content") |> Yex.XmlFragment.children()}
@@ -400,15 +451,6 @@ defmodule NicheNotes.Docs do
     stored
   end
 
-  # The merged state of every row up to `upto` replaces those rows and takes the last one's seq,
-  # so a client's `since` keeps meaning "I hold everything up to here".
-  def snapshot(doc_id, upto, update) do
-    Repo.transaction(fn ->
-      Repo.delete_all(from u in DocUpdate, where: u.doc_id == ^doc_id and u.id <= ^upto)
-      Repo.insert!(%DocUpdate{id: upto, doc_id: doc_id, update: update})
-    end)
-  end
-
   def list_shares(user_id) do
     Repo.all(
       from s in DocShare,
@@ -462,11 +504,15 @@ defmodule NicheNotes.Docs do
     :ok
   end
 
-  # Deleting a note is a flag inside the doc. This is the trash being emptied: rows gone for good.
+  # Deleting a note is a flag inside the doc. This is the trash being emptied: rows gone for good. A device can
+  # ask from an old copy, so the note has to be in the trash by the server's own.
   def purge(doc_id, owner_id) do
-    with {:ok, doc} <- owned_note(doc_id, owner_id) do
+    with {:ok, doc} <- owned_note(doc_id, owner_id),
+         {_doc, %{"deleted" => true}} <- read(doc_id) do
       Repo.delete!(doc)
       :ok
+    else
+      _ -> {:error, :forbidden}
     end
   end
 

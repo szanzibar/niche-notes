@@ -2,20 +2,25 @@ defmodule NicheNotesWeb.GoogleCalendarController do
   use NicheNotesWeb, :controller
 
   require Logger
-  alias NicheNotes.GoogleCalendar
+  alias NicheNotes.{Accounts, GoogleCalendar}
 
+  # A guest has one note and no calendar of their own.
   def connect(conn, params) do
-    {:ok, %{url: url, session_params: session_params}} = GoogleCalendar.connect_url()
+    if Accounts.User.guest?(Accounts.get_user(conn.assigns.current_user_id)) do
+      send_resp(conn, :forbidden, "")
+    else
+      {:ok, %{url: url, session_params: session_params}} = GoogleCalendar.connect_url()
 
-    conn
-    |> put_session(:google, %{session_params: session_params, time_zone: params["time_zone"]})
-    |> redirect(external: url)
+      conn
+      |> put_session(:google, %{session_params: session_params, time_zone: params["time_zone"]})
+      |> redirect(external: url)
+    end
   end
 
   # Back to the notes either way. Settings shows whether it worked.
   def callback(conn, params) do
     %{session_params: session_params, time_zone: time_zone} = get_session(conn, :google)
-    user_id = get_session(conn, :user_id)
+    user_id = conn.assigns.current_user_id
 
     with error when error != :ok <-
            GoogleCalendar.connect(user_id, params, session_params, time_zone) do

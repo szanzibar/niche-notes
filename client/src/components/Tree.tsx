@@ -239,15 +239,17 @@ export function Tree({ selected }: { selected?: string }) {
           </>
         )}
         <OfflineIcon />
-        <Button
-          variant="primary"
-          aria-label="New note"
-          title="New note"
-          className="w-10 px-0!"
-          onClick={() => showNote(createNote(null))}
-        >
-          <PlusIcon />
-        </Button>
+        {!s.me!.guest && (
+          <Button
+            variant="primary"
+            aria-label="New note"
+            title="New note"
+            className="w-10 px-0!"
+            onClick={() => showNote(createNote(null))}
+          >
+            <PlusIcon />
+          </Button>
+        )}
       </RootDropZone>
       <nav className="flex-1 overflow-x-hidden overflow-y-auto">
         {query ? (
@@ -284,7 +286,7 @@ export function Tree({ selected }: { selected?: string }) {
           )
         ) : (
           <>
-            {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet. Tap New.</p>}
+            {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet.{!s.me!.guest && ' Tap New.'}</p>}
             {roots.map((id) => (
               <Row key={id} id={id} depth={0} selected={selected} hint={hint} />
             ))}
@@ -466,18 +468,20 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
           )}
           {tag && <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{tag}</span>}
         </button>
-        <button
-          type="button"
-          className="h-11 w-10 shrink-0 text-xl leading-none"
-          aria-label="New note inside"
-          title="New note inside"
-          onClick={() => {
-            expand(id)
-            showNote(createNote(id))
-          }}
-        >
-          +
-        </button>
+        {!store.me!.guest && (
+          <button
+            type="button"
+            className="h-11 w-10 shrink-0 text-xl leading-none"
+            aria-label="New note inside"
+            title="New note inside"
+            onClick={() => {
+              expand(id)
+              showNote(createNote(id))
+            }}
+          >
+            +
+          </button>
+        )}
       </div>
       {open && kids.map((kid) => <Row key={kid} id={kid} depth={depth + 1} selected={selected} hint={hint} />)}
     </>

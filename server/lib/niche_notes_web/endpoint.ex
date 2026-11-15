@@ -6,7 +6,9 @@ defmodule NicheNotesWeb.Endpoint do
   # Set :encryption_salt if you would also like to encrypt it.
   @session_options [
     store: :cookie,
-    key: "_niche_notes_key",
+    # The prefix makes browsers refuse this cookie from any other site under our domain.
+    key: "__Host-niche_notes",
+    secure: true,
     signing_salt: "LC0kN30a",
     same_site: "Lax",
     # Without an expiry the cookie dies whenever Android restarts Chrome. /api/me renews it.
@@ -41,7 +43,6 @@ defmodule NicheNotesWeb.Endpoint do
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
 
-  plug Plug.MethodOverride
   plug Plug.Head
   plug Plug.Session, @session_options
   plug NicheNotesWeb.Router

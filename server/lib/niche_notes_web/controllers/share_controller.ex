@@ -29,6 +29,7 @@ defmodule NicheNotesWeb.ShareController do
 
     case Docs.unshare(doc_id, me, user_id) do
       {:ok, owner_id} ->
+        NicheNotesWeb.DocChannel.close(doc_id, [user_id])
         shares_changed([owner_id, user_id])
         send_resp(conn, :no_content, "")
 

@@ -63,6 +63,12 @@ defmodule NicheNotesWeb.UserChannelTest do
     assert_reply ref, :ok, %{docs: [[^mine, _, _, []]]}
   end
 
+  test "the join names this copy of the log", %{me: me} do
+    assert {:ok, %{generation: generation}, _} = join_user(me, %{})
+    assert generation == Docs.generation()
+    assert generation =~ ~r/^[0-9a-f]{32}$/
+  end
+
   test "someone else's user channel refuses the join", %{me: me, other: other} do
     assert {:error, %{reason: "forbidden"}} =
              subscribe_and_join(

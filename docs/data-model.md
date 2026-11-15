@@ -9,7 +9,8 @@ SQLite, one file. The server stores who owns what and a log of Y.js updates. It 
 - **doc_shares** — `doc_id`, `user_id`, unique together. One row grants full access to one note.
 - **push_subscriptions** — one row per device that allowed alerts: `endpoint` (the push service's address, the key), `user_id`, `p256dh`, `auth` and the device's `time_zone`. Every launch writes it again, and a push service that no longer knows the device deletes it.
 - **google_calendars** — one row per person who connected Google Calendar: `user_id` (the key), `calendar_id` of the Niche Notes calendar the app made, the Google `email`, the `refresh_token` encrypted with `SECRET_KEY_BASE`, and the `time_zone` of the device that connected, used until a device with alerts on reports one (ADR 007).
-- **doc_updates** — `id` (autoincrement, the sequence number), `doc_id`, `update` (Y.js binary), `inserted_at`. One row per edit, until a client folds a doc's rows into one snapshot (see the sync protocol).
+- **doc_updates** — `id` (autoincrement, the sequence number), `doc_id`, `update` (Y.js binary), `inserted_at`. One row per edit, until the server folds a doc's rows into one (see the sync protocol).
+- **generation** — one row, `id`: the name of this copy of the update log. A restore gives it a new one (ADR 010).
 
 Access rule, used by every channel join and share endpoint: a user may open a doc if they own it or a share row names them.
 
@@ -30,28 +31,31 @@ Deleting a note sets `deleted`, so it syncs like any edit and vanishes for every
 Socket at `/socket`, authenticated by the token that `/api/me` returns.
 
 **`doc:<id>` channel**
-- Join with `{ since }`. Reply `{ updates: [[seq, base64], ...], seq, owner_id, compact }`: every update after `since`, the last `seq` sent (or `since` if none), who owns the doc, and whether the client should send a snapshot: the doc has more than a few dozen rows, or more than one row and no change for a day. A doc that does not exist is created, owned by the joiner. A doc the joiner cannot access refuses the join.
+- Join with `{ since }`. Reply `{ updates: [[seq, base64], ...], seq, owner_id }`: every update after `since`, the last `seq` sent (or `since` if none) and who owns the doc. A doc that does not exist is created, owned by the joiner, unless the joiner is a guest. A doc the joiner cannot access refuses the join.
+- Before a join reads the log, the server folds it into one row when it has more than a few dozen rows, or more than one row and no change for a day. The row is a plain merge of the others, stored under the last one's `seq`, so `since` keeps its meaning and nobody re-downloads what they have. Nothing a device sends removes rows (ADR 010).
 - Push `update` `{ update: base64 }`. Reply `{ seq }`. The server stores it and broadcasts `update` `{ seq, update }` to the other clients on the topic.
 - Push `awareness` `{ update: base64 }` for cursors and names (y-protocols awareness). Relayed to the other clients, never stored.
-- Push `snapshot` `{ update: base64, upto }`: the doc's whole state as one update, from a client that holds every row up to `upto`. The server replaces the doc's rows up to `upto` with the snapshot, stored under `upto` itself, so `since` keeps its meaning and nobody re-downloads what they have.
+- A channel checks access when it joins, so the server ends the channel of someone the note is taken away from, by unsharing or by turning its link off.
 
 **`user:<id>` channel**, own id only.
-- Join with `{ after }`, the `seq` from the client's last catch-up. Reply `{ changed: [doc id, ...], seq }`: the user's notes with rows after `after`, and the newest of those rows (or `after` if none).
+- Join with `{ after }`, the `seq` from the client's last catch-up. Reply `{ changed: [doc id, ...], seq, generation }`: the user's notes with rows after `after`, the newest of those rows (or `after` if none), and the log's generation.
 - Push `pull` `{ docs: [[id, since], ...] }`. Reply `{ docs: [[id, owner_id, seq, [[seq, base64], ...]], ...] }`, like a doc join for each note the user can open. Unlike a join, it leaves out notes the user can't open and never creates one.
 - The server pushes `changed` `{ doc }` to every member of a note when one of its rows is stored, and `shares_changed` when a share involving the user changes, after which the client refetches `/api/shares`.
 
-**Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`. A join reply is applied as one Y.js transaction, so a note opened on a new device appears whole. When the join reply asks for it, or its own local log has grown past a few dozen rows, the client sends a snapshot and folds its own rows the same way.
+**Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`. A join reply is applied as one Y.js transaction, so a note opened on a new device appears whole. When its own log of a doc has grown past a few dozen rows, the client folds them into one the same way.
+
+A device remembers the generation it last saw. When a join names another, the server was restored from a backup, which may lack rows the device holds and numbers its new rows from where the backup ended. The device then marks every row unsent, starts every cursor over and reloads, so it sends what the backup lacks and reads the rest again (ADR 010).
 
 A launch loads only the user's tree, and a note loads when it opens and stays for the session. The client keeps a copy of each note's `meta` and plain text in IndexedDB, with its checked lines' text apart, which the tree and search read, so a note that isn't open costs no memory beyond that copy. Notes that aren't open sync by `pull`: the ones a join reply names, then each one a `changed` push names, and a note shared with the user that has no copy yet. A pull folds the note's rows into one and redoes its copy. The cursor `after` advances only once every note a join reply named is pulled, the same way `since` does. A note with rows the server hasn't acknowledged loads at launch, so they go out.
 
 ## REST
 
-Cookie session, JSON.
+Cookie session, JSON. The API answers only requests from the app's own pages, by their `Sec-Fetch-Site`, because other sites under the same domain count as the cookie's own site.
 
 - `GET /api/me`
-- `GET /api/users` — everyone, for the share picker, with `guest` set for link guests
+- `GET /api/users` — everyone, for the share picker, with `guest` set for link guests. A guest gets only the owners of the notes they were let into
 - `GET /api/shares` — every share on a doc the user owns or is named on: `doc_id`, `user_id`, `owner_id`
-- `DELETE /api/docs/:id` — owner only, removes the doc and its updates and shares for good
+- `DELETE /api/docs/:id` — owner only, and only a note the server's own copy has in the trash: removes the doc and its updates and shares for good
 - `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc. Each device of the recipient's with alerts on gets a push saying who shared the note
 - `DELETE /api/docs/:id/shares/:user_id` — the owner for anyone, or a recipient for themselves
 - `GET`, `PUT`, `DELETE /api/docs/:id/link` — owner only: `{ link }`, creating it on `PUT`. `DELETE` drops the guests it let in
@@ -63,5 +67,5 @@ Cookie session, JSON.
 - `PATCH /api/docs/:id/line` `{ due, text, checked: true }` or `{ due, text, move_to }` — an alert's Done or Snooze: changes the first unchecked line with that date and text, and broadcasts the change to the doc's channel. 404 once no line matches
 - `GET /api/google_calendar` — `{ email }`, the Google account holding the user's Niche Notes calendar, or `null`
 - `DELETE /api/google_calendar` — deletes the Niche Notes calendar and Google's grant
-- `GET /auth/google?time_zone=` and `GET /auth/google/callback` — Google's consent, then the Niche Notes calendar is made in that time zone
+- `GET /auth/google?time_zone=` and `GET /auth/google/callback` — Google's consent, then the Niche Notes calendar is made in that time zone. Both need a session, and a guest's doesn't count
 - `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`

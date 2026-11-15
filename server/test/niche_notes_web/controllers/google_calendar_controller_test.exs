@@ -62,4 +62,19 @@ defmodule NicheNotesWeb.GoogleCalendarControllerTest do
     assert_received {"POST", _, "/revoke", "token=refresh"}
     refute Repo.get(Connection, me.id)
   end
+
+  test "nobody connects a calendar without a session", %{conn: conn} do
+    assert conn |> get("/auth/google") |> json_response(401)
+
+    assert conn
+           |> get("/auth/google/callback", code: "code", state: "state")
+           |> json_response(401)
+
+    assert Repo.all(Connection) == []
+  end
+
+  test "a guest connects no calendar", %{conn: conn} do
+    {:ok, guest} = NicheNotes.Accounts.create_guest()
+    assert conn |> init_test_session(%{user_id: guest.id}) |> get("/auth/google") |> response(403)
+  end
 end

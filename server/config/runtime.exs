@@ -8,6 +8,8 @@ if config_env() == :prod do
 
   config :niche_notes, NicheNotes.Repo,
     database: System.get_env("DATABASE_PATH", "/data/niche_notes.db"),
+    # An edit the server acknowledged survives a power cut. Each write waits for the disk, 7 ms on our SSD.
+    synchronous: :full,
     pool_size: 5
 
   config :niche_notes, NicheNotesWeb.Endpoint,

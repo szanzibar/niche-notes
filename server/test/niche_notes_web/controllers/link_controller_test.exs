@@ -31,9 +31,28 @@ defmodule NicheNotesWeb.LinkControllerTest do
     # Opening it again in the same browser is the same guest.
     assert visitor |> recycle() |> get("/s/#{link}") |> get_session(:user_id) == guest.id
 
+    # Turning it off also ends the guest's open channel on the note.
+    channel = NicheNotesWeb.ChannelCase.open_channel(guest, note)
     assert conn |> delete("/api/docs/#{note}/link") |> response(204)
+    assert_receive {:DOWN, _, :process, ^channel, _}
     refute Docs.can_access?(note, guest.id)
     assert build_conn() |> get("/s/#{link}") |> response(404)
+  end
+
+  test "a guest is told only who owns the notes they were let into", %{
+    conn: conn,
+    me: me,
+    note: note
+  } do
+    NicheNotesWeb.ChannelCase.user!("other")
+    %{"link" => link} = conn |> put("/api/docs/#{note}/link") |> json_response(200)
+    as_guest = build_conn() |> get("/s/#{link}") |> recycle()
+
+    assert %{"users" => [%{"id" => id}]} = as_guest |> get("/api/users") |> json_response(200)
+    assert id == me.id
+
+    assert conn |> delete("/api/docs/#{note}/link") |> response(204)
+    assert %{"users" => []} = as_guest |> get("/api/users") |> json_response(200)
   end
 
   test "someone with an account who opens the link keeps the note when it is turned off", %{

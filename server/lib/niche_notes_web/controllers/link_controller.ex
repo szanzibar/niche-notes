@@ -22,6 +22,7 @@ defmodule NicheNotesWeb.LinkController do
 
     case Docs.delete_link(doc_id, me) do
       {:ok, guests} ->
+        NicheNotesWeb.DocChannel.close(doc_id, guests)
         shares_changed([me | guests])
         send_resp(conn, :no_content, "")
 

@@ -96,11 +96,71 @@ defmodule NicheNotesWeb.ShareControllerTest do
     assert Docs.can_access?(note, third.id)
   end
 
-  test "only the owner empties a note from the trash", %{conn: conn, other: other, note: note} do
+  test "unsharing ends the other person's open channel on the note, and nobody else's", %{
+    conn: conn,
+    me: me,
+    other: other,
+    note: note
+  } do
+    {:ok, _} = Docs.share(note, me.id, other.id)
+
+    [mine, theirs] =
+      for user <- [me, other], do: NicheNotesWeb.ChannelCase.open_channel(user, note)
+
+    assert conn |> delete("/api/docs/#{note}/shares/#{other.id}") |> response(204)
+    assert_receive {:DOWN, _, :process, ^theirs, _}
+    assert Process.alive?(mine)
+  end
+
+  test "only the owner empties a note, and only one the server's copy has in the trash", %{
+    conn: conn,
+    other: other,
+    note: note
+  } do
     as_other = Plug.Test.init_test_session(build_conn(), %{user_id: other.id})
+
+    trash = fn deleted ->
+      NicheNotesWeb.ChannelCase.edit!(
+        note,
+        &Yex.Map.set(Yex.Doc.get_map(&1, "meta"), "deleted", deleted)
+      )
+    end
+
+    assert conn |> delete("/api/docs/#{note}") |> json_response(403)
+    trash.(true)
     assert as_other |> delete("/api/docs/#{note}") |> json_response(403)
+
+    # Restored on another device since this one last looked.
+    trash.(false)
+    assert conn |> delete("/api/docs/#{note}") |> json_response(403)
+
+    trash.(true)
     assert conn |> delete("/api/docs/#{note}") |> response(204)
     assert conn |> delete("/api/docs/#{note}") |> json_response(403)
+  end
+
+  test "the API answers only our own pages, and a form can't pose as a delete", %{
+    conn: conn,
+    other: other,
+    note: note
+  } do
+    share = fn site ->
+      conn
+      |> put_req_header("sec-fetch-site", site)
+      |> post("/api/docs/#{note}/shares", %{user_id: other.id})
+    end
+
+    assert share.("same-site") |> response(403)
+    assert share.("cross-site") |> response(403)
+    refute Docs.can_access?(note, other.id)
+    assert share.("same-origin") |> response(201)
+
+    assert conn
+           |> put_req_header("content-type", "application/x-www-form-urlencoded")
+           |> post("/api/docs/#{note}", "_method=delete")
+           |> response(404)
+
+    assert NicheNotes.Repo.get(Docs.Doc, note)
   end
 
   defp json_keys(conn) do

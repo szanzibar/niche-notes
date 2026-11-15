@@ -82,61 +82,39 @@ defmodule NicheNotesWeb.DocChannelTest do
              )
   end
 
-  test "a snapshot stands in for every update up to its seq", %{me: me, note: note} do
-    {:ok, _, mine} =
+  defp title!(note, title),
+    do: edit!(note, &Yex.Map.set(Yex.Doc.get_map(&1, "meta"), "title", title))
+
+  defp join_doc(user, note, since),
+    do:
       subscribe_and_join(
-        socket(NicheNotesWeb.UserSocket, nil, current_user_id: me.id),
-        "doc:#{note}"
+        socket(NicheNotesWeb.UserSocket, nil, current_user_id: user.id),
+        "doc:#{note}",
+        %{"since" => since}
       )
 
-    ref = push(mine, "update", %{"update" => Base.encode64("one")})
-    assert_reply ref, :ok, %{seq: seq1}
-    ref = push(mine, "update", %{"update" => Base.encode64("two")})
-    assert_reply ref, :ok, %{seq: seq2}
+  test "a join folds a long log into one row under the last seq, which a device holding it all skips",
+       %{me: me, note: note} do
+    {:ok, %{updates: []}, _} = join_doc(me, note, 0)
+    rows = for i <- 1..51, do: title!(note, "#{i}")
+    last = List.last(rows).id
 
-    both = Base.encode64("both")
-    ref = push(mine, "snapshot", %{"update" => both, "upto" => seq2})
-    assert_reply ref, :ok
+    assert {:ok, %{updates: [], seq: ^last}, _} = join_doc(me, note, last)
+    assert {:ok, %{updates: [[^last, folded]], seq: ^last}, _} = join_doc(me, note, last - 1)
 
-    assert {:ok, %{updates: [[^seq2, ^both]], seq: ^seq2}, _} =
-             subscribe_and_join(
-               socket(NicheNotesWeb.UserSocket, nil, current_user_id: me.id),
-               "doc:#{note}",
-               %{"since" => seq1}
-             )
+    doc = Yex.Doc.new()
+    :ok = Yex.apply_update(doc, Base.decode64!(folded))
+    assert %{"title" => "51"} = Yex.Map.to_map(Yex.Doc.get_map(doc, "meta"))
 
-    ref = push(mine, "update", %{"update" => Base.encode64("three")})
-    assert_reply ref, :ok, %{seq: seq3}
-    assert seq3 > seq2
+    assert title!(note, "more").id > last
+    assert {:ok, %{updates: [_, _]}, _} = join_doc(me, note, 0)
   end
 
-  test "the join reply asks for compaction after many rows or a day of quiet", %{
-    me: me,
-    note: note
-  } do
-    join = fn ->
-      subscribe_and_join(
-        socket(NicheNotesWeb.UserSocket, nil, current_user_id: me.id),
-        "doc:#{note}"
-      )
-    end
-
-    {:ok, %{compact: false}, mine} = join.()
-
-    for i <- 1..51 do
-      ref = push(mine, "update", %{"update" => Base.encode64("#{i}")})
-      assert_reply ref, :ok, %{seq: _}
-    end
-
-    assert {:ok, %{compact: true, seq: seq}, _} = join.()
-
-    ref = push(mine, "snapshot", %{"update" => Base.encode64("all"), "upto" => seq})
-    assert_reply ref, :ok
-    assert {:ok, %{compact: false}, _} = join.()
-
-    ref = push(mine, "update", %{"update" => Base.encode64("more")})
-    assert_reply ref, :ok, %{seq: _}
-    assert {:ok, %{compact: false}, _} = join.()
+  test "a join folds a log of more than one row after a day of quiet", %{me: me, note: note} do
+    {:ok, _, _} = join_doc(me, note, 0)
+    title!(note, "one")
+    title!(note, "two")
+    assert {:ok, %{updates: [_, _]}, _} = join_doc(me, note, 0)
 
     two_days_ago =
       DateTime.utc_now() |> DateTime.add(-2 * 24 * 60 * 60) |> DateTime.truncate(:second)
@@ -145,6 +123,28 @@ defmodule NicheNotesWeb.DocChannelTest do
       set: [inserted_at: two_days_ago]
     )
 
-    assert {:ok, %{compact: true}, _} = join.()
+    assert {:ok, %{updates: [_]}, _} = join_doc(me, note, 0)
+  end
+
+  test "nothing a device sends takes rows out of the log", %{me: me, note: note} do
+    {:ok, _, mine} = join_doc(me, note, 0)
+    ref = push(mine, "update", %{"update" => Base.encode64("one")})
+    assert_reply ref, :ok, %{seq: seq}
+
+    snapshot = %{"update" => Base.encode64("mine"), "upto" => 9_223_372_036_854_775_807}
+    ref = push(mine, "snapshot", snapshot)
+    assert_reply ref, :ok
+
+    assert {[{^seq, "one"}], ^seq} = Docs.updates_since(note, 0)
+    ref = push(mine, "update", %{"update" => Base.encode64("two")})
+    assert_reply ref, :ok, %{seq: _}
+  end
+
+  test "a guest's join opens their own tree and never creates a note", %{note: note} do
+    {:ok, guest} = NicheNotes.Accounts.create_guest()
+
+    assert {:error, %{reason: "forbidden"}} = join_doc(guest, note, 0)
+    refute Repo.get(NicheNotes.Docs.Doc, note)
+    assert {:ok, _, _} = join_doc(guest, guest.id, 0)
   end
 end

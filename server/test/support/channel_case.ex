@@ -20,6 +20,22 @@ defmodule NicheNotesWeb.ChannelCase do
     user
   end
 
+  require Phoenix.ChannelTest
+  @endpoint NicheNotesWeb.Endpoint
+
+  # A device with the note open, as the process that ends when the note is taken away from its user.
+  def open_channel(user, note) do
+    {:ok, _, socket} =
+      Phoenix.ChannelTest.subscribe_and_join(
+        Phoenix.ChannelTest.socket(NicheNotesWeb.UserSocket, nil, current_user_id: user.id),
+        "doc:#{note}"
+      )
+
+    Process.unlink(socket.channel_pid)
+    Process.monitor(socket.channel_pid)
+    socket.channel_pid
+  end
+
   # Applies the change on top of the note's log and stores it, the way a device would.
   def edit!(note, change) do
     doc = Yex.Doc.new()

@@ -3,13 +3,26 @@ defmodule NicheNotesWeb.DocChannel do
 
   alias NicheNotes.Docs
 
+  intercept ["close"]
+
+  # A channel checks access only when it joins, so taking a note away from someone ends their open channels on it.
+  def close(doc_id, user_ids),
+    do: NicheNotesWeb.Endpoint.broadcast("doc:#{doc_id}", "close", %{user_ids: user_ids})
+
+  @impl true
+  def handle_out("close", %{user_ids: user_ids}, socket) do
+    if socket.assigns.current_user_id in user_ids,
+      do: {:stop, :shutdown, socket},
+      else: {:noreply, socket}
+  end
+
   @impl true
   def join("doc:" <> doc_id, params, socket) do
     case Docs.open(doc_id, socket.assigns.current_user_id) do
       {:ok, owner_id} ->
         {updates, seq} = Docs.updates_since(doc_id, params["since"] || 0)
         encoded = for {id, update} <- updates, do: [id, Base.encode64(update)]
-        reply = %{updates: encoded, seq: seq, owner_id: owner_id, compact: Docs.compact?(doc_id)}
+        reply = %{updates: encoded, seq: seq, owner_id: owner_id}
         {:ok, reply, assign(socket, :doc_id, doc_id)}
 
       :forbidden ->
@@ -30,9 +43,6 @@ defmodule NicheNotesWeb.DocChannel do
     {:reply, {:ok, %{seq: stored.id}}, socket}
   end
 
-  def handle_in("snapshot", %{"update" => encoded, "upto" => upto}, socket)
-      when is_integer(upto) and upto > 0 do
-    {:ok, _} = Docs.snapshot(socket.assigns.doc_id, upto, Base.decode64!(encoded))
-    {:reply, :ok, socket}
-  end
+  # An app loaded before the server folded its own log still sends its snapshot, and waits for this reply.
+  def handle_in("snapshot", _payload, socket), do: {:reply, :ok, socket}
 end

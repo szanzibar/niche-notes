@@ -28,6 +28,9 @@ config :logger, :default_formatter,
 
 config :phoenix, :json_library, Jason
 
+# The socket's token signs a device in, so it stays out of the log.
+config :phoenix, :filter_parameters, ["password", "token"]
+
 # Alerts come due at a wall-clock time in each device's time zone.
 config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 

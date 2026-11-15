@@ -42,8 +42,7 @@ db.version(3).upgrade(async (tx) => {
   }
 })
 
-// The server says when to fold a doc's log into one snapshot. This local limit catches a device
-// whose own log keeps growing after another device already folded the server's.
+// A doc's local log is folded into one row once it grows past this. The server folds its own.
 const LOG_LIMIT = 50
 
 export const store = {
@@ -185,15 +184,20 @@ async function run(me: User) {
   userChannel = socket.channel(`user:${me.id}`, () => ({ after: cursor }))
   userChannel.on('shares_changed', () => void refreshSharing())
   userChannel.on('changed', ({ doc }: { doc: string }) => void pull([doc]).catch(() => {}))
-  userChannel.join().receive('ok', ({ changed, seq }: { changed: string[]; seq: number }) =>
-    pull(changed)
-      .then(async () => {
-        cursor = seq
-        await db.kv.put({ key: 'cursor', value: seq })
-        caughtUp()
-      })
-      .catch(() => {}),
-  )
+  userChannel
+    .join()
+    .receive('ok', async ({ changed, seq, generation }: { changed: string[]; seq: number; generation: string }) => {
+      const known = (await db.kv.get('generation'))?.value
+      if (known && known !== generation) return resend(generation)
+      await db.kv.put({ key: 'generation', value: generation })
+      pull(changed)
+        .then(async () => {
+          cursor = seq
+          await db.kv.put({ key: 'cursor', value: seq })
+          caughtUp()
+        })
+        .catch(() => {})
+    })
 
   // A note edited while the server was out of reach still has rows to send, which only an open note does.
   const sent = new Set(await db.updates.where('seq').aboveOrEqual(0).primaryKeys())
@@ -204,6 +208,27 @@ async function run(me: User) {
   store.users = ((await db.kv.get('users'))?.value as User[] | undefined) ?? []
   openShared()
   void refreshSharing()
+}
+
+// The server came back from a backup, which may lack rows this device holds and numbers its new rows from where the
+// backup ended. So every row counts as unsent and every cursor starts over, and the next launch sends what the
+// backup lacks and reads the rest again. Known and accepted: that launch loads every note at once.
+async function resend(generation: string) {
+  await db.transaction('rw', db.updates, db.docs, db.kv, async () => {
+    await db.updates.toCollection().modify({ seq: null })
+    await db.docs.toCollection().modify({ seq: 0 })
+    await db.kv.bulkPut([
+      { key: 'cursor', value: 0 },
+      { key: 'generation', value: generation },
+    ])
+  })
+  location.reload()
+}
+
+// Resolves once the server has stored every row this device wrote for the note.
+export async function acknowledged(id: string) {
+  const unsent = () => db.updates.where('doc').equals(id).filter((row) => row.seq == null).count()
+  while ((await unsent()) > 0) await new Promise((resolve) => setTimeout(resolve, 100))
 }
 
 export async function refreshSharing() {
@@ -372,21 +397,19 @@ async function load(id: string): Promise<Y.Doc> {
     await db.updates.bulkAdd(fresh)
   }
 
-  // The whole state as one update stands in for every row up to `since`, which we hold in full.
-  const compact = () => {
+  // The whole state as one row stands in for every row up to `since`, which we hold in full.
+  const fold = async () => {
     const upto = since
     const update = Y.encodeStateAsUpdate(doc)
-    channel.push('snapshot', { update: toBase64(update), upto }).receive('ok', async () => {
-      await db.transaction('rw', db.updates, async () => {
-        await db.updates
-          .where('doc')
-          .equals(id)
-          .filter((row) => row.seq != null && row.seq <= upto)
-          .delete()
-        await db.updates.add({ doc: id, seq: upto, update })
-      })
-      logged = await db.updates.where('doc').equals(id).count()
+    await db.transaction('rw', db.updates, async () => {
+      await db.updates
+        .where('doc')
+        .equals(id)
+        .filter((row) => row.seq != null && row.seq <= upto)
+        .delete()
+      await db.updates.add({ doc: id, seq: upto, update })
     })
+    logged = await db.updates.where('doc').equals(id).count()
   }
 
   // Send before the local write lands, so a reload right after a keystroke loses nothing the server can give back.
@@ -418,17 +441,7 @@ async function load(id: string): Promise<Y.Doc> {
     .join()
     .receive(
       'ok',
-      async ({
-        updates,
-        seq,
-        owner_id,
-        compact: fold,
-      }: {
-        updates: [number, string][]
-        seq: number
-        owner_id: string
-        compact: boolean
-      }) => {
+      async ({ updates, seq, owner_id }: { updates: [number, string][]; seq: number; owner_id: string }) => {
         if (store.owners.get(id) !== owner_id) {
           store.owners.set(id, owner_id)
           notify()
@@ -436,7 +449,7 @@ async function load(id: string): Promise<Y.Doc> {
         await fromServer(updates)
         since = seq
         await db.docs.upsert(id, { seq, owner: owner_id })
-        if (since > 0 && (fold || logged > LOG_LIMIT)) compact()
+        if (since > 0 && logged > LOG_LIMIT) await fold()
         const inflightIds = new Set(await Promise.all(inflight))
         const unsent = await db.updates
           .where('doc')

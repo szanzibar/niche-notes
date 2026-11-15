@@ -10,6 +10,7 @@ defmodule NicheNotesWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_session
+    plug :own_pages
     plug NicheNotesWeb.Plugs.RequireAuth
   end
 
@@ -24,6 +25,11 @@ defmodule NicheNotesWeb.Router do
 
     get "/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
+  end
+
+  scope "/auth", NicheNotesWeb do
+    pipe_through [:browser, NicheNotesWeb.Plugs.RequireAuth]
+
     get "/google", GoogleCalendarController, :connect
     get "/google/callback", GoogleCalendarController, :callback
   end
@@ -62,5 +68,13 @@ defmodule NicheNotesWeb.Router do
 
     get "/s/:link", LinkController, :open
     get "/*path", SPAController, :index
+  end
+
+  # Another site under our domain is same-site to the session cookie, so the API answers only our own pages.
+  # A request that names no site comes from no page. Browsers from before 2023 name none either, known and accepted.
+  defp own_pages(conn, _opts) do
+    if get_req_header(conn, "sec-fetch-site") in [[], ["same-origin"], ["none"]],
+      do: conn,
+      else: conn |> send_resp(:forbidden, "") |> halt()
   end
 end

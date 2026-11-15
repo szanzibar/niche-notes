@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
 import { useY } from '../sync/hooks'
+import { store } from '../sync/store'
 import { settings } from '../sync/tree'
 import { importAmplenote } from './amplenote'
 import { Button, IconButton } from './Button'
@@ -149,51 +150,56 @@ export function SettingsDialog() {
               {alerts === 'denied' && <p className="text-sm text-ink-muted">Blocked on this device.</p>}
             </>
           )}
-          <div className="mb-2 mt-5 flex items-center">
-            <p className="font-medium">Calendar</p>
-            <Info label="About the calendar">
-              Dated checkbox lines go to a Niche Notes calendar in your Google Calendar, a minute after each change.
-              Edit them here, since changes made in Google Calendar don't come back.
-            </Info>
-          </div>
-          {google?.email ? (
+          {/* A guest has one note, so no calendar of their own and nothing to import into. */}
+          {!store.me!.guest && (
             <>
-              <p className="mb-2 text-sm text-ink-muted">{google.email}</p>
-              <Button onClick={() => void api.disconnectGoogleCalendar().then(() => setGoogle({ email: null }))}>
-                Disconnect
+              <div className="mb-2 mt-5 flex items-center">
+                <p className="font-medium">Calendar</p>
+                <Info label="About the calendar">
+                  Dated checkbox lines go to a Niche Notes calendar in your Google Calendar, a minute after each change.
+                  Edit them here, since changes made in Google Calendar don't come back.
+                </Info>
+              </div>
+              {google?.email ? (
+                <>
+                  <p className="mb-2 text-sm text-ink-muted">{google.email}</p>
+                  <Button onClick={() => void api.disconnectGoogleCalendar().then(() => setGoogle({ email: null }))}>
+                    Disconnect
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  disabled={!google}
+                  onClick={() => {
+                    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+                    window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
+                  }}
+                >
+                  Connect Google Calendar
+                </Button>
+              )}
+              <p className="mb-2 mt-5 font-medium">Import</p>
+              <input
+                ref={zip}
+                type="file"
+                accept=".zip"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setImportMessage('Importing…')
+                  importAmplenote(file).then(
+                    (count) => setImportMessage(`Imported ${count} notes into Amplenote import.`),
+                    () => setImportMessage("That file isn't an Amplenote export."),
+                  )
+                }}
+              />
+              <Button disabled={importMessage === 'Importing…'} onClick={() => zip.current?.click()}>
+                Import from Amplenote
               </Button>
+              {importMessage && <p className="mt-2 text-sm text-ink-muted">{importMessage}</p>}
             </>
-          ) : (
-            <Button
-              disabled={!google}
-              onClick={() => {
-                const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-                window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
-              }}
-            >
-              Connect Google Calendar
-            </Button>
           )}
-          <p className="mb-2 mt-5 font-medium">Import</p>
-          <input
-            ref={zip}
-            type="file"
-            accept=".zip"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (!file) return
-              setImportMessage('Importing…')
-              importAmplenote(file).then(
-                (count) => setImportMessage(`Imported ${count} notes into Amplenote import.`),
-                () => setImportMessage("That file isn't an Amplenote export."),
-              )
-            }}
-          />
-          <Button disabled={importMessage === 'Importing…'} onClick={() => zip.current?.click()}>
-            Import from Amplenote
-          </Button>
-          {importMessage && <p className="mt-2 text-sm text-ink-muted">{importMessage}</p>}
           <Dialog.Close asChild>
             <Button className="mt-5 w-full">Done</Button>
           </Dialog.Close>

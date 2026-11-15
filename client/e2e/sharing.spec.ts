@@ -1,5 +1,5 @@
 import { expect, type Locator } from '@playwright/test'
-import { newNote, row, rowTitles, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
+import { display, newNote, row, rowTitles, shareWith, signIn, test, typeAtEnd, uid } from './helpers'
 
 test('a shared note lands under the other person\'s pins, can be left via their trash, and goes when unshared', async ({
   browser,
@@ -61,7 +61,8 @@ test('a shared note lands under the other person\'s pins, can be left via their 
 test('a link lets someone without an account edit the note under a made-up name, until the owner turns it off', async ({
   browser,
 }) => {
-  const alice = await signIn(browser, `alice-${uid()}`)
+  const a = `alice-${uid()}`
+  const alice = await signIn(browser, a)
   await newNote(alice, 'Party', 'Chips')
   await alice.getByRole('button', { name: 'Share', exact: true }).click()
   await alice.getByRole('button', { name: 'Create link' }).click()
@@ -73,6 +74,10 @@ test('a link lets someone without an account edit the note under a made-up name,
   const guest = await phone.newPage()
   await guest.goto(link)
   await expect(guest.getByPlaceholder('Title')).toHaveValue('Party')
+  // A guest has that one note: no new ones, and nobody's name but its owner's.
+  await expect(guest.getByRole('button', { name: /^New note/ })).toHaveCount(0)
+  const users = await (await guest.request.get('/api/users')).json()
+  expect(users.users.map((u: { name: string }) => u.name)).toEqual([display(a)])
   await typeAtEnd(guest, ' and dip')
   await expect(alice.locator('.editor-body')).toContainText('Chips and dip')
   const name = alice.locator('.collaboration-carets__label')
