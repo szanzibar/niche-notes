@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, useMatch, useNavigate } from 'react-router-dom'
 import { NoteView } from './components/NoteView'
+import { appTheme } from './components/themes'
 import { Tree } from './components/Tree'
 import { registerAlerts } from './lib/alerts'
 import { api } from './lib/api'
@@ -18,7 +19,7 @@ declare global {
 }
 import { useY } from './sync/hooks'
 import { start, synced } from './sync/store'
-import { purgeExpired, settings } from './sync/tree'
+import { nodes, purgeExpired, settings } from './sync/tree'
 
 export default function App() {
   const [me, setMe] = useState<User | null>(null)
@@ -79,18 +80,22 @@ function Shell() {
   }, [navigate])
   const prefs = settings()
   useY(prefs)
-  const accent = prefs.get('accent') as string | undefined
+  useY(nodes())
   const theme = prefs.get('theme') as string | undefined
+  const { color, text } = appTheme(noteId)
   useEffect(() => {
-    if (accent) document.documentElement.style.setProperty('--accent', accent)
-    else document.documentElement.style.removeProperty('--accent')
+    if (noteId) localStorage.setItem('lastNote', noteId)
+  }, [noteId])
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', color)
+    document.documentElement.style.setProperty('--on-accent', text)
     if (theme) document.documentElement.dataset.theme = theme
     else delete document.documentElement.dataset.theme
-  }, [accent, theme])
+  }, [color, text, theme])
   return (
     <div className="h-dvh md:grid md:grid-cols-[320px_1fr]">
       <aside
-        className={`${noteId ? 'hidden md:flex' : 'flex'} h-full flex-col overflow-hidden border-border bg-surface md:border-r-2`}
+        className={`${noteId ? 'hidden md:flex' : 'flex'} h-full flex-col overflow-hidden border-border bg-tint md:border-r-2`}
       >
         <Tree selected={noteId} />
       </aside>

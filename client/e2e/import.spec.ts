@@ -90,10 +90,11 @@ test('an Amplenote export comes in under one note, with a note for each tag, and
   await expect(body.locator('li[data-checked="true"]')).toBeHidden()
   await expect(body.locator('li[data-checked="false"]')).toBeVisible()
 
-  // A task's start time is its date, a table row is a line, and markdown keeps its marks.
+  // A task's start time is its date, a table stays a table, and markdown keeps its marks.
   await row(page, "Tim's todo").click()
   await expect(body.locator('li[data-due="2026-02-17T13:00"][data-duration="60"]')).toHaveText('Call the bank')
-  await expect(body.locator('p').last()).toHaveText('Grind | Temp')
+  await expect(body.locator('table tr')).toHaveCount(1)
+  await expect(body.locator('table td')).toHaveText(['Grind', 'Temp', ''])
   await row(page, 'Recipes').click()
   await expect(body.locator('ol li')).toHaveText(['Mix flour', 'Bake'])
   await expect(body.locator('ol strong')).toHaveText('flour')

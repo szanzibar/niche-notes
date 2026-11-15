@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useStore } from '../sync/hooks'
+import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
 import { wipeLocal } from '../sync/store'
 import {
@@ -33,6 +33,7 @@ import {
   purgeNote,
   removeFromTree,
   restoreNote,
+  settings,
   shareCount,
   titleOf,
   toggleCollapsed,
@@ -43,6 +44,7 @@ import { GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
+import { noteTheme } from './themes'
 
 const ROOT = 'root'
 const INDENT = 16
@@ -85,6 +87,7 @@ function useOpenNote() {
 
 export function Tree({ selected }: { selected?: string }) {
   const s = useStore()
+  useY(settings())
   const navigate = useNavigate()
   const showNote = useShowNote()
   const openNote = useOpenNote()
@@ -175,7 +178,7 @@ export function Tree({ selected }: { selected?: string }) {
       }}
     >
       {picking && (
-        <p className="border-b-2 border-border bg-accent px-4 py-2 text-sm font-bold text-white">
+        <p className="border-b-2 border-border bg-accent px-4 py-2 text-sm font-bold text-on-accent">
           {s.online === false ? 'Connect to the internet to pick a note' : 'Tap a note to show it in the widget'}
         </p>
       )}
@@ -225,7 +228,7 @@ export function Tree({ selected }: { selected?: string }) {
                 <li key={hit.id} role="option" aria-selected={i === cursor}>
                   <button
                     type="button"
-                    className={`flex w-full flex-col px-4 py-2 text-left ${i === cursor ? 'bg-bg outline-2 -outline-offset-2 outline-accent' : 'hover:bg-bg'}`}
+                    className={`flex w-full flex-col px-4 py-2 text-left ${i === cursor ? 'bg-bg outline-2 -outline-offset-2 outline-accent-ink' : 'hover:bg-bg'}`}
                     onMouseEnter={() => setCursor(i)}
                     onClick={() => openNote(hit.id)}
                   >
@@ -263,7 +266,7 @@ export function Tree({ selected }: { selected?: string }) {
           <IconButton
             label={`Trash (${trash.length})`}
             aria-expanded={trashOpen}
-            className={`px-1 ${trashOpen ? 'text-accent' : ''}`}
+            className={`px-1 ${trashOpen ? 'text-accent-ink' : ''}`}
             onClick={() => setTrashOpen(!trashOpen)}
           >
             <TrashIcon />
@@ -297,7 +300,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const active = selected === id
   return (
     <div
-      className={`flex items-center gap-3 pr-3 pl-8 text-sm pointer-coarse:pl-15 ${active ? 'bg-accent text-white' : 'hover:bg-bg'}`}
+      className={`flex items-center gap-3 pr-3 pl-8 text-sm pointer-coarse:pl-15 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'}`}
     >
       <button
         type="button"
@@ -307,7 +310,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
       >
         <span className="truncate font-medium">{titleOf(id)}</span>
         {!isMine(id) && (
-          <span className={`shrink-0 text-xs ${active ? 'text-white/80' : 'text-ink-muted'}`}>{ownerName(id)}</span>
+          <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{ownerName(id)}</span>
         )}
       </button>
       <button type="button" className="shrink-0 underline" onClick={() => restoreNote(id)}>
@@ -334,7 +337,7 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
   return (
     <header
       ref={setNodeRef}
-      className={`flex items-center gap-2 border-b-2 border-border px-4 py-3 ${active ? 'bg-accent text-white' : ''}`}
+      className={`flex items-center gap-2 border-b-2 border-border px-4 py-3 ${active ? 'bg-accent text-on-accent' : ''}`}
     >
       {children}
     </header>
@@ -353,6 +356,7 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
   const kids = children(id)
   const open = !isCollapsed(id)
   const active = selected === id
+  const color = noteTheme(id)?.color
   const tag = !isMine(id) ? ownerName(id) : shareCount(id) > 0 ? 'shared' : null
   const zone = hint?.id === id ? hint.zone : null
 
@@ -360,7 +364,7 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
     <>
       <div
         ref={dropRef}
-        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-white' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking ? 'outline-2 -outline-offset-2 outline-accent' : ''}`}
+        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
         style={{ paddingLeft: 4 + depth * INDENT }}
         onDragOver={(e) => {
           if (!draggedLine()) return
@@ -377,15 +381,22 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
         {/* The drop line sits where the note will land, indented the way the note will be. */}
         {zone && (
           <span
-            className={`pointer-events-none absolute right-0 h-[3px] before:absolute before:-top-1 before:left-0 before:h-[11px] before:w-[11px] before:content-[''] ${zone === 'before' ? 'top-0' : 'bottom-0'} ${active ? 'bg-ink before:bg-ink' : 'bg-accent before:bg-accent'}`}
+            className={`pointer-events-none absolute right-0 h-[3px] before:absolute before:-top-1 before:left-0 before:h-[11px] before:w-[11px] before:content-[''] ${zone === 'before' ? 'top-0' : 'bottom-0'} ${active ? 'bg-ink before:bg-ink' : 'bg-accent-ink before:bg-accent-ink'}`}
             style={{ left: 4 + (zone === 'inside' ? depth + 1 : depth) * INDENT }}
+          />
+        )}
+        {/* The note's color sits beside its grip and moves in with its nesting. */}
+        {color && (
+          <span
+            className="pointer-events-none absolute inset-y-0 w-1.5"
+            style={{ left: 4 + depth * INDENT, background: color }}
           />
         )}
         <span
           {...listeners}
           data-handle
           aria-hidden
-          className={`hidden h-11 w-7 shrink-0 touch-none items-center justify-center pointer-coarse:flex ${active ? 'text-white/80' : 'text-ink-muted'}`}
+          className={`hidden h-11 w-7 shrink-0 touch-none items-center justify-center pointer-coarse:flex ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}
         >
           <GripIcon className="h-5 w-5" />
         </span>
@@ -412,9 +423,9 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
         >
           <span className="truncate font-medium">{titleOf(id)}</span>
           {isPinned(id) && (
-            <PinIcon filled className={`h-3.5 w-3.5 shrink-0 self-center ${active ? '' : 'text-accent'}`} />
+            <PinIcon filled className={`h-3.5 w-3.5 shrink-0 self-center ${active ? '' : 'text-accent-ink'}`} />
           )}
-          {tag && <span className={`shrink-0 text-xs ${active ? 'text-white/80' : 'text-ink-muted'}`}>{tag}</span>}
+          {tag && <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{tag}</span>}
         </button>
         <button
           type="button"

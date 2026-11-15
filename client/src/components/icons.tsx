@@ -79,8 +79,19 @@ export const UnlinkIcon = icon(
 export const OpenLinkIcon = icon('M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6')
 export const CalendarIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 10h16M8 2v4M16 2v4')
 export const CheckIcon = icon('M20 6L9 17l-5-5')
+export const InfoIcon = icon('M12 16v-4M12 8h.01M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0')
 export const GRIP = 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01'
 export const GripIcon = icon(GRIP)
 export const HighlightIcon = icon('M9 11l-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4')
+export const PaletteIcon = icon(
+  'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2zM13.5 6.5h.01M17.5 10.5h.01M8.5 7.5h.01M6.5 12.5h.01',
+)
+export const TableIcon = icon('M3 3h18v18H3zM3 9h18M3 15h18M12 3v18')
+// A row or column of the table, with a plus or a cross where the change goes.
+export const AddRowIcon = icon('M3 3h18v9H3zM12 3v9M12 15v6M9 18h6')
+export const DeleteRowIcon = icon('M3 3h18v9H3zM12 3v9M9.5 15.5l5 5M14.5 15.5l-5 5')
+export const AddColumnIcon = icon('M3 3h9v18H3zM3 12h9M18 9v6M15 12h6')
+export const DeleteColumnIcon = icon('M3 3h9v18H3zM3 12h9M15.5 9.5l5 5M20.5 9.5l-5 5')
+export const DeleteTableIcon = icon('M3 3h12v12H3zM3 9h12M9 3v12M16 16l5 5M21 16l-5 5')
 export const UndoIcon = icon('M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11')
 export const RedoIcon = icon('M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13')

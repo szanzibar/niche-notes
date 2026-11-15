@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
+import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
@@ -6,23 +7,18 @@ import { useY } from '../sync/hooks'
 import { settings } from '../sync/tree'
 import { importAmplenote } from './amplenote'
 import { Button, IconButton } from './Button'
-import { SettingsIcon } from './icons'
+import { InfoIcon, SettingsIcon } from './icons'
+import { THEMES } from './themes'
 
-// Dark enough for white text on a selected row, and bright enough to show against a dark background.
-const ACCENTS = [
-  ['Coral', '#FF4F3B'],
-  ['Blue', '#2F6BFF'],
-  ['Green', '#1A9E5C'],
-  ['Purple', '#8B3DFF'],
-  ['Orange', '#E8700A'],
-  ['Pink', '#E0338A'],
-  ['Teal', '#0E9494'],
-]
-
-const THEMES: [string, string | undefined][] = [
+const APPEARANCES: [string, string | undefined][] = [
   ['Follow device', undefined],
   ['Light', 'light'],
   ['Dark', 'dark'],
+]
+
+const SCHEMES: [string, string | undefined][] = [
+  ['Default', undefined],
+  ['Confetti', 'confetti'],
 ]
 
 const DENSITIES: [string, string | undefined][] = [
@@ -34,8 +30,9 @@ const DENSITIES: [string, string | undefined][] = [
 export function SettingsDialog() {
   const prefs = settings()
   useY(prefs)
-  const accent = (prefs.get('accent') as string | undefined) ?? ACCENTS[0][1]
+  const accent = (prefs.get('accent') as string | undefined) ?? THEMES[0].color
   const theme = prefs.get('theme') as string | undefined
+  const scheme = prefs.get('scheme') as string | undefined
   // Density stays on this device, since a phone and a desktop want different sizes.
   const [density, setDensity] = useState(localStorage.getItem('density') ?? undefined)
   const chooseDensity = (value: string | undefined) => {
@@ -74,24 +71,9 @@ export function SettingsDialog() {
           className="fixed left-1/2 top-1/2 max-h-[92dvh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border-2 border-border bg-surface p-5 shadow-brutal"
         >
           <Dialog.Title className="mb-3 text-lg font-bold">Settings</Dialog.Title>
-          <p className="mb-2 font-medium">Highlight color</p>
-          <div className="grid auto-cols-fr grid-flow-col gap-2">
-            {ACCENTS.map(([name, hex]) => (
-              <button
-                key={hex}
-                type="button"
-                aria-label={name}
-                aria-pressed={hex === accent}
-                title={name}
-                className={`aspect-square border-2 border-border ${hex === accent ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
-                style={{ background: hex }}
-                onClick={() => prefs.set('accent', hex)}
-              />
-            ))}
-          </div>
-          <p className="mb-2 mt-5 font-medium">Appearance</p>
+          <p className="mb-2 font-medium">Appearance</p>
           <div className="flex flex-wrap gap-2">
-            {THEMES.map(([name, value]) => (
+            {APPEARANCES.map(([name, value]) => (
               <Button
                 key={name}
                 variant={theme === value ? 'primary' : 'default'}
@@ -102,6 +84,39 @@ export function SettingsDialog() {
               </Button>
             ))}
           </div>
+          <p className="mb-2 mt-5 font-medium">Color scheme</p>
+          <div className="flex flex-wrap gap-2">
+            {SCHEMES.map(([name, value]) => (
+              <Button
+                key={name}
+                variant={scheme === value ? 'primary' : 'default'}
+                aria-pressed={scheme === value}
+                onClick={() => (value ? prefs.set('scheme', value) : prefs.delete('scheme'))}
+              >
+                {name}
+              </Button>
+            ))}
+          </div>
+          {/* Confetti gives every note its own color, so there is no theme to pick. */}
+          {!scheme && (
+            <>
+              <p className="mb-2 mt-5 font-medium">Theme</p>
+              <div className="grid grid-cols-7 gap-2">
+                {THEMES.map(({ name, color }) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={name}
+                    aria-pressed={color === accent}
+                    title={name}
+                    className={`aspect-square border-2 border-border ${color === accent ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
+                    style={{ background: color }}
+                    onClick={() => prefs.set('accent', color)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
           <p className="mb-2 mt-5 font-medium">Density</p>
           <div className="flex flex-wrap gap-2">
             {DENSITIES.map(([name, value]) => (
@@ -117,52 +132,49 @@ export function SettingsDialog() {
           </div>
           {alerts && (
             <>
-              <p className="mb-2 mt-5 font-medium">Alerts</p>
+              <div className="mb-2 mt-5 flex items-center">
+                <p className="font-medium">Alerts</p>
+                {alerts === 'denied' && (
+                  <Info label="About alerts">
+                    Allow notifications for Niche Notes in your phone's settings, then close the app and open it again.
+                  </Info>
+                )}
+              </div>
               {alerts === 'granted' && <p className="text-sm text-ink-muted">On for this device.</p>}
               {alerts === 'default' && (
                 <Button onClick={() => void enableAlerts().then(() => setAlerts(Notification.permission))}>
                   Turn on alerts
                 </Button>
               )}
-              {alerts === 'denied' && (
-                <p className="text-sm text-ink-muted">
-                  Blocked on this device. Allow notifications for Niche Notes in your phone's settings, then close the
-                  app and open it again.
-                </p>
-              )}
+              {alerts === 'denied' && <p className="text-sm text-ink-muted">Blocked on this device.</p>}
             </>
           )}
-          <p className="mt-5 font-medium">Calendar</p>
+          <div className="mb-2 mt-5 flex items-center">
+            <p className="font-medium">Calendar</p>
+            <Info label="About the calendar">
+              Dated checkbox lines go to a Niche Notes calendar in your Google Calendar, a minute after each change.
+              Edit them here, since changes made in Google Calendar don't come back.
+            </Info>
+          </div>
           {google?.email ? (
             <>
-              <p className="mb-2 text-sm text-ink-muted">
-                Dated checkbox lines are in the Niche Notes calendar of {google.email}, a minute after each change. Edit
-                them here, since changes made in Google Calendar don't come back.
-              </p>
+              <p className="mb-2 text-sm text-ink-muted">{google.email}</p>
               <Button onClick={() => void api.disconnectGoogleCalendar().then(() => setGoogle({ email: null }))}>
                 Disconnect
               </Button>
             </>
           ) : (
-            <>
-              <p className="mb-2 text-sm text-ink-muted">
-                Dated checkbox lines in a Niche Notes calendar in your Google Calendar, a minute after each change.
-              </p>
-              <Button
-                disabled={!google}
-                onClick={() => {
-                  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-                  window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
-                }}
-              >
-                Connect Google Calendar
-              </Button>
-            </>
+            <Button
+              disabled={!google}
+              onClick={() => {
+                const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+                window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
+              }}
+            >
+              Connect Google Calendar
+            </Button>
           )}
-          <p className="mt-5 font-medium">Import</p>
-          <p className="mb-2 text-sm text-ink-muted">
-            {importMessage ?? 'Notes and lists from the zip of an Amplenote export, inside a new Amplenote import note.'}
-          </p>
+          <p className="mb-2 mt-5 font-medium">Import</p>
           <input
             ref={zip}
             type="file"
@@ -181,11 +193,34 @@ export function SettingsDialog() {
           <Button disabled={importMessage === 'Importing…'} onClick={() => zip.current?.click()}>
             Import from Amplenote
           </Button>
+          {importMessage && <p className="mt-2 text-sm text-ink-muted">{importMessage}</p>}
           <Dialog.Close asChild>
             <Button className="mt-5 w-full">Done</Button>
           </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+// A section's details stay off the page until someone taps the icon beside its name.
+function Info({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <IconButton label={label} className="-my-2.5 text-ink-muted">
+          <InfoIcon className="size-4.5" />
+        </IconButton>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          collisionPadding={8}
+          className="max-w-72 border-2 border-border bg-surface p-3 text-sm shadow-brutal"
+        >
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }

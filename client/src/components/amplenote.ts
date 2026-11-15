@@ -32,16 +32,12 @@ const markdown = new Marked({
       return `<li data-type="taskItem" data-checked="${item.checked}"${item.checked ? '' : dated(item.raw)}>${body}</li>`
     },
     checkbox: () => '',
-    // The editor has no tables, so each row becomes a line, without the empty cells at its end.
+    // Amplenote's tables have no header row, so the export's empty one is dropped and every row comes in as cells.
     table(token) {
       const rows = token.header.some((cell) => cell.text.trim()) ? [token.header, ...token.rows] : token.rows
-      return rows
-        .map((row) => {
-          const cells = row.map((cell) => this.parser.parseInline(cell.tokens))
-          while (cells.at(-1) === '') cells.pop()
-          return `<p>${cells.join(' | ')}</p>`
-        })
-        .join('')
+      const cells = (row: Tokens.TableCell[]) =>
+        row.map((cell) => `<td><p>${this.parser.parseInline(cell.tokens)}</p></td>`).join('')
+      return `<table>${rows.map((row) => `<tr>${cells(row)}</tr>`).join('')}</table>`
     },
     image: () => '',
   },

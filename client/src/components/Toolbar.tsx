@@ -1,8 +1,10 @@
 import type { Editor } from '@tiptap/react'
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
 import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
 import {
+  AddColumnIcon,
+  AddRowIcon,
   BoldIcon,
   BulletListIcon,
   CalendarIcon,
@@ -10,6 +12,9 @@ import {
   CodeBlockIcon,
   ChecklistIcon,
   CodeIcon,
+  DeleteColumnIcon,
+  DeleteRowIcon,
+  DeleteTableIcon,
   DividerIcon,
   HeadingIcon,
   HighlightIcon,
@@ -22,6 +27,7 @@ import {
   QuoteIcon,
   RedoIcon,
   StrikeIcon,
+  TableIcon,
   TrashIcon,
   UndoIcon,
   UnlinkIcon,
@@ -38,7 +44,7 @@ const DURATIONS = [
   ['2h', '2 hours', 120],
   ['3h', '3 hours', 180],
 ] as const
-const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:border-accent'
+const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink'
 
 export function Toolbar({ editor }: { editor: Editor | null }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
@@ -57,6 +63,12 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
       dom.removeEventListener('due-date', due)
     }
   }, [editor])
+  // Moving into a table brings its tools into view on a narrow bar.
+  const inTable = editor?.isActive('table') ?? false
+  const tableTools = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (inTable) tableTools.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+  }, [inTable])
   if (!editor) return null
 
   const { item, list, depth } = listPosition(editor)
@@ -137,13 +149,28 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
       )}
       <div className="flex gap-2 overflow-x-auto p-2">
         <Group>
-          <Tool label="Checklist" active={list === 'taskList'} onClick={() => toggleList(editor, 'taskList')}>
+          <Tool
+            label="Checklist"
+            disabled={inTable}
+            active={list === 'taskList'}
+            onClick={() => toggleList(editor, 'taskList')}
+          >
             <ChecklistIcon className={ICON} />
           </Tool>
-          <Tool label="Bullet list" active={list === 'bulletList'} onClick={() => toggleList(editor, 'bulletList')}>
+          <Tool
+            label="Bullet list"
+            disabled={inTable}
+            active={list === 'bulletList'}
+            onClick={() => toggleList(editor, 'bulletList')}
+          >
             <BulletListIcon className={ICON} />
           </Tool>
-          <Tool label="Numbered list" active={list === 'orderedList'} onClick={() => toggleList(editor, 'orderedList')}>
+          <Tool
+            label="Numbered list"
+            disabled={inTable}
+            active={list === 'orderedList'}
+            onClick={() => toggleList(editor, 'orderedList')}
+          >
             <NumberedListIcon className={ICON} />
           </Tool>
         </Group>
@@ -174,7 +201,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                 ))}
               </Group>
               <div className="flex gap-1">
-                <label className={`${FIELD} flex flex-1 items-center gap-1 focus-within:border-accent`}>
+                <label className={`${FIELD} flex flex-1 items-center gap-1 focus-within:border-accent-ink`}>
                   {day && <span className="shrink-0">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>}
                   <input
                     type="date"
@@ -304,10 +331,10 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           </Popover>
         </Group>
         <Group>
-          <Tool label="Outdent" onClick={() => chain().liftListItem(listItem).run()}>
+          <Tool label="Outdent" disabled={inTable} onClick={() => chain().liftListItem(listItem).run()}>
             <OutdentIcon className={ICON} />
           </Tool>
-          <Tool label="Indent" onClick={() => chain().sinkListItem(listItem).run()}>
+          <Tool label="Indent" disabled={inTable} onClick={() => chain().sinkListItem(listItem).run()}>
             <IndentIcon className={ICON} />
           </Tool>
         </Group>
@@ -325,7 +352,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
             open={row === 'styles'}
             onOpenChange={(open) => setRow(open ? 'styles' : null)}
             trigger={
-              <Tool label="Text style" active={row === 'styles' || editor.isActive('heading')}>
+              <Tool label="Text style" disabled={inTable} active={row === 'styles' || editor.isActive('heading')}>
                 <HeadingIcon className={ICON} />
               </Tool>
             }
@@ -344,16 +371,42 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
               </Tool>
             ))}
           </Popover>
-          <Tool label="Quote" active={editor.isActive('blockquote')} onClick={() => chain().toggleBlockquote().run()}>
+          <Tool label="Quote" disabled={inTable} active={editor.isActive('blockquote')} onClick={() => chain().toggleBlockquote().run()}>
             <QuoteIcon className={ICON} />
           </Tool>
-          <Tool label="Code block" active={editor.isActive('codeBlock')} onClick={() => chain().toggleCodeBlock().run()}>
+          <Tool label="Code block" disabled={inTable} active={editor.isActive('codeBlock')} onClick={() => chain().toggleCodeBlock().run()}>
             <CodeBlockIcon className={ICON} />
           </Tool>
-          <Tool label="Divider" onClick={() => chain().setHorizontalRule().run()}>
+          <Tool label="Divider" disabled={inTable} onClick={() => chain().setHorizontalRule().run()}>
             <DividerIcon className={ICON} />
           </Tool>
+          <Tool
+            label="Table"
+            disabled={inTable}
+            onClick={() => chain().insertTable({ rows: 2, cols: 3, withHeaderRow: true }).run()}
+          >
+            <TableIcon className={ICON} />
+          </Tool>
         </Group>
+        {inTable && (
+          <Group ref={tableTools}>
+            <Tool label="Add row" onClick={() => chain().addRowAfter().run()}>
+              <AddRowIcon className={ICON} />
+            </Tool>
+            <Tool label="Add column" onClick={() => chain().addColumnAfter().run()}>
+              <AddColumnIcon className={ICON} />
+            </Tool>
+            <Tool label="Delete row" onClick={() => chain().deleteRow().run()}>
+              <DeleteRowIcon className={ICON} />
+            </Tool>
+            <Tool label="Delete column" onClick={() => chain().deleteColumn().run()}>
+              <DeleteColumnIcon className={ICON} />
+            </Tool>
+            <Tool label="Delete table" onClick={() => chain().deleteTable().run()}>
+              <DeleteTableIcon className={ICON} />
+            </Tool>
+          </Group>
+        )}
         <Group>
           <Tool label="Bold" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()}>
             <BoldIcon className={ICON} />
@@ -392,7 +445,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                 autoFocus
                 value={href}
                 onChange={(e) => setHref(e.target.value)}
-                className="h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent"
+                className="h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink"
               />
               <Tool label="Apply link" onClick={applyLink}>
                 <CheckIcon className={ICON} />
@@ -417,8 +470,16 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
 }
 
 // The border goes around a group of related tools, not each tool.
-function Group({ className = '', children }: { className?: string; children: React.ReactNode }) {
-  return <div className={`flex shrink-0 border-2 border-border shadow-[2px_2px_0_var(--border)] ${className}`}>{children}</div>
+function Group({
+  className = '',
+  children,
+  ref,
+}: {
+  className?: string
+  children: React.ReactNode
+  ref?: React.Ref<HTMLDivElement>
+}) {
+  return <div ref={ref} className={`flex shrink-0 border-2 border-border shadow-[2px_2px_0_var(--border)] ${className}`}>{children}</div>
 }
 
 function Tool({ label, active, ...props }: React.ComponentProps<'button'> & { label: string; active?: boolean }) {
@@ -430,7 +491,7 @@ function Tool({ label, active, ...props }: React.ComponentProps<'button'> & { la
       title={label}
       // Keep the editor focused and the keyboard open while tapping the bar.
       onMouseDown={(e) => e.preventDefault()}
-      className={`flex h-9 min-w-9 shrink-0 items-center justify-center px-1.5 text-sm font-bold disabled:text-ink-muted ${active ? 'bg-accent text-white' : 'bg-surface'}`}
+      className={`flex h-9 min-w-9 shrink-0 items-center justify-center px-1.5 text-sm font-bold disabled:text-ink-muted ${active ? 'bg-accent text-on-accent' : 'bg-surface'}`}
       {...props}
     />
   )

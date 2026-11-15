@@ -64,10 +64,12 @@ Neo-brutalist: bold and direct, not the rounded gray card look.
 
 - Borders are solid 2px `#111`. Shadows are solid offsets, `4px 4px 0 #111`, never blurred.
 - Corners are square, or one small radius used everywhere.
-- Off-white `#FAFAF8` base, near-black `#111` text, coral red `#FF4F3B` accent. Dark mode flips the neutrals through `light-dark()` on the same tokens; the accent is the user's setting.
+- Near-black `#111` text on a page and tree tinted with the theme's color, coral `#FF4F3B` unless the user picks another. The color fills the note header, and Dark mode flips the neutrals through `light-dark()` on the same tokens.
+- A fill of the color takes the theme's own text color (`text-on-accent`), and the color as text or a thin line on the page takes `text-accent-ink`, so pale themes stay readable.
 - Space Grotesk for type.
 - Icons over words. A button shows an icon, with its name as `aria-label` and `title` (`IconButton`). Words only where no icon reads clearly, such as Restore or Delete forever.
+- No explanations on screen. A control says what it does, and a section's details sit behind an info icon beside its name.
 - The accent marks what is on or chosen: a pinned or shared note, an active tool, the selection, a highlight.
 - No gradients, glass, transparency or skeleton loaders.
-- Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `text-ink`, `text-ink-muted`, `bg-accent`, `border-border`, `shadow-brutal`).
+- Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `bg-tint`, `text-ink`, `text-ink-muted`, `bg-accent`, `text-on-accent`, `text-accent-ink`, `border-border`, `shadow-brutal`).
 - Radix UI headless primitives, styled by hand. Not shadcn/ui.

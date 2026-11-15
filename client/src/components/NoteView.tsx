@@ -21,10 +21,12 @@ import {
   inTrash,
   isMine,
   isPinned,
+  nodes,
   ownerName,
   purgeNote,
   removeNote,
   restoreNote,
+  setColor,
   shareCount,
   titleOf,
   togglePin,
@@ -36,6 +38,7 @@ import {
   GripIcon,
   HideCheckedIcon,
   LeaveIcon,
+  PaletteIcon,
   PinIcon,
   RemoveNoteIcon,
   RemoveWithNotesIcon,
@@ -58,6 +61,8 @@ import {
   moveLine,
   uncheckAll,
 } from './lists'
+import { TableEnter } from './tables'
+import { THEMES } from './themes'
 import { MoveDialog } from './MoveDialog'
 import { Toolbar } from './Toolbar'
 
@@ -155,15 +160,16 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       meta.set('hideChecked', on && mode === 'hideChecked')
       meta.set('deleteChecked', on && mode === 'deleteChecked')
     })
-  // One box opens under the title at a time: the folded actions, what to do with checked lines, or whether the notes
-  // under this one go with it.
-  const [panel, setPanel] = useState<'more' | 'checked' | 'remove' | null>(null)
+  // One box opens under the title at a time: the folded actions, what to do with checked lines, whether the notes
+  // under this one go with it, or the note's color.
+  const [panel, setPanel] = useState<'more' | 'checked' | 'remove' | 'color' | null>(null)
 
   const editor = useEditor(
     {
       extensions: [
         ...contentExtensions,
         ListTabs,
+        TableEnter,
         JoinLists,
         LineGrips(id),
         Placeholder.configure({ placeholder: 'Write…' }),
@@ -309,6 +315,37 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     </button>
   )
 
+  // The note's color for this person alone. Automatic follows the color scheme.
+  const picked = nodes().get(id)?.color
+  const colors = (
+    <div className="grid w-[min(calc(100vw-2rem),20rem)] grid-cols-8 gap-2 p-1">
+      <button
+        type="button"
+        aria-label="Automatic color"
+        aria-pressed={!picked}
+        title="Automatic color"
+        className={`row-span-2 border-2 border-border bg-surface text-ink ${picked ? '' : 'outline-2 outline-offset-2 outline-ink'}`}
+        onClick={() => setColor(id, undefined)}
+      >
+        <svg viewBox="0 0 10 10" preserveAspectRatio="none" className="h-full w-full" aria-hidden>
+          <path d="M0 10L10 0" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        </svg>
+      </button>
+      {THEMES.map(({ name, color }) => (
+        <button
+          key={color}
+          type="button"
+          aria-label={name}
+          aria-pressed={color === picked}
+          title={name}
+          className={`aspect-square border-2 border-border ${color === picked ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
+          style={{ background: color }}
+          onClick={() => setColor(id, color)}
+        />
+      ))}
+    </div>
+  )
+
   const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
   // Every action folds at once, except Share, which stays beside the dots. Elsewhere a people icon stays there
   // when the note is shared. Behind the dots, the checked-line options and the choice of what to delete get their
@@ -324,7 +361,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           ))}
         <Popover
           side="bottom"
-          open={panel === 'more' || panel === 'remove'}
+          open={panel === 'more' || panel === 'remove' || panel === 'color'}
           onOpenChange={(open) => setPanel(open ? 'more' : null)}
           trigger={
             <button type="button" aria-label="More" className="h-10 w-10 shrink-0 text-2xl leading-none">
@@ -335,7 +372,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           <div className="flex flex-col items-end gap-2">
             {checked && <div className="flex items-center gap-2">{checked}</div>}
             <div className="flex items-center gap-2">{buttons}</div>
-            {panel === 'remove' && <div className="flex items-center gap-2">{choices}</div>}
+            {(panel === 'remove' || panel === 'color') && <div className="flex items-center gap-2">{choices}</div>}
           </div>
         </Popover>
       </>
@@ -348,7 +385,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             onOpenChange={(open) => setPanel(open ? 'checked' : null)}
             trigger={
               <IconButton label="Checked lines">
-                <CheckedIcon className={`h-[22px] w-[22px] ${panel === 'checked' || hiding ? 'text-accent' : ''}`} />
+                {deleting ? <DeleteWhenCheckedIcon /> : hiding ? <HideCheckedIcon /> : <CheckedIcon />}
               </IconButton>
             }
           >
@@ -369,7 +406,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
     return (
       <>
-        <header ref={header} className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+        <header
+          ref={header}
+          className="note-header flex flex-wrap items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent"
+        >
           {back}
           <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
             {titleOf(id)}
@@ -398,7 +438,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
 
   return (
     <>
-      <header ref={header} className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-surface px-3 py-2">
+      <header
+        ref={header}
+        className="note-header flex flex-wrap items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent"
+      >
         {back}
         <input
           ref={titleRef}
@@ -414,8 +457,26 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           mine && <ShareDialog id={id} />,
           <>
             {sharedBy}
+            {folded ? (
+              <IconButton label="Note color" onClick={() => setPanel(panel === 'color' ? 'more' : 'color')}>
+                <PaletteIcon />
+              </IconButton>
+            ) : (
+              <Popover
+                side="bottom"
+                open={panel === 'color'}
+                onOpenChange={(open) => setPanel(open ? 'color' : null)}
+                trigger={
+                  <IconButton label="Note color">
+                    <PaletteIcon />
+                  </IconButton>
+                }
+              >
+                {colors}
+              </Popover>
+            )}
             <IconButton label={pinLabel} onClick={() => togglePin(id)}>
-              <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent' : ''}`} />
+              <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent-ink' : ''}`} />
             </IconButton>
             {nested && !folded ? (
               <Popover
@@ -423,7 +484,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
                 open={panel === 'remove'}
                 onOpenChange={(open) => setPanel(open ? 'remove' : null)}
                 trigger={
-                  <IconButton label={removeLabel} className={panel === 'remove' ? 'text-accent' : ''}>
+                  <IconButton label={removeLabel} className={panel === 'remove' ? 'text-accent-ink' : ''}>
                     {mine ? <TrashIcon /> : <LeaveIcon />}
                   </IconButton>
                 }
@@ -433,7 +494,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             ) : (
               <IconButton
                 label={removeLabel}
-                className={panel === 'remove' ? 'text-accent' : ''}
+                className={panel === 'remove' ? 'text-accent-ink' : ''}
                 onClick={() => (nested ? setPanel(panel === 'remove' ? 'more' : 'remove') : remove(false))}
               >
                 {mine ? <TrashIcon /> : <LeaveIcon />}
@@ -447,10 +508,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
                 aria-pressed={hiding && !deleting}
                 onClick={() => setMode('hideChecked', !(hiding && !deleting))}
               >
-                <HideCheckedIcon className={`h-[22px] w-[22px] ${hiding && !deleting ? 'text-accent' : ''}`} />
+                <HideCheckedIcon className={`h-[22px] w-[22px] ${hiding && !deleting ? 'text-accent-ink' : ''}`} />
               </IconButton>
               <IconButton label="Delete when checked" aria-pressed={deleting} onClick={() => setMode('deleteChecked', !deleting)}>
-                <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent' : ''}`} />
+                <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent-ink' : ''}`} />
               </IconButton>
               {tasks.checked && (
                 <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
@@ -459,12 +520,12 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
               )}
             </>
           ),
-          removeChoices,
+          panel === 'color' ? colors : removeChoices,
         )}
       </header>
       <EditorContent
         editor={editor}
-        className="relative flex-1 overflow-y-auto"
+        className="relative flex-1 overflow-y-auto bg-surface"
         data-hide-checked={hiding || undefined}
       />
       {editor && moving && (
@@ -484,7 +545,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           editor={editor}
           nested={{ edgeDetection: 'none' }}
           onNodeChange={({ node, pos }) => setOnList(node != null && inList(editor.state.doc, pos))}
-          className={`drag-handle flex h-8 w-6 cursor-grab items-center justify-center text-ink-muted hover:text-accent ${onList ? 'invisible!' : ''}`}
+          className={`drag-handle flex h-8 w-6 cursor-grab items-center justify-center text-ink-muted hover:text-accent-ink ${onList ? 'invisible!' : ''}`}
         >
           <span ref={dragByTouch} className="flex h-full w-full items-center justify-center">
             <GripIcon className="h-5 w-5" />

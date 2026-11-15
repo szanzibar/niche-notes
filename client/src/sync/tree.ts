@@ -7,6 +7,8 @@ export interface Node {
   order: number
   pinned?: boolean
   collapsed?: boolean
+  // A color picked for the note, seen only by this person.
+  color?: string
   // When we put someone else's note in our trash. Their note is untouched.
   leftAt?: number
 }
@@ -68,6 +70,14 @@ export function isPinned(id: string) {
 export function togglePin(id: string) {
   const node = nodes().get(id)
   if (node) nodes().set(id, { ...node, pinned: !node.pinned })
+}
+
+export function setColor(id: string, color: string | undefined) {
+  const node = nodes().get(id)
+  if (!node) return
+  const next = { ...node, color }
+  if (!color) delete next.color
+  nodes().set(id, next)
 }
 
 export function isCollapsed(id: string) {

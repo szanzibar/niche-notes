@@ -4,7 +4,7 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | '
 
 const styles = {
   default: 'border-border bg-surface text-ink shadow-brutal',
-  primary: 'border-border bg-accent text-white shadow-brutal',
+  primary: 'border-border bg-accent text-on-accent shadow-brutal',
   ghost: 'border-transparent bg-transparent text-ink',
 }
 

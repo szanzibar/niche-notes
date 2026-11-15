@@ -49,7 +49,7 @@ export function ShareDialog({ id }: { id: string }) {
     >
       <Dialog.Trigger asChild>
         {sharedWith.size > 0 ? (
-          <IconButton label={`Shared with ${sharedWith.size}`} className="px-1 text-accent">
+          <IconButton label={`Shared with ${sharedWith.size}`} className="px-1 text-accent-ink">
             <UsersIcon />
             <span className="font-bold">{sharedWith.size}</span>
           </IconButton>

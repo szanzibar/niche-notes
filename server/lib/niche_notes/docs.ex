@@ -237,7 +237,7 @@ defmodule NicheNotes.Docs do
 
   defp dated(_text), do: []
 
-  # One line per paragraph or list item, with nested items indented under their parent. A note that
+  # One line per paragraph, list item or table row, with nested items indented under their parent. A note that
   # hides or deletes its checked items leaves out each one that is done, with what is nested under it.
   defp lines(element, depth, hide) do
     indent = String.duplicate("    ", depth)
@@ -259,6 +259,16 @@ defmodule NicheNotes.Docs do
 
       "blockquote" ->
         element |> Yex.XmlElement.children() |> Enum.flat_map(&lines(&1, depth, hide))
+
+      "table" ->
+        for row <- Yex.XmlElement.children(element) do
+          cells =
+            for cell <- Yex.XmlElement.children(row),
+                do: cell |> Yex.XmlElement.children() |> Enum.map_join(" ", &text/1)
+
+          line = Enum.join(cells, " | ")
+          {indent <> line, line}
+        end
 
       _ ->
         case text(element) do

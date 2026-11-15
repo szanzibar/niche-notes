@@ -3,9 +3,9 @@ import { signIn, test, uid } from './helpers'
 
 const accent = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())
-const background = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+const surface = (page: Page) => page.evaluate(() => getComputedStyle(document.querySelector('[role=dialog]')!).backgroundColor)
 
-test('the highlight color is a setting that follows the user to every device', async ({ browser }) => {
+test('the theme is a setting that follows the user to every device', async ({ browser }) => {
   const name = `alice-${uid()}`
   const page = await signIn(browser, name)
   expect(await accent(page)).toBe('#FF4F3B')
@@ -21,28 +21,43 @@ test('the highlight color is a setting that follows the user to every device', a
   await expect.poll(() => accent(other)).toBe('#2F6BFF')
 })
 
-test('the highlight colors sit on one row, even on a phone', async ({ browser }) => {
+test('a bright theme puts black text on its color', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Yellow' }).click()
+  await expect(page.getByRole('button', { name: 'Follow device' })).toHaveCSS('color', 'rgb(17, 17, 17)')
+  await page.getByRole('button', { name: 'Coral' }).click()
+  await expect(page.getByRole('button', { name: 'Follow device' })).toHaveCSS('color', 'rgb(255, 255, 255)')
+})
+
+test('the themes sit in two rows of seven, even on a phone', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Settings' }).click()
-  const colors = ['Coral', 'Blue', 'Green', 'Purple', 'Orange', 'Pink', 'Teal']
-  const tops = await Promise.all(colors.map(async (name) => (await page.getByRole('button', { name }).boundingBox())!.y))
-  expect(new Set(tops).size).toBe(1)
+  const top = async (name: string) => (await page.getByRole('button', { name, exact: true }).boundingBox())!.y
+  const rows = [
+    ['Coral', 'Blue', 'Green', 'Purple', 'Orange', 'Pink', 'Teal'],
+    ['Peach', 'Sky', 'Lime', 'Lilac', 'Yellow', 'Bubblegum', 'Mint'],
+  ]
+  const tops = await Promise.all(rows.map(async (names) => new Set(await Promise.all(names.map(top)))))
+  expect(tops.map((set) => set.size)).toEqual([1, 1])
+  expect([...tops[0]][0]).toBeLessThan([...tops[1]][0])
 })
 
 test('appearance follows the device until told otherwise', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await page.emulateMedia({ colorScheme: 'dark' })
-  await expect.poll(() => background(page)).toBe('rgb(20, 20, 20)')
-
   await page.getByRole('button', { name: 'Settings' }).click()
+  await expect.poll(() => surface(page)).toBe('rgb(30, 30, 30)')
+
   await page.getByRole('button', { name: 'Light' }).click()
-  await expect.poll(() => background(page)).toBe('rgb(250, 250, 248)')
+  await expect.poll(() => surface(page)).toBe('rgb(255, 255, 255)')
   await page.getByRole('button', { name: 'Dark' }).click()
   await page.emulateMedia({ colorScheme: 'light' })
-  await expect.poll(() => background(page)).toBe('rgb(20, 20, 20)')
+  await expect.poll(() => surface(page)).toBe('rgb(30, 30, 30)')
   await page.reload()
-  await expect.poll(() => background(page)).toBe('rgb(20, 20, 20)')
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect.poll(() => surface(page)).toBe('rgb(30, 30, 30)')
 })
 
 test('density scales the whole interface and stays on this device', async ({ browser }) => {
@@ -81,7 +96,10 @@ test('Settings connects Google Calendar through Google, then shows the account w
   )
   await page.goto('/')
   await page.getByRole('button', { name: 'Settings' }).click()
-  await expect(page.getByText(/Niche Notes calendar of alice@example\.com/)).toBeVisible()
+  await expect(page.getByText('alice@example.com')).toBeVisible()
+  await page.getByRole('button', { name: 'About the calendar' }).click()
+  await expect(page.getByText(/changes made in Google Calendar don't come back/)).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Disconnect' }).click()
   await expect(page.getByRole('button', { name: 'Connect Google Calendar' })).toBeEnabled()
 })

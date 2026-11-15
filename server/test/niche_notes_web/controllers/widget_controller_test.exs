@@ -87,6 +87,26 @@ defmodule NicheNotesWeb.WidgetControllerTest do
              json_response(read(token(conn, note)), 200)
   end
 
+  test "a table row is one line, its cells apart", %{conn: conn, note: note} do
+    cell = fn text ->
+      Yex.XmlElementPrelim.new("tableCell", [
+        Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(text)])
+      ])
+    end
+
+    row = fn texts -> Yex.XmlElementPrelim.new("tableRow", Enum.map(texts, cell)) end
+
+    edit!(note, fn doc ->
+      Yex.XmlFragment.push(
+        Yex.Doc.get_xml_fragment(doc, "content"),
+        Yex.XmlElementPrelim.new("table", [row.(["Dose", "Yield"]), row.(["18g", "36g"])])
+      )
+    end)
+
+    assert %{"lines" => ["☑ milk", "Dose | Yield", "18g | 36g"]} =
+             json_response(read(token(conn, note)), 200)
+  end
+
   test "a token stops reading once the note is unshared or in the trash", %{
     conn: conn,
     me: me,

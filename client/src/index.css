@@ -5,9 +5,15 @@
 
 :root {
   color-scheme: light dark;
+  /* The theme's color and the text on a fill of it. The app sets both from the theme. */
   --accent: #FF4F3B;
+  --on-accent: #fff;
   --accent-dark: color-mix(in srgb, var(--accent), #000 15%);
-  --bg: light-dark(#FAFAF8, #141414);
+  /* The color as text or a thin line on the page darkens in light mode and lightens in dark mode until it reads. */
+  --accent-ink: light-dark(oklch(from var(--accent) min(l, 0.6) c h), oklch(from var(--accent) max(l, 0.75) c h));
+  /* Tints sit at one lightness per mode, so a pale theme tints as much as a strong one. */
+  --bg: light-dark(oklch(from var(--accent) 0.94 0.035 h), oklch(from var(--accent) 0.22 0.03 h));
+  --tint: light-dark(oklch(from var(--accent) 0.97 0.02 h), oklch(from var(--accent) 0.25 0.025 h));
   --surface: light-dark(#FFFFFF, #1E1E1E);
   --sunken: light-dark(#ECECE7, #0C0C0C);
   --ink: light-dark(#111111, #F2F2EE);
@@ -24,6 +30,9 @@ html[data-density="large"] { font-size: 18px; }
 @theme inline {
   --color-accent: var(--accent);
   --color-accent-dark: var(--accent-dark);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-tint: var(--tint);
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-sunken: var(--sunken);
@@ -82,7 +91,7 @@ body {
 .editor-body .due-chip { flex: none; margin-top: 0.15rem; border: 2px solid var(--border); padding: 0 0.3rem; font-size: 0.8rem; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; user-select: none; }
 .editor-body .due-chip::after { content: attr(data-label); }
 .editor-body .due-chip:not([data-label]) { display: none; }
-.editor-body .due-chip[data-overdue] { color: var(--accent); border-color: var(--accent); }
+.editor-body .due-chip[data-overdue] { color: var(--accent-ink); border-color: var(--accent-ink); }
 .editor-body li[data-checked="true"] > .due-chip { color: var(--ink-muted); border-color: var(--ink-muted); }
 .editor-body input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--accent); }
 /* Each list line's grip sits in the margin left of its checkbox or bullet. It is always there, so pointing at the
@@ -91,13 +100,13 @@ body {
 .editor-body li { position: relative; }
 .line-grip { position: absolute; top: 0; left: -1.75rem; width: 1.75rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; touch-action: none; user-select: none; }
 .line-grip svg { width: 1.25rem; height: 1.25rem; }
-.line-grip:hover { color: var(--accent); }
+.line-grip:hover { color: var(--accent-ink); }
 .editor-body li:hover:not(:has(li:hover)) > .line-grip, .editor-body li:hover:not(:has(li:hover)) > div > .line-grip { opacity: 1; }
 .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 1.75rem); }
 .editor-body[contenteditable="false"] .line-grip { display: none; }
 /* Where a dragged line will land, indented the way it will be, like the tree's drop line. */
-.line-drop { position: absolute; right: 0; height: 3px; margin-top: -2px; background: var(--accent); pointer-events: none; z-index: 10; }
-.line-drop::before { content: ''; position: absolute; left: 0; top: -4px; width: 11px; height: 11px; background: var(--accent); }
+.line-drop { position: absolute; right: 0; height: 3px; margin-top: -2px; background: var(--accent-ink); pointer-events: none; z-index: 10; }
+.line-drop::before { content: ''; position: absolute; left: 0; top: -4px; width: 11px; height: 11px; background: var(--accent-ink); }
 .line-drop[data-inside] { margin-left: 1.75rem; }
 /* The editor's own drop line knows only above and below, so it gives way to this one. */
 :has(> .line-drop:not([hidden])) > :is(.prosemirror-dropcursor-block, .prosemirror-dropcursor-inline) { display: none; }
@@ -108,16 +117,24 @@ body {
   .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.5rem); }
 }
 .editor-body hr { border-top: 2px solid var(--border); margin: 1rem 0; }
-.editor-body hr.ProseMirror-selectednode { border-color: var(--accent); }
-.editor-body blockquote { border-left: 4px solid var(--accent); padding-left: 1rem; color: var(--ink-muted); }
+.editor-body hr.ProseMirror-selectednode { border-color: var(--accent-ink); }
+.editor-body blockquote { border-left: 4px solid var(--accent-ink); padding-left: 1rem; color: var(--ink-muted); }
 .editor-body code { background: var(--sunken); border: 1px solid var(--ink-muted); padding: 0 0.25rem; font-family: ui-monospace, monospace; font-size: 0.9em; }
 .editor-body pre { background: var(--sunken); border: 2px solid var(--border); padding: 0.75rem 1rem; overflow-x: auto; line-height: 1.45; }
 .editor-body pre code { background: none; border: 0; padding: 0; }
+/* A table wider than the note scrolls sideways on its own, and the page stays put. */
+.editor-body .tableWrapper { overflow-x: auto; }
+/* Columns fit their text, so short values don't wrap, and a long one wraps at a readable width. */
+.editor-body table { border-collapse: collapse; width: max-content; }
+.editor-body :is(td, th) { border: 2px solid var(--border); padding: 0.2rem 0.5rem; min-width: 4rem; vertical-align: top; text-align: left; }
+.editor-body :is(td, th) > p { margin: 0; max-width: 16rem; }
+.editor-body th { background: var(--bg); font-weight: 700; }
+.editor-body .selectedCell { background: color-mix(in srgb, var(--accent) 35%, var(--bg)); }
 /* Tints mixed with the page color, since the design has no transparency. */
 .editor-body mark { background: color-mix(in srgb, var(--accent) 30%, var(--bg)); color: inherit; padding: 0 0.1em; }
 .editor-body ::selection, input::selection { background: color-mix(in srgb, var(--accent) 35%, var(--bg)); }
-.editor-body, input { caret-color: var(--accent); }
-.editor-body a { color: var(--accent); text-decoration: underline; }
+.editor-body, input { caret-color: var(--accent-ink); }
+.editor-body a { color: var(--accent-ink); text-decoration: underline; }
 .editor-body p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--ink-muted);
@@ -125,6 +142,10 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+/* The note header is filled with the theme's color, so what is accent or muted elsewhere takes its text color there. */
+.note-header .text-accent-ink { color: inherit; }
+.note-header .text-ink-muted, .note-header input::placeholder { color: color-mix(in oklab, var(--on-accent) 70%, var(--accent)); }
 
 /* Other people's carets and names (Carets in NoteView). A name fades once its person is still. */
 .collaboration-carets__caret {
