@@ -21,7 +21,6 @@ import {
   inTrash,
   isMine,
   isPinned,
-  nodes,
   ownerName,
   purgeNote,
   removeNote,
@@ -144,7 +143,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const navigate = useNavigate()
   const meta = doc.getMap('meta')
   useY(meta)
-  useY(nodes())
   const titleRef = useRef<HTMLInputElement>(null)
   const deleted = inTrash(id)
   // One way to treat checked lines at a time. If two devices pick both at once, delete wins, and it hides too.
@@ -289,7 +287,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const pinLabel = isPinned(id) ? 'Unpin' : 'Pin'
   const removeLabel = mine ? 'Delete' : 'Leave'
   const remove = (withNotes: boolean) => {
-    removeNote(id, withNotes)
+    void removeNote(id, withNotes)
     leave()
   }
   const nested = children(id).length > 0

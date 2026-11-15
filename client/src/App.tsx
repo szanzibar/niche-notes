@@ -17,7 +17,7 @@ declare global {
   }
 }
 import { useY } from './sync/hooks'
-import { start } from './sync/store'
+import { start, synced } from './sync/store'
 import { purgeExpired, settings } from './sync/tree'
 
 export default function App() {
@@ -29,7 +29,8 @@ export default function App() {
     const draw = ({ user, token }: Session) =>
       start(user, token).then(() => {
         setMe(user)
-        void purgeExpired()
+        // The sweep trusts each note's copy only once this launch has caught up with the server.
+        void synced.then(purgeExpired)
       })
     // Draw the last signed-in user's local data first, so a launch never waits on the network.
     if (cached) void draw(JSON.parse(cached) as Session)

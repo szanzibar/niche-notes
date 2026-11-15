@@ -16,6 +16,7 @@ interface DocRow {
   seq?: number
   owner?: string
   meta?: Record<string, unknown>
+  text?: string
 }
 interface KvRow {
   key: string
@@ -27,7 +28,7 @@ const db = new Dexie('niche-notes') as Dexie & {
   docs: EntityTable<DocRow, 'id'>
   kv: EntityTable<KvRow, 'key'>
 }
-db.version(1).stores({ updates: '++id, doc', docs: 'id', kv: 'key' })
+db.version(2).stores({ updates: '++id, doc, seq', docs: 'id', kv: 'key' })
 
 // The server says when to fold a doc's log into one snapshot. This local limit catches a device
 // whose own log keeps growing after another device already folded the server's.
@@ -38,16 +39,17 @@ export const store = {
   shares: [] as Share[],
   users: [] as User[],
   owners: new Map<string, string>(),
-  // A copy of each note's meta map, so the tree can draw titles before the notes load.
+  // A copy of each note's meta map and plain text, so the tree and search cover notes that aren't open.
   meta: new Map<string, Record<string, unknown>>(),
+  texts: new Map<string, string>(),
   // Docs the server refused since startup. The tree prunes their placements.
   lost: new Set<string>(),
-  collapsed: new Set<string>(),
   // Unknown until the first connection attempt settles, so a launch doesn't flash Offline.
   online: null as boolean | null,
 }
 
 let socket: Socket
+let userChannel: Channel
 const docs = new Map<string, Y.Doc>()
 const opening = new Map<string, Promise<Y.Doc>>()
 const channels = new Map<string, Channel>()
@@ -69,29 +71,35 @@ export function getDoc(id: string) {
   return docs.get(id)
 }
 
-export function noteIds() {
-  return [...docs.keys()].filter((id) => id !== store.me!.id)
-}
-
 export function getAwareness(id: string) {
   return awarenesses.get(id)!
 }
 
-export function toggleCollapsed(id: string) {
-  if (!store.collapsed.delete(id)) store.collapsed.add(id)
-  notify()
+function plain(node: Y.XmlFragment | Y.XmlText | Y.XmlHook): string {
+  if (node instanceof Y.XmlText) {
+    return (node.toDelta() as { insert?: unknown }[]).map((d) => (typeof d.insert === 'string' ? d.insert : '')).join('')
+  }
+  if (node instanceof Y.XmlFragment) return node.toArray().map(plain).join(' ')
+  return ''
 }
 
-export function expand(id: string) {
-  if (store.collapsed.delete(id)) notify()
+// An open note's edits empty its entry, and the next lookup rebuilds it.
+export function textOf(id: string) {
+  const doc = docs.get(id)
+  if (doc && !store.texts.has(id)) store.texts.set(id, plain(doc.getXmlFragment('content')))
+  return store.texts.get(id) ?? ''
 }
 
 let starting: Promise<void> | undefined
 let token: string
 
-// Every caller gets the same promise, so nothing renders before the tree doc is loaded.
-// The notes load after it, without holding up the first draw.
-// A later call only hands the socket a fresher token for its next connect.
+let caughtUp: () => void
+// Resolves once this launch holds every change the server had when it connected.
+export const synced = new Promise<void>((resolve) => (caughtUp = resolve))
+let cursor = 0
+
+// Every caller gets the same promise, so nothing renders before the tree doc is loaded. A note loads only when
+// it opens, and stays for the session. A later call only hands the socket a fresher token for its next connect.
 export function start(me: User, fresh: string) {
   token = fresh
   return (starting ??= run(me))
@@ -121,7 +129,11 @@ async function run(me: User) {
   // Android can keep a dead connection looking open while the app is away, and the heartbeat takes up to a
   // minute to notice. Coming back asks the server at once and treats silence as a missed heartbeat.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return
+    // A launch reads search text from this copy, which open notes keep only in memory.
+    if (document.visibilityState !== 'visible') {
+      for (const id of docs.keys()) if (id !== me.id) void db.docs.upsert(id, { text: textOf(id) })
+      return
+    }
     const dead = setTimeout(
       () =>
         socket.disconnect(() => {
@@ -137,24 +149,34 @@ async function run(me: User) {
     for (const awareness of awarenesses.values()) removeAwarenessStates(awareness, [awareness.doc.clientID], 'unload')
   })
 
-  const userChannel = socket.channel(`user:${me.id}`)
-  userChannel.on('shares_changed', () => void refreshSharing())
-  userChannel.join()
-
   for (const row of await db.docs.toArray()) {
     if (row.owner) store.owners.set(row.id, row.owner)
     if (row.meta) store.meta.set(row.id, row.meta)
+    if (row.text != null) store.texts.set(row.id, row.text)
   }
+  cursor = ((await db.kv.get('cursor'))?.value as number | undefined) ?? 0
 
   const tree = await openDoc(me.id)
-  const nodes = tree.getMap('nodes')
-  nodes.observe((event) => {
-    for (const id of event.keysChanged) if (nodes.has(id)) void openDoc(id)
-  })
-  // One at a time, so the note on screen waits behind one load instead of all of them.
-  void (async () => {
-    for (const id of [...nodes.keys()]) await openDoc(id)
-  })()
+  tree.getMap('nodes').observe(notify)
+
+  // The reply names the notes that changed since the last catch-up. The cursor moves only once they are all here.
+  userChannel = socket.channel(`user:${me.id}`, () => ({ after: cursor }))
+  userChannel.on('shares_changed', () => void refreshSharing())
+  userChannel.on('changed', ({ doc }: { doc: string }) => void pull([doc]).catch(() => {}))
+  userChannel.join().receive('ok', ({ changed, seq }: { changed: string[]; seq: number }) =>
+    pull(changed)
+      .then(async () => {
+        cursor = seq
+        await db.kv.put({ key: 'cursor', value: seq })
+        caughtUp()
+      })
+      .catch(() => {}),
+  )
+
+  // A note edited while the server was out of reach still has rows to send, which only an open note does.
+  const sent = new Set(await db.updates.where('seq').aboveOrEqual(0).primaryKeys())
+  const unsent = (await db.updates.toCollection().primaryKeys()).filter((key) => !sent.has(key))
+  for (const row of await db.updates.bulkGet(unsent)) void openDoc(row!.doc)
 
   store.shares = ((await db.kv.get('shares'))?.value as Share[] | undefined) ?? []
   store.users = ((await db.kv.get('users'))?.value as User[] | undefined) ?? []
@@ -204,15 +226,61 @@ export async function purgeLocal(id: string) {
   notify()
 }
 
-// A note shared with us lands at the top of our tree, so there is no separate place to look for it.
+// A note shared with us lands at the top of our tree, so there is no separate place to look for it. Its rows may
+// all be older than our cursor, so it comes in by itself.
 function openShared() {
   const nodes = docs.get(store.me!.id)!.getMap('nodes')
   let order = Date.now()
-  for (const share of store.shares) {
-    if (share.owner_id === store.me!.id) continue
-    void openDoc(share.doc_id)
-    if (!nodes.has(share.doc_id)) nodes.set(share.doc_id, { parent: null, order: order++ })
+  const shared = store.shares.filter((share) => share.owner_id !== store.me!.id).map((share) => share.doc_id)
+  for (const id of shared) if (!nodes.has(id)) nodes.set(id, { parent: null, order: order++ })
+  void pull(shared.filter((id) => !store.meta.has(id))).catch(() => {})
+}
+
+// Notes that aren't open get their new rows here, folded into one, and their copy for the tree and search redone
+// from them. Pings arrive per keystroke while someone types in such a note, so they gather while a pull runs.
+const stale = new Set<string>()
+let pulling: Promise<void> | undefined
+
+function pull(ids: string[]) {
+  for (const id of ids) stale.add(id)
+  return (pulling ??= (async () => {
+    while (stale.size > 0) {
+      const batch = [...stale].slice(0, 100)
+      for (const id of batch) stale.delete(id)
+      await pullBatch(batch)
+    }
+  })().finally(() => (pulling = undefined)))
+}
+
+async function pullBatch(ids: string[]) {
+  const rows = await db.docs.bulkGet(ids)
+  const asked = ids.flatMap((id, i) => (opening.has(id) ? [] : [[id, rows[i]?.seq ?? 0]]))
+  if (asked.length === 0) return
+  const { docs: pulled } = await new Promise<{ docs: [string, string, number, [number, string][]][] }>(
+    (resolve, reject) =>
+      userChannel.push('pull', { docs: asked }, 30_000).receive('ok', resolve).receive('error', reject).receive('timeout', reject),
+  )
+  // The tree draws titles, trash and owners, so a pull that changed only text doesn't redraw it.
+  let redraw = false
+  for (const [id, owner, seq, updates] of pulled) {
+    if (opening.has(id)) continue
+    const doc = new Y.Doc()
+    const local = await db.updates.where('doc').equals(id).toArray()
+    for (const row of local) Y.applyUpdate(doc, row.update)
+    for (const [, update] of updates) Y.applyUpdate(doc, fromBase64(update))
+    const meta = doc.getMap('meta').toJSON()
+    const text = plain(doc.getXmlFragment('content'))
+    await db.transaction('rw', db.updates, db.docs, async () => {
+      await db.updates.bulkDelete(local.filter((row) => row.seq != null).map((row) => row.id))
+      await db.updates.add({ doc: id, seq, update: Y.encodeStateAsUpdate(doc) })
+      await db.docs.put({ id, seq, owner, meta, text })
+    })
+    redraw ||= owner !== store.owners.get(id) || JSON.stringify(meta) !== JSON.stringify(store.meta.get(id))
+    store.owners.set(id, owner)
+    store.meta.set(id, meta)
+    store.texts.set(id, text)
   }
+  if (redraw) notify()
 }
 
 export async function wipeLocal() {
@@ -239,7 +307,7 @@ async function load(id: string): Promise<Y.Doc> {
     if (row.seq != null) seen.add(row.seq)
   }
   // Watched after the replay, so replaying the log doesn't write every title the note ever had.
-  // A reload before the write lands shows the old title until this note loads again.
+  // A reload before the write lands shows the old title until the launch catches up.
   const meta = doc.getMap('meta')
   const copyMeta = () => {
     const value = meta.toJSON()
@@ -250,6 +318,7 @@ async function load(id: string): Promise<Y.Doc> {
   }
   copyMeta()
   meta.observe(copyMeta)
+  store.texts.delete(id)
   let logged = rows.length
   let since = (await db.docs.get(id))?.seq ?? 0
   const inflight = new Set<Promise<number>>()
@@ -300,6 +369,7 @@ async function load(id: string): Promise<Y.Doc> {
 
   // Send before the local write lands, so a reload right after a keystroke loses nothing the server can give back.
   doc.on('update', (update: Uint8Array, origin: unknown) => {
+    store.texts.delete(id)
     if (origin === 'remote' || origin === 'local') return
     logged += 1
     const saved = db.updates.add({ doc: id, seq: null, update })

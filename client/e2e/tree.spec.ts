@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test'
 import { drag, newNote, row, rowTitles, shareWith, signIn, test, uid } from './helpers'
 
-test('dragging a note onto another nests it, and onto the header puts it back at the top', async ({ browser }) => {
+test('dragging a note onto another nests it, stays folded across a reload, and onto the header goes back to the top', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Parent')
   await newNote(page, 'Child')
@@ -9,6 +9,7 @@ test('dragging a note onto another nests it, and onto the header puts it back at
   await drag(page, row(page, 'Child'), row(page, 'Parent'))
   await page.getByRole('button', { name: 'Collapse' }).click()
   await expect(row(page, 'Child')).toBeHidden()
+  await page.reload()
   await page.getByRole('button', { name: 'Expand' }).click()
 
   await drag(page, row(page, 'Child'), page.locator('aside header'))

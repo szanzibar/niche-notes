@@ -16,7 +16,7 @@ Access rule, used by every channel join and share endpoint: a user may open a do
 ## Documents
 
 **Tree doc**, one per user, id = user id.
-- `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number, pinned?: boolean, leftAt?: number }`. `leftAt` is set when the user puts someone else's note in their trash; it only ever touches their own tree. Siblings sort pinned first, then by `order` descending. A new note gets the current time, so it lands on top. A drop next to a sibling takes that sibling's pin state and renumbers the whole group it lands in, so orders never tie.
+- `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number, pinned?: boolean, collapsed?: boolean, leftAt?: number }`. `collapsed` hides the row's children on all of the user's devices. `leftAt` is set when the user puts someone else's note in their trash; it only ever touches their own tree. Siblings sort pinned first, then by `order` descending. A new note gets the current time, so it lands on top. A drop next to a sibling takes that sibling's pin state and renumbers the whole group it lands in, so orders never tie.
 - `settings`: Y.Map of per-user preferences, `accent` (a hex color) and `theme`. Living in the tree doc, they sync to every device with no server change. Density stays in each device's `localStorage`.
 
 **Note doc**
@@ -35,11 +35,14 @@ Socket at `/socket`, authenticated by the token that `/api/me` returns.
 - Push `awareness` `{ update: base64 }` for cursors and names (y-protocols awareness). Relayed to the other clients, never stored.
 - Push `snapshot` `{ update: base64, upto }`: the doc's whole state as one update, from a client that holds every row up to `upto`. The server replaces the doc's rows up to `upto` with the snapshot, stored under `upto` itself, so `since` keeps its meaning and nobody re-downloads what they have.
 
-**`user:<id>` channel**, own id only. The server pushes `shares_changed` when a share involving the user changes, and the client refetches `/api/shares`.
+**`user:<id>` channel**, own id only.
+- Join with `{ after }`, the `seq` from the client's last catch-up. Reply `{ changed: [doc id, ...], seq }`: the user's notes with rows after `after`, and the newest of those rows (or `after` if none).
+- Push `pull` `{ docs: [[id, since], ...] }`. Reply `{ docs: [[id, owner_id, seq, [[seq, base64], ...]], ...] }`, like a doc join for each note the user can open. Unlike a join, it leaves out notes the user can't open and never creates one.
+- The server pushes `changed` `{ doc }` to every member of a note when one of its rows is stored, and `shares_changed` when a share involving the user changes, after which the client refetches `/api/shares`.
 
 **Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`. A join reply is applied as one Y.js transaction, so a note opened on a new device appears whole. When the join reply asks for it, or its own local log has grown past a few dozen rows, the client sends a snapshot and folds its own rows the same way.
 
-The client also keeps a copy of each note's `meta` in IndexedDB, so a launch draws the whole tree before any note loads. The notes then load one at a time, so the note on screen waits behind one load at most.
+A launch loads only the user's tree, and a note loads when it opens and stays for the session. The client keeps a copy of each note's `meta` and plain text in IndexedDB, which the tree and search read, so a note that isn't open costs no memory beyond that copy. Notes that aren't open sync by `pull`: the ones a join reply names, then each one a `changed` push names, and a note shared with the user that has no copy yet. A pull folds the note's rows into one and redoes its copy. The cursor `after` advances only once every note a join reply named is pulled, the same way `since` does. A note with rows the server hasn't acknowledged loads at launch, so they go out.
 
 ## REST
 

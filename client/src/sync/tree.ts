@@ -1,11 +1,12 @@
 import type * as Y from 'yjs'
 import { api } from '../lib/api'
-import { getDoc, openDoc, purgeLocal, store } from './store'
+import { getDoc, openDoc, purgeLocal, store, subscribe } from './store'
 
 export interface Node {
   parent: string | null
   order: number
   pinned?: boolean
+  collapsed?: boolean
   // When we put someone else's note in our trash. Their note is untouched.
   leftAt?: number
 }
@@ -69,13 +70,39 @@ export function togglePin(id: string) {
   if (node) nodes().set(id, { ...node, pinned: !node.pinned })
 }
 
+export function isCollapsed(id: string) {
+  return nodes().get(id)?.collapsed === true
+}
+
+export function toggleCollapsed(id: string) {
+  const node = nodes().get(id)
+  if (node) nodes().set(id, { ...node, collapsed: !node.collapsed })
+}
+
+export function expand(id: string) {
+  const node = nodes().get(id)
+  if (node?.collapsed) nodes().set(id, { ...node, collapsed: false })
+}
+
+// Every row asks for its children on each redraw, so they are sorted once per change instead of once per row.
+let index: Map<string | null, string[]> | undefined
+subscribe(() => (index = undefined))
+
 // Pinned first, then highest order, so a new note (order = now) lands on top of the unpinned.
 export function children(parent: string | null): string[] {
-  const out: string[] = []
-  nodes().forEach((node, id) => {
-    if (node.parent === parent && !inTrash(id)) out.push(id)
-  })
-  return out.sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)) || orderOf(b) - orderOf(a))
+  if (!index) {
+    index = new Map()
+    for (const [id, node] of nodes()) {
+      if (inTrash(id)) continue
+      const kids = index.get(node.parent) ?? []
+      kids.push(id)
+      index.set(node.parent, kids)
+    }
+    for (const kids of index.values()) {
+      kids.sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)) || orderOf(b) - orderOf(a))
+    }
+  }
+  return index.get(parent) ?? []
 }
 
 export function descendants(id: string, acc = new Set<string>()): Set<string> {
@@ -99,7 +126,7 @@ const wouldLoop = (id: string, parent: string | null) => parent === id || (!!par
 // A moved note goes on top of its new scope, where the drop line showed it.
 export function placeNote(id: string, parent: string | null) {
   if (wouldLoop(id, parent)) return
-  nodes().set(id, { parent, order: Date.now() })
+  nodes().set(id, { parent, order: Date.now(), collapsed: isCollapsed(id) })
 }
 
 // Dropped among the pinned, it is pinned, so it lands where the line showed. The whole group it
@@ -114,7 +141,7 @@ export function placeSibling(id: string, target: string, where: 'before' | 'afte
   let order = Date.now()
   map.doc!.transact(() => {
     for (const s of group) {
-      map.set(s, s === id ? { parent, order, pinned } : { ...map.get(s)!, order })
+      map.set(s, s === id ? { parent, order, pinned, collapsed: isCollapsed(id) } : { ...map.get(s)!, order })
       order--
     }
   })
@@ -136,17 +163,22 @@ export function removeFromTree(id: string) {
 
 // Deleting our own note is a flag in it, so it syncs everywhere, and leaving someone else's is a mark in our tree.
 // The placement stays, which is what Restore puts back. Alone, a note's children move up to its parent. With its
-// notes, everything under it goes at the same moment, which is how it all comes back together.
-export function removeNote(id: string, withNotes: boolean) {
+// notes, everything under it goes at the same moment, which is how it all comes back together. Our own notes load
+// first, so they all go in one step instead of one redraw each.
+export async function removeNote(id: string, withNotes: boolean) {
   const at = Date.now()
   if (!withNotes) liftChildren(id)
-  for (const note of withNotes ? [id, ...descendants(id)] : [id]) {
-    if (isMine(note)) {
-      const meta = getDoc(note)?.getMap('meta')
-      meta?.set('deleted', true)
-      meta?.set('deletedAt', at)
-    } else nodes().set(note, { ...nodes().get(note)!, leftAt: at })
-  }
+  const notes = withNotes ? [id, ...descendants(id)] : [id]
+  const docs = await Promise.all(notes.map((note) => (isMine(note) ? openDoc(note) : undefined)))
+  notes.forEach((note, i) => {
+    const doc = docs[i]
+    if (!doc) nodes().set(note, { ...nodes().get(note)!, leftAt: at })
+    else
+      doc.transact(() => {
+        doc.getMap('meta').set('deleted', true)
+        doc.getMap('meta').set('deletedAt', at)
+      })
+  })
 }
 
 // The note and every note under it that went to the trash at the same moment.
@@ -166,7 +198,7 @@ export async function restoreNote(id: string) {
   notes.forEach((note, i) => {
     const node = nodes().get(note)
     if (node?.leftAt != null) {
-      nodes().set(note, { parent: node.parent, order: node.order, pinned: node.pinned })
+      nodes().set(note, { parent: node.parent, order: node.order, pinned: node.pinned, collapsed: node.collapsed })
       return
     }
     const meta = docs[i].getMap('meta')

@@ -16,16 +16,17 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useStore, useY } from '../sync/hooks'
+import { useStore } from '../sync/hooks'
 import { search } from '../sync/search'
-import { expand, toggleCollapsed, wipeLocal } from '../sync/store'
+import { wipeLocal } from '../sync/store'
 import {
   children,
   createNote,
+  expand,
   inTrash,
+  isCollapsed,
   isMine,
   isPinned,
-  nodes,
   ownerName,
   placeNote,
   placeSibling,
@@ -34,6 +35,7 @@ import {
   restoreNote,
   shareCount,
   titleOf,
+  toggleCollapsed,
   trashed,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
@@ -87,7 +89,6 @@ export function Tree({ selected }: { selected?: string }) {
   const showNote = useShowNote()
   const openNote = useOpenNote()
   const picking = useMatch('/widget/:id') != null
-  useY(nodes())
   const roots = children(null)
   const trash = trashed()
   const [trashOpen, setTrashOpen] = useState(false)
@@ -343,7 +344,6 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
 function Row({ id, depth, selected, hint }: { id: string; depth: number; selected?: string; hint: Hint | null }) {
   const showNote = useShowNote()
   const openNote = useOpenNote()
-  const s = useStore()
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
   const { setNodeRef: dropRef } = useDroppable({ id, disabled: isDragging })
   // A line dragged out of the open note moves into the note it is dropped on.
@@ -351,7 +351,7 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
   if (inTrash(id)) return null
 
   const kids = children(id)
-  const open = !s.collapsed.has(id)
+  const open = !isCollapsed(id)
   const active = selected === id
   const tag = !isMine(id) ? ownerName(id) : shareCount(id) > 0 ? 'shared' : null
   const zone = hint?.id === id ? hint.zone : null

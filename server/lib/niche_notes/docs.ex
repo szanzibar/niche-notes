@@ -139,6 +139,38 @@ defmodule NicheNotes.Docs do
     {Enum.map(rows, &elem(&1, 0)), rows |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> seen end)}
   end
 
+  # The notes this user can open that have rows after `seen`, and the newest of those rows.
+  def changed_for(user_id, seen) do
+    rows =
+      Repo.all(
+        from u in DocUpdate,
+          join: d in assoc(u, :doc),
+          left_join: s in DocShare,
+          on: s.doc_id == d.id and s.user_id == ^user_id,
+          where:
+            u.id > ^seen and d.id != d.owner_id and
+              (d.owner_id == ^user_id or s.user_id == ^user_id),
+          group_by: u.doc_id,
+          select: {u.doc_id, max(u.id)}
+      )
+
+    {Enum.map(rows, &elem(&1, 0)), rows |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> seen end)}
+  end
+
+  # Of these notes, the ones this user can open, with their owners. Unlike a join, an unknown id stays unknown.
+  def owners(doc_ids, user_id) do
+    Repo.all(
+      from d in Doc,
+        left_join: s in DocShare,
+        on: s.doc_id == d.id and s.user_id == ^user_id,
+        where:
+          d.id in ^doc_ids and d.id != d.owner_id and
+            (d.owner_id == ^user_id or s.user_id == ^user_id),
+        select: {d.id, d.owner_id}
+    )
+    |> Map.new()
+  end
+
   # Everyone on a note: its owner and whoever it is shared with.
   def member_ids(doc_id) do
     Repo.all(from d in Doc, where: d.id == ^doc_id, select: d.owner_id) ++
@@ -259,8 +291,14 @@ defmodule NicheNotes.Docs do
         do: insert
   end
 
+  # Each member's devices hear of it, so one that doesn't have the note open can pull it.
   def append_update(doc_id, update) do
-    Repo.insert!(%DocUpdate{doc_id: doc_id, update: update})
+    stored = Repo.insert!(%DocUpdate{doc_id: doc_id, update: update})
+
+    for user_id <- member_ids(doc_id),
+        do: NicheNotesWeb.Endpoint.broadcast("user:#{user_id}", "changed", %{doc: doc_id})
+
+    stored
   end
 
   # The merged state of every row up to `upto` replaces those rows and takes the last one's seq,
