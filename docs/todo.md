@@ -57,6 +57,8 @@ Dates, repeats and a time on checkbox lines, alerts through Web Push (ADR 006), 
 
 - [x] Dates, repeats and the date box, the alert pass and the calendar feed, tested in the browser and on the server (2026-11-12)
 - [ ] On Steven's phone: an alert arrives at 9:00 for a date-only line and at the time of a timed one, a tap opens the note, Done ticks the line or moves a repeating one, and Snooze 1 hour moves it
+- [x] Dates typed into a checkbox line, tested in the browser (2026-11-16)
+- [ ] On Steven's phone: a typed date is marked when the keyboard corrects or suggests the word instead of typing it, and it turns into the date when the app is left right after
 - [ ] Connect Google Calendar on Steven's phone and his wife's: a Niche Notes calendar appears and follows edits within a minute
 - Later: two-way sync, if someone edits events in Google Calendar instead of the note
 

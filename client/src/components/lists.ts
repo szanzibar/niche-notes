@@ -1,12 +1,19 @@
 import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
 import type { Node, ResolvedPos } from '@tiptap/pm/model'
-import { type EditorState, NodeSelection, Plugin, Selection, TextSelection } from '@tiptap/pm/state'
-import { Transform } from '@tiptap/pm/transform'
+import { type EditorState, NodeSelection, Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
+import { Mapping, Transform } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { Extension, type Editor } from '@tiptap/react'
-import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode, ySyncPluginKey } from '@tiptap/y-tiptap'
+import {
+  prosemirrorToYXmlFragment,
+  yUndoPluginKey,
+  yXmlFragmentToProseMirrorRootNode,
+  ySyncPluginKey,
+} from '@tiptap/y-tiptap'
+import { enableAlerts } from '../lib/alerts'
 import { openDoc } from '../sync/store'
-import { dueLabel, nextDue, overdue, parseRule } from './dates'
+import { settings } from '../sync/tree'
+import { dueLabel, nextDue, overdue, parseRule, type Typed, typedDates, withTyped } from './dates'
 import { GRIP } from './icons'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
@@ -335,6 +342,30 @@ export const LineGrips = (note: string) =>
 // nothing moves under the next tap.
 const STILL_MS = 5000
 
+// Words typed as a date, where they sit in the note. `alone` while the line holds nothing else, which is a line
+// about a day, not a task for it.
+interface TypedWords extends Typed {
+  text: string
+  alone: boolean
+}
+const typedWords = new PluginKey<TypedWords | null>('typedWords')
+
+// The dates typed into `$pos`'s line, when it is a checkbox line's own text.
+function typedIn($pos: ResolvedPos): TypedWords[] {
+  if ($pos.depth < 2 || $pos.node(-1).type.name !== 'taskItem' || $pos.index(-1) !== 0) return []
+  // Each thing that isn't text counts as one letter, so the words sit where the note has them.
+  const text = $pos.parent.textBetween(0, $pos.parent.content.size, undefined, '\ufffc')
+  return typedDates(text).map((typed) => ({
+    ...typed,
+    from: $pos.start() + typed.from,
+    to: $pos.start() + typed.to,
+    text: text.slice(typed.from, typed.to),
+    alone: !(text.slice(0, typed.from) + text.slice(typed.to)).trim(),
+  }))
+}
+
+const chipLabel = (due: string, repeat: string | null) => `${parseRule(repeat) ? '↻ ' : ''}${dueLabel(due)}`
+
 // TipTap puts a hidden label with the line's text beside each checkbox. Android keyboards read it as part
 // of the line, and it changes with every letter, so they lose their place and stop correcting words.
 // The checkbox keeps its aria-label.
@@ -378,17 +409,22 @@ export const TaskItem = TipTapTaskItem.extend({
       chip.className = 'due-chip'
       chip.contentEditable = 'false'
       li.append(chip)
-      const showDue = (node: Node) => {
+      // While typed words wait to become the date, the chip shows the date they make, and a tap keeps the words.
+      const showDue = (node: Node, decorations: readonly Decoration[]) => {
         const { due, repeat, checked } = node.attrs
-        if (due) chip.dataset.label = `${parseRule(repeat) ? '↻ ' : ''}${dueLabel(due)}`
+        const typed = decorations.find((d) => d.spec.typed)?.spec.typed as string | undefined
+        if (typed) chip.dataset.label = `${typed} ✕`
+        else if (due) chip.dataset.label = chipLabel(due, repeat)
         else delete chip.dataset.label
+        chip.toggleAttribute('data-typed', typed != null)
         chip.toggleAttribute('data-overdue', Boolean(due) && !checked && overdue(due))
       }
-      showDue(props.node)
+      showDue(props.node, props.decorations)
       chip.addEventListener('mousedown', (e) => e.preventDefault())
       chip.addEventListener('click', () => {
         const pos = getPos()
         if (!editor.isEditable || pos == null) return
+        if (chip.hasAttribute('data-typed')) return editor.view.dispatch(editor.state.tr.setMeta(typedWords, 'keep'))
         editor.commands.setTextSelection(pos + editor.state.doc.nodeAt(pos)!.firstChild!.nodeSize)
         editor.view.dom.dispatchEvent(new Event('due-date'))
       })
@@ -403,11 +439,11 @@ export const TaskItem = TipTapTaskItem.extend({
       // A line checked here or on another device lingers until the note is still. Lines checked before the
       // note opened don't.
       const update = view.update!
-      view.update = (node, ...rest) => {
+      view.update = (node, decorations, inner) => {
         const was = li.dataset.checked === 'true'
-        if (!update(node, ...rest)) return false
+        if (!update(node, decorations, inner)) return false
         if (node.attrs.checked !== was) li.toggleAttribute('data-lingering', node.attrs.checked)
-        showDue(node)
+        showDue(node, decorations)
         return true
       }
       // The editor would read the lingering mark as an edit to the line.
@@ -451,6 +487,100 @@ export const TaskItem = TipTapTaskItem.extend({
       )
       return view
     }
+  },
+  // Words typed as a date are marked while the cursor stays on their line, and leaving the line turns them into
+  // its date. Until then Escape or a tap on the chip keeps them as words, and afterwards Undo brings them back.
+  // Only words this person just typed count, so a line that already says Sunday roast stays as it is.
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<TypedWords | null>({
+        key: typedWords,
+        state: {
+          init: () => null,
+          apply: (tr, was, _old, state) => {
+            if (tr.getMeta(typedWords)) return null
+            const { $from } = state.selection
+            const found = typedIn($from)
+            // Someone else's edit redraws the whole note, so the words are found again by what they say.
+            if (tr.getMeta(ySyncPluginKey)) return found.find((words) => words.text === was?.text) ?? null
+            const changed: [number, number][] = []
+            tr.mapping.maps.forEach((map, i) =>
+              map.forEach((_from, _to, from, to) => {
+                const later = tr.mapping.slice(i + 1)
+                changed.push([later.map(from, -1), later.map(to)])
+              }),
+            )
+            // Typing changes the line's text and nothing else. A tick, an indent or a new date isn't typing.
+            const typing = changed.length > 0 && changed.every(([from, to]) => from >= $from.start() && to <= $from.end())
+            const typed =
+              typing &&
+              found.find((words) =>
+                changed.some(([from, to]) => (from === to ? from >= words.from && from <= words.to : from < words.to && to > words.from)),
+              )
+            const at = was && tr.mapping.mapResult(was.from)
+            return typed || (at && !at.deleted && found.find((words) => words.from === at.pos)) || null
+          },
+        },
+        appendTransaction: (trs, oldState, state) => {
+          const was = typedWords.getState(oldState)
+          if (!was || trs.some((tr) => tr.getMeta(ySyncPluginKey) || tr.getMeta(typedWords) === 'keep')) return null
+          const at = new Mapping(trs.flatMap((tr) => tr.mapping.maps)).mapResult(was.from)
+          if (at.deleted) return null
+          const $at = state.doc.resolve(at.pos)
+          const left = trs.some((tr) => tr.getMeta(typedWords) === 'leave') || !state.selection.$from.sameParent($at)
+          const words = left && typedIn($at).find((words) => words.from === at.pos)
+          if (!words || words.alone) return null
+
+          const attrs = $at.node(-1).attrs
+          const { due, repeat } = withTyped(attrs, words)
+          // A line that gets a time lasts as long as the last length this person picked.
+          const picked = !attrs.due?.includes('T') && due.includes('T') ? settings().get('duration') : null
+          // The words take a space beside them along.
+          const space = (pos: number) => pos >= $at.start() && pos < $at.end() && /\s/.test(state.doc.textBetween(pos, pos + 1))
+          const from = space(words.from - 1) ? words.from - 1 : words.from
+          const to = from === words.from && space(words.to) ? words.to + 1 : words.to
+          // A step of its own, so Undo brings back the words without taking the rest of the line.
+          yUndoPluginKey.getState(state)?.undoManager.stopCapturing()
+          void enableAlerts()
+          return state.tr
+            .setNodeMarkup($at.before(-1), undefined, { ...attrs, due, repeat, duration: attrs.duration ?? picked ?? null })
+            .delete(from, to)
+        },
+        props: {
+          handleKeyDown: (view, e) => {
+            const words = typedWords.getState(view.state)
+            if (e.key !== 'Escape' || !words || words.alone) return false
+            view.dispatch(view.state.tr.setMeta(typedWords, 'keep'))
+            return true
+          },
+          decorations: (state) => {
+            const words = typedWords.getState(state)
+            if (!words || words.alone) return null
+            const $from = state.doc.resolve(words.from)
+            const { due, repeat } = withTyped($from.node(-1).attrs, words)
+            return DecorationSet.create(state.doc, [
+              Decoration.inline(words.from, words.to, { class: 'typed-words' }),
+              Decoration.node($from.before(-1), $from.after(-1), { 'data-typed': '' }, { typed: chipLabel(due, repeat) }),
+            ])
+          },
+        },
+        // The line may never be left, since the app or the note can close first.
+        view: (view) => {
+          const leave = () => {
+            const words = typedWords.getState(view.state)
+            if (words && !words.alone) view.dispatch(view.state.tr.setMeta(typedWords, 'leave'))
+          }
+          const hidden = () => document.hidden && leave()
+          document.addEventListener('visibilitychange', hidden)
+          return {
+            destroy: () => {
+              document.removeEventListener('visibilitychange', hidden)
+              leave()
+            },
+          }
+        },
+      }),
+    ]
   },
 })
 

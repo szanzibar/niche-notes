@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
-import { nextDue, onRule } from '../src/components/dates'
-import { newNote, signIn, test, uid } from './helpers'
+import { nextDue, onRule, typedDates, withTyped } from '../src/components/dates'
+import { newNote, row, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const line = (page: Page, text: string) =>
@@ -172,6 +172,162 @@ test('repeat rules land on the right next day', () => {
   expect(nextDue('2026-11-16T18:00', daily, new Date(2026, 10, 16, 14))).toBe('2026-11-17T18:00')
   // A line given a repeat moves to the rule's first day.
   expect(onRule('2026-11-16T09:30', 'FREQ=MONTHLY;BYDAY=-1SU', today)).toBe('2026-11-29T09:30')
+  // Today is the first day of a yearly rule given today.
+  expect(onRule('2026-11-16', 'FREQ=YEARLY', today)).toBe('2026-11-16')
+})
+
+test('words typed as a date turn into the date of their line once it is left', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Milk')
+  await tool(page, 'Checklist').click()
+  await page.keyboard.press('Enter')
+  const typed = page.locator('.typed-words')
+
+  // Marked while the cursor stays on the line, with the date they make on the chip.
+  await page.keyboard.type('buy coffee tomorrow')
+  await expect(typed).toHaveText('tomorrow')
+  await expect(chip(page, 'buy coffee tomorrow')).toHaveAttribute('data-label', 'Tomorrow ✕')
+  await expect(line(page, 'buy coffee tomorrow')).not.toHaveAttribute('data-due')
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'buy coffee')).toHaveAttribute('data-due', inDays(1))
+  await expect(chip(page, 'buy coffee')).toHaveAttribute('data-label', 'Tomorrow')
+  await expect(typed).toHaveCount(0)
+
+  // A repeat and a time, read when the cursor goes to another line.
+  await page.keyboard.type('brush teeth every day at 9:00')
+  await expect(typed).toHaveText('every day at 9:00')
+  await expect(chip(page, 'brush teeth every day at 9:00')).toHaveAttribute('data-label', /^↻ (Today|Tomorrow) 9:00 AM ✕$/)
+  await page.locator('.editor-body p').getByText('Milk', { exact: true }).click()
+  await expect(line(page, 'brush teeth')).toHaveAttribute('data-repeat', 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU')
+  await expect(line(page, 'brush teeth')).toHaveAttribute('data-due', /T09:00$/)
+
+  // Words typed onto a dated line change only what they say.
+  await page.locator('.editor-body p').getByText('buy coffee', { exact: true }).click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' at 5pm')
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'buy coffee')).toHaveAttribute('data-due', `${inDays(1)}T17:00`)
+
+  // A date with nothing beside it is a line about that day, not a task for it.
+  await page.keyboard.type('Friday')
+  await expect(typed).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'Friday')).not.toHaveAttribute('data-due')
+})
+
+test('the chip or Escape keeps typed words as words, and Undo brings them back', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Dinner', 'Sunday roast')
+  await tool(page, 'Checklist').click()
+  const typed = page.locator('.typed-words')
+  // A line made into a checkbox line wasn't typed as one.
+  await expect(typed).toHaveCount(0)
+  await page.keyboard.press('Enter')
+
+  await page.keyboard.type('Monday pasta')
+  await expect(typed).toHaveText('Monday')
+  await chip(page, 'Monday pasta').click()
+  await expect(typed).toHaveCount(0)
+  await expect(chip(page, 'Monday pasta')).not.toHaveAttribute('data-label')
+  // More words on a line that names a day leave the day alone.
+  await page.keyboard.type(' bake')
+  await expect(typed).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'Monday pasta bake')).not.toHaveAttribute('data-due')
+
+  await page.keyboard.type('Tuesday tacos')
+  await expect(typed).toHaveText('Tuesday')
+  await page.keyboard.press('Escape')
+  await expect(typed).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'Tuesday tacos')).not.toHaveAttribute('data-due')
+
+  // Undo takes back the date and nothing more of the line.
+  await page.keyboard.type('thaw fish today')
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'thaw fish')).toHaveAttribute('data-due', inDays(0))
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(line(page, 'thaw fish today')).not.toHaveAttribute('data-due')
+  await expect(typed).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(line(page, 'thaw fish today')).not.toHaveAttribute('data-due')
+})
+
+test('typed words turn into the date when the note closes or the app goes to the background', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Garden', 'Rake')
+  await tool(page, 'Checklist').click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('water plants tomorrow')
+  await expect(page.locator('.typed-words')).toHaveText('tomorrow')
+  await page.goBack()
+  await expect(page).toHaveURL(/\/$/)
+  await row(page, 'Garden').click()
+  await expect(line(page, 'water plants')).toHaveAttribute('data-due', inDays(1))
+
+  await page.locator('.editor-body p').getByText('water plants', { exact: true }).click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('feed cat today')
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(line(page, 'feed cat')).toHaveAttribute('data-due', inDays(0))
+})
+
+test('typed words read as the dates they say', () => {
+  // Monday 16 November 2026, two in the afternoon.
+  const now = new Date(2026, 10, 16, 14)
+  const read = (text: string, line = {}) => {
+    const [typed] = typedDates(text, now)
+    return typed && { words: text.slice(typed.from, typed.to), ...withTyped(line, typed, now) }
+  }
+  expect(read('buy coffee today')).toEqual({ words: 'today', due: '2026-11-16', repeat: null })
+  expect(read('Call mom Tomorrow at 5pm')).toEqual({ words: 'Tomorrow at 5pm', due: '2026-11-17T17:00', repeat: null })
+  expect(read('dentist friday 9:30')).toEqual({ words: 'friday 9:30', due: '2026-11-20T09:30', repeat: null })
+  expect(read('lunch thursday at 12')).toEqual({ words: 'thursday at 12', due: '2026-11-19T12:00', repeat: null })
+  expect(read('plan trip next week')).toEqual({ words: 'next week', due: '2026-11-23', repeat: null })
+  // A weekday is the coming one, a week on when it is today.
+  expect(read('standup next monday')).toEqual({ words: 'next monday', due: '2026-11-23', repeat: null })
+  // A day of the year that has gone by is next year's.
+  expect(read('pay taxes mar 31')).toEqual({ words: 'mar 31', due: '2027-03-31', repeat: null })
+  expect(read('party 5th december')).toEqual({ words: '5th december', due: '2026-12-05', repeat: null })
+
+  const daily = 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU'
+  expect(read('brush teeth every day at 21:00')).toEqual({ words: 'every day at 21:00', due: '2026-11-16T21:00', repeat: daily })
+  // With no day said, a time that has gone by today means the next one.
+  expect(read('brush teeth every day at 9:00')).toEqual({ words: 'every day at 9:00', due: '2026-11-17T09:00', repeat: daily })
+  expect(read('call bank at 9:15')).toEqual({ words: 'at 9:15', due: '2026-11-17T09:15', repeat: null })
+  expect(read('call bank 4pm')).toEqual({ words: '4pm', due: '2026-11-16T16:00', repeat: null })
+  expect(read('standup every weekday')).toEqual({ words: 'every weekday', due: '2026-11-16', repeat: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' })
+  expect(read('gym every monday, wednesday and friday')).toEqual({
+    words: 'every monday, wednesday and friday',
+    due: '2026-11-16',
+    repeat: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
+  })
+  // Every other week starts on the coming Thursday, not the one after.
+  expect(read('bins every other thursday')).toEqual({
+    words: 'every other thursday',
+    due: '2026-11-19',
+    repeat: 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TH',
+  })
+  // A week, a month or a year takes its day from the line's date, as the date box does.
+  expect(read('review every 2 weeks')).toEqual({ words: 'every 2 weeks', due: '2026-11-16', repeat: 'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO' })
+  expect(read('rent monthly')).toEqual({ words: 'monthly', due: '2026-11-16', repeat: 'FREQ=MONTHLY;BYMONTHDAY=16' })
+  expect(read('card for mom every year')).toEqual({ words: 'every year', due: '2026-11-16', repeat: 'FREQ=YEARLY' })
+
+  // What the words leave unsaid stays as the line had it.
+  expect(read('call bank at 9:15', { due: '2026-12-01', repeat: 'FREQ=YEARLY' })).toEqual({
+    words: 'at 9:15',
+    due: '2026-12-01T09:15',
+    repeat: 'FREQ=YEARLY',
+  })
+  expect(read('call bank tomorrow', { due: '2026-12-01T08:00' })).toEqual({ words: 'tomorrow', due: '2026-11-17T08:00', repeat: null })
+
+  for (const text of ['sun cream', "today's special", 'Monday: pasta', 'look at 5 houses', 'feb 30', 'every other day', 'ratio 16:9']) {
+    expect(typedDates(text, now), text).toEqual([])
+  }
 })
 
 test('a dated line keeps its date beside its own text when a longer line is nested under it', async ({ browser }) => {

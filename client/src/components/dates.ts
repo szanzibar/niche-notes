@@ -52,8 +52,8 @@ export const parseDay = (day: string) => {
 }
 
 // Today plus `days`, as a day.
-export function inDays(days: number) {
-  const date = new Date()
+export function inDays(days: number, today = new Date()) {
+  const date = new Date(today)
   date.setDate(date.getDate() + days)
   return dayOf(date)
 }
@@ -110,9 +110,107 @@ export function nextDue(due: string, repeat: string, today = new Date()) {
 export function onRule(due: string, repeat: string, today = new Date()) {
   const start = parseDay(due.split('T')[0])
   const now = parseDay(dayOf(today))
-  const from = now < start ? now : start
+  const from = new Date(now < start ? now : start)
   from.setDate(from.getDate() - 1)
   return withTime(after(parseRule(repeat)!, start, from), due)
+}
+
+// A date in the words of a line, the way Todoist reads one: "today", "friday at 5pm", "nov 20", "every other monday",
+// "every day at 9:00". `from` and `to` are where the words sit in the text. English, with weekdays spelled out,
+// since "sun" and "sat" are words of their own.
+export interface Typed {
+  from: number
+  to: number
+  day?: string
+  time?: string
+  rule?: Rule
+}
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+const WEEKDAY = WEEKDAYS.join('|')
+const MONTH =
+  'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+const NEAR: Record<string, number> = { today: 0, tomorrow: 1, 'next week': 7 }
+const EACH: Record<string, string> = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }
+const HOUR = '(?:[01]?\\d|2[0-3])'
+const CLOCK = `(?:at )?(?:${HOUR}:[0-5]\\d(?: ?[ap]m)?|${HOUR} ?[ap]m)`
+const HEAD = [
+  '(?<near>today|tomorrow|next week)',
+  `(?:next )?(?<weekday>${WEEKDAY})`,
+  `(?<month>${MONTH}) (?<date>\\d{1,2})(?:st|nd|rd|th)?`,
+  `(?<date2>\\d{1,2})(?:st|nd|rd|th)? (?<month2>${MONTH})`,
+  `every (?:(?<apart>other|\\d{1,2}) )?(?<each>day|weekday|weeks?|months?|years?|(?:${WEEKDAY})(?:(?:,| and|, and) (?:${WEEKDAY}))*)`,
+  '(?<ly>daily|weekly|monthly|yearly)',
+].join('|')
+// "at 5" is as likely a count as a time, so a bare hour only counts after a day. "today's" and "Monday:" are
+// not dates.
+const TYPED = new RegExp(`(?<![\\w'’-])(?:(?:${HEAD})(?: (?<then>${CLOCK}|at ${HOUR}))?|(?<alone>${CLOCK}))(?![\\w'’:-])`, 'gi')
+
+export function typedDates(text: string, now = new Date()): Typed[] {
+  const found: Typed[] = []
+  for (const match of text.matchAll(TYPED)) {
+    const g = Object.fromEntries(Object.entries(match.groups!).map(([name, value]) => [name, value?.toLowerCase()]))
+    const typed: Typed = { from: match.index, to: match.index + match[0].length }
+
+    if (g.near) typed.day = inDays(NEAR[g.near], now)
+    // The coming one, a week on when it is today.
+    if (g.weekday) typed.day = inDays(((WEEKDAYS.indexOf(g.weekday) - now.getDay() + 6) % 7) + 1, now)
+    const month = g.month ?? g.month2
+    if (month) {
+      const at = (year: number) => new Date(year, MONTHS.indexOf(month.slice(0, 3)), Number(g.date ?? g.date2))
+      const date = dayOf(at(now.getFullYear())) < dayOf(now) ? at(now.getFullYear() + 1) : at(now.getFullYear())
+      // The 30th of February rolls into March.
+      if (MONTHS[date.getMonth()] !== month.slice(0, 3)) continue
+      typed.day = dayOf(date)
+    }
+
+    const each = g.each ?? EACH[g.ly ?? '']
+    if (each) {
+      const interval = g.apart === 'other' ? 2 : Number(g.apart ?? 1)
+      // A rule has no every other day.
+      if (interval < 1 || (each === 'day' && interval > 1)) continue
+      const named = WEEK.filter((day) => each.includes(WEEKDAYS[DAYS.indexOf(day)]))
+      typed.rule = {
+        freq: each.startsWith('month') ? 'MONTHLY' : each.startsWith('year') ? 'YEARLY' : 'WEEKLY',
+        interval,
+        days: each === 'day' ? WEEK : each === 'weekday' ? WEEK.slice(0, 5) : named,
+        weeks: [],
+        monthDay: null,
+      }
+    }
+
+    const clock = /(\d{1,2})(?::(\d\d))?(?: ?([ap])m)?$/.exec(g.then ?? g.alone ?? '')
+    if (clock) {
+      const hour = clock[3] ? (Number(clock[1]) % 12) + (clock[3] === 'p' ? 12 : 0) : Number(clock[1])
+      typed.time = `${pad(hour)}:${clock[2] ?? '00'}`
+    }
+    found.push(typed)
+  }
+  return found
+}
+
+// The line's date once the words are read into it. What they leave unsaid stays as the line had it: "at 9" keeps
+// the day, and "friday" keeps the time and the repeat.
+export function withTyped(line: { due?: string | null; repeat?: string | null }, typed: Typed, now = new Date()) {
+  const [lineDay, lineTime] = line.due?.split('T') ?? []
+  const time = typed.time ?? lineTime
+  const at = (day: string) => (time ? `${day}T${time}` : day)
+  let due = at(typed.day ?? lineDay ?? dayOf(now))
+  let repeat = line.repeat ?? null
+  if (typed.rule) {
+    // "Every week" and "every month" take their day from the line's date, as the date box does.
+    const start = parseDay(due.split('T')[0])
+    const rule = { ...typed.rule }
+    if (rule.freq === 'WEEKLY' && !rule.days.length) rule.days = [DAYS[start.getDay()]]
+    if (rule.freq === 'MONTHLY') rule.monthDay = start.getDate()
+    repeat = formatRule(rule)
+    // Every other week counts from the first of its days, not from this week.
+    due = onRule(due, formatRule({ ...rule, interval: 1 }), now)
+  }
+  // With no day said, a time that has gone by today means the next one.
+  if (!typed.day && !lineDay && time && new Date(due) < now) due = repeat ? nextDue(due, repeat, now) : at(inDays(1, now))
+  return { due, repeat }
 }
 
 const ORDINAL: Record<string, string> = { one: 'st', two: 'nd', few: 'rd', other: 'th' }
