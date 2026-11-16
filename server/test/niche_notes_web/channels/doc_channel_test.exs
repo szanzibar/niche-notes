@@ -2,6 +2,7 @@ defmodule NicheNotesWeb.DocChannelTest do
   use NicheNotesWeb.ChannelCase
 
   import Ecto.Query
+  import ExUnit.CaptureLog
 
   alias NicheNotes.Docs
   alias NicheNotes.Docs.DocUpdate
@@ -80,6 +81,67 @@ defmodule NicheNotesWeb.DocChannelTest do
                "doc:#{note}",
                %{"since" => seq1}
              )
+  end
+
+  test "a device that places a note without having seen the place its person chose gets them an alert",
+       %{me: me, note: note} do
+    {public, _} = :crypto.generate_key(:ecdh, :prime256v1)
+
+    keys = %{
+      "p256dh" => Base.url_encode64(public, padding: false),
+      "auth" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+    }
+
+    {:ok, _} =
+      NicheNotes.Push.subscribe(
+        me.id,
+        %{"endpoint" => "https://push.example/phone", "keys" => keys},
+        "Europe/Zurich"
+      )
+
+    {:ok, _, tree} = join_doc(me, me.id, 0)
+    test = self()
+
+    Req.Test.stub(NicheNotes.Push, fn conn ->
+      send(test, :alert)
+      Plug.Conn.send_resp(conn, 201, "")
+    end)
+
+    Req.Test.allow(NicheNotes.Push, test, tree.channel_pid)
+
+    # A device changes a place on the tree it holds, and sends the change.
+    place = fn device, id, node ->
+      {:ok, before} = Yex.encode_state_vector(device)
+      Yex.Map.set(Yex.Doc.get_map(device, "nodes"), id, node)
+      {:ok, update} = Yex.encode_state_as_update(device, before)
+      ref = push(tree, "update", %{"update" => Base.encode64(update)})
+      assert_reply ref, :ok, _
+      update
+    end
+
+    desk = Yex.Doc.new()
+    fresh = Ecto.UUID.generate()
+    place.(desk, note, %{"parent" => nil, "order" => 1})
+    moved = place.(desk, note, %{"parent" => "kids", "order" => 2})
+    place.(desk, fresh, %{"parent" => nil, "order" => 3})
+    refute_received :alert
+
+    # A second device that never saw the first places both notes. One had only the place a shared note starts with.
+    phone = Yex.Doc.new()
+    place.(phone, fresh, %{"parent" => nil, "order" => 4})
+    refute_received :alert
+
+    log = capture_log(fn -> place.(phone, note, %{"parent" => nil, "order" => 5}) end)
+    assert_received :alert
+    assert log =~ note
+
+    # A device sending what the server already holds placed nothing.
+    ref = push(tree, "update", %{"update" => Base.encode64(moved)})
+    assert_reply ref, :ok, _
+    {:ok, whole} = Yex.encode_state_as_update(phone)
+    ref = push(tree, "update", %{"update" => Base.encode64(whole)})
+    assert_reply ref, :ok, _
+    refute_received :alert
   end
 
   defp title!(note, title),

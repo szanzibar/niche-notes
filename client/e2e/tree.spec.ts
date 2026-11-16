@@ -160,20 +160,75 @@ test('notes someone shared reorder like any other', async ({ browser }) => {
   expect(titles).toEqual(['One', 'Two', 'Three'])
 })
 
-test('signing in on another device leaves a shared note where it was put', async ({ browser }) => {
+test('a device that only opens the app writes nothing, so every note stays where it was put', async ({ browser }) => {
   const a = `alice-${uid()}`
   const b = `bob-${uid()}`
   const bob = await signIn(browser, b)
   const alice = await signIn(browser, a)
-  await newNote(alice, 'Homework')
-  await shareWith(alice, b)
-  await expect(row(bob, 'Homework')).toBeVisible()
+  for (const title of ['Homework', 'Recipes', 'Old list']) {
+    await newNote(alice, title)
+    await shareWith(alice, b)
+  }
+  await expect(row(bob, 'Old list')).toBeVisible()
+  // Bob puts one of Alice's notes inside a note of his, pins another and leaves the third.
   await newNote(bob, 'Kids')
   await drag(bob, row(bob, 'Homework'), row(bob, 'Kids'))
-  expect(await depth(bob, 'Homework')).toBe(1)
+  await row(bob, 'Recipes').click()
+  await bob.getByRole('button', { name: 'Pin', exact: true }).click()
+  await row(bob, 'Old list').click()
+  await bob.getByRole('button', { name: 'Leave', exact: true }).click()
+  await expect(bob.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
+  expect(await rowTitles(bob)).toEqual(['Recipes', 'Kids', 'Homework'])
 
-  // The new device hears who shared what before its tree arrives. Of two placements made without knowing of
-  // each other, Y.js keeps the one from the higher client id, which this device is given.
+  // Everything the server sends the new device is late, so it hears who shared what before its tree arrives.
+  const phone = await (await browser.newContext()).newPage()
+  const sent: string[] = []
+  await phone.routeWebSocket(/\/socket/, (ws) => {
+    const server = ws.connectToServer()
+    ws.onMessage((message) => {
+      if (JSON.parse(String(message))[3] === 'update') sent.push(String(message))
+      server.send(message)
+    })
+    server.onMessage((message) => setTimeout(() => ws.send(message), 500))
+  })
+  const same = async () => {
+    await expect.poll(() => rowTitles(phone)).toEqual(['Recipes', 'Kids', 'Homework'])
+    expect(await depth(phone, 'Homework')).toBe(1)
+    await expect(phone.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
+  }
+  const offline = phone.locator('aside').getByRole('img', { name: 'Offline' })
+
+  await phone.goto(`/auth/login?as=${b}`)
+  await same()
+  await phone.reload()
+  await same()
+  await phone.context().setOffline(true)
+  await expect(offline).toBeVisible()
+  await phone.context().setOffline(false)
+  await expect(offline).toBeHidden()
+  await same()
+  // Long enough for anything it wrote on the way to have gone out.
+  await phone.waitForTimeout(1000)
+  expect(sent).toEqual([])
+})
+
+test('a note that is no longer shared leaves a tree that is behind without moving a note that was under it', async ({
+  browser,
+}) => {
+  const a = `alice-${uid()}`
+  const b = `bob-${uid()}`
+  const desk = await signIn(browser, b)
+  const alice = await signIn(browser, a)
+  await newNote(alice, 'Homework')
+  await shareWith(alice, b)
+  await expect(row(desk, 'Homework')).toBeVisible()
+  await newNote(desk, 'Kids')
+  await newNote(desk, 'Essay')
+  await drag(desk, row(desk, 'Essay'), row(desk, 'Homework'))
+  expect(await depth(desk, 'Essay')).toBe(1)
+
+  // Everything the server sends the phone is late. Of two places written without knowing of each other, Y.js
+  // keeps the one from the higher client id, which the phone is given.
   const phone = await (await browser.newContext()).newPage()
   await phone.addInitScript(() => {
     const random = crypto.getRandomValues.bind(crypto)
@@ -186,11 +241,23 @@ test('signing in on another device leaves a shared note where it was put', async
     server.onMessage((message) => setTimeout(() => ws.send(message), 500))
   })
   await phone.goto(`/auth/login?as=${b}`)
-  await expect(row(phone, 'Kids')).toBeVisible()
-  expect(await depth(phone, 'Homework')).toBe(1)
-  // Long enough for a placement written by the new device to reach the first one.
-  await bob.waitForTimeout(1000)
-  expect(await depth(bob, 'Homework')).toBe(1)
+  await expect.poll(() => rowTitles(phone)).toEqual(['Kids', 'Homework', 'Essay'])
+  const offline = phone.locator('aside').getByRole('img', { name: 'Offline' })
+  await phone.context().setOffline(true)
+  await expect(offline).toBeVisible()
+
+  // While the phone is away, Essay moves into Kids and Alice takes Homework back.
+  await drag(desk, row(desk, 'Essay'), row(desk, 'Kids'))
+  await shareWith(alice, b)
+  await expect(row(desk, 'Homework')).toHaveCount(0)
+  await phone.context().setOffline(false)
+  await expect(row(phone, 'Homework')).toHaveCount(0)
+  // Long enough for a place written by the phone to reach the desk.
+  await phone.waitForTimeout(1500)
+  for (const page of [phone, desk]) {
+    expect(await rowTitles(page)).toEqual(['Kids', 'Essay'])
+    expect(await depth(page, 'Essay')).toBe(1)
+  }
 })
 
 test('a launch draws the tree with saved titles, without waiting for the notes', async ({ browser }) => {

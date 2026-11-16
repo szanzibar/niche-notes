@@ -435,6 +435,34 @@ defmodule NicheNotes.Docs do
         do: insert
   end
 
+  # The notes whose place a tree update writes without having seen the place their person gave them: under a note,
+  # pinned, colored, folded or left. Only a device whose tree is behind writes that, and Y.js may keep its place over
+  # the real one. An update's items show only in y_ex's debug text, whose wording the test holds. Reading the tree
+  # takes a few milliseconds at family scale, and only an update that places a note asks for it.
+  def unseen_places(doc_id, update) do
+    placed = fn update ->
+      with {:ok, text} <- Yex.update_debug_v1(update) do
+        List.flatten(Regex.scan(~r/parent: nodes, '([^']+)' =>/, text, capture: :all_but_first))
+      else
+        _ -> []
+      end
+    end
+
+    with [_ | _] <- placed.(update),
+         {doc, _meta} <- read(doc_id),
+         {:ok, seen} <- Yex.encode_state_vector(doc),
+         {:ok, new} <- Yex.diff_update(update, seen) do
+      nodes = doc |> Yex.Doc.get_map("nodes") |> Yex.Map.to_map()
+
+      for id <- placed.(new),
+          node = nodes[id],
+          Enum.any?(~w(parent pinned collapsed color leftAt), &node[&1]),
+          do: id
+    else
+      _ -> []
+    end
+  end
+
   # Each member's devices hear of it, so one that doesn't have the note open can pull it.
   def append_update(doc_id, update) do
     stored = Repo.insert!(%DocUpdate{doc_id: doc_id, update: update})

@@ -166,7 +166,9 @@ export function Tree({ selected }: { selected?: string }) {
     if (widget && allNotes && s.online) handOff(widget, store.me!.id)
   }, [widget, allNotes, s.online])
 
+  // A tree that is behind doesn't know every note under the one that goes.
   useEffect(() => {
+    if (!s.treeCurrent) return
     for (const id of s.lost) removeFromTree(id)
     s.lost.clear()
   })

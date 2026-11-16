@@ -1,7 +1,8 @@
 defmodule NicheNotesWeb.DocChannel do
   use NicheNotesWeb, :channel
 
-  alias NicheNotes.Docs
+  require Logger
+  alias NicheNotes.{Docs, Push}
 
   intercept ["close"]
 
@@ -38,11 +39,31 @@ defmodule NicheNotesWeb.DocChannel do
   end
 
   def handle_in("update", %{"update" => encoded}, socket) do
-    stored = Docs.append_update(socket.assigns.doc_id, Base.decode64!(encoded))
+    update = Base.decode64!(encoded)
+    unseen = Docs.unseen_places(socket.assigns.doc_id, update)
+    stored = Docs.append_update(socket.assigns.doc_id, update)
     broadcast_from!(socket, "update", %{seq: stored.id, update: encoded})
+    if unseen != [], do: warn(socket.assigns.current_user_id, unseen)
     {:reply, {:ok, %{seq: stored.id}}, socket}
   end
 
   # An app loaded before the server folded its own log still sends its snapshot, and waits for this reply.
   def handle_in("snapshot", _payload, socket), do: {:reply, :ok, socket}
+
+  # A device wrote places from a tree that was behind, which the app should never do. Its person hears which notes
+  # to look at, on every device with alerts on, and the log names them.
+  defp warn(user_id, notes) do
+    Logger.warning(
+      "tree #{user_id}: a device placed #{Enum.join(notes, ", ")} without having seen their place"
+    )
+
+    message = %{
+      title: "Notes may have moved by themselves",
+      body: notes |> Enum.map_join(", ", &Docs.title/1) |> String.slice(0, 200),
+      note: hd(notes),
+      tag: "moved #{hd(notes)}"
+    }
+
+    for subscription <- Push.subscriptions([user_id]), do: Push.send(subscription, message)
+  end
 end

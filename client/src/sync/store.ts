@@ -56,6 +56,9 @@ export const store = {
   texts: new Map<string, Text>(),
   // Docs the server refused since startup. The tree prunes their placements.
   lost: new Set<string>(),
+  // Whether the tree holds every placement the server has, which only its join reply on this connection tells.
+  // What the app writes to the tree by itself waits for it, since a tree that is behind writes over what it lacks.
+  treeCurrent: false,
   // Unknown until the first connection attempt settles, so a launch doesn't flash Offline.
   online: null as boolean | null,
 }
@@ -131,8 +134,6 @@ let caughtUp: () => void
 // Resolves once this launch holds every change the server had when it connected.
 export const synced = new Promise<void>((resolve) => (caughtUp = resolve))
 let cursor = 0
-// Whether the tree holds every placement the server has, which only its join reply on this connection tells.
-let treeCurrent = false
 
 // Every caller gets the same promise, so nothing renders before the tree doc is loaded. A note loads only when
 // it opens, and stays for the session. A later call only hands the socket a fresher token for its next connect.
@@ -147,7 +148,7 @@ async function run(me: User) {
   socket = new Socket('/socket', { params: () => ({ token }) })
   socket.onOpen(() => {
     store.online = true
-    treeCurrent = false
+    store.treeCurrent = false
     notify()
     void refreshSharing()
   })
@@ -291,10 +292,10 @@ export async function purgeLocal(id: string) {
 
 // A note shared with us lands at the top of our tree, so there is no separate place to look for it. Its rows may
 // all be older than our cursor, so it comes in by itself. A tree that is behind can't tell a note with no place
-// from one another device placed, and a place written anyway can replace that one, so only a current tree places it.
+// from one another device placed, so only a current tree places it.
 function openShared() {
   const shared = store.shares.filter((share) => share.owner_id !== store.me!.id).map((share) => share.doc_id)
-  if (treeCurrent) {
+  if (store.treeCurrent) {
     const nodes = docs.get(store.me!.id)!.getMap('nodes')
     let order = Date.now()
     for (const id of shared) if (!nodes.has(id)) nodes.set(id, { parent: null, order: order++ })
@@ -480,8 +481,9 @@ async function load(id: string): Promise<Y.Doc> {
         }
         await fromServer(updates)
         if (id === store.me!.id) {
-          treeCurrent = true
+          store.treeCurrent = true
           openShared()
+          notify()
         }
         since = seq
         await db.docs.upsert(id, { seq, owner: owner_id })
