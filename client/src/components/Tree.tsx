@@ -43,7 +43,7 @@ import {
   type Spot,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { CheckedIcon, GripIcon, LeaveIcon, ListTreeIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -105,20 +105,21 @@ function useShowNote() {
   return (id: string) => navigate(`/n/${id}`, { replace: open })
 }
 
-// The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it, and
-// choosing the tree, which is the user's own doc, shows all of them. The token lets the widget read from the server
-// while the app is closed.
+// The token lets the widget read from the server while the app is closed. The tree is the user's own doc, and a
+// widget given it shows all their notes.
+function handOff(widget: string, id: string) {
+  const tree = id === store.me!.id
+  void api.widgetToken(id).then(({ token }) => {
+    const query = new URLSearchParams({ id: widget, note: tree ? 'tree' : id, title: tree ? 'Notes' : titleOf(id), token })
+    window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;end`
+  })
+}
+
+// The widget picker is this same tree, where choosing a note hands it to the widget instead of opening it.
 function useOpenNote() {
   const showNote = useShowNote()
   const widget = useMatch('/widget/:id')?.params.id
-  return (id: string) => {
-    if (!widget) return showNote(id)
-    const tree = id === store.me!.id
-    void api.widgetToken(id).then(({ token }) => {
-      const query = new URLSearchParams({ id: widget, note: tree ? 'tree' : id, title: tree ? 'Notes' : titleOf(id), token })
-      window.location.href = `intent://widget?${query}#Intent;scheme=nichenotes;end`
-    })
-  }
+  return (id: string) => (widget ? handOff(widget, id) : showNote(id))
 }
 
 export function Tree({ selected }: { selected?: string }) {
@@ -128,7 +129,10 @@ export function Tree({ selected }: { selected?: string }) {
   const navigate = useNavigate()
   const showNote = useShowNote()
   const openNote = useOpenNote()
-  const picking = useMatch('/widget/:id') != null
+  const widget = useMatch('/widget/:id')?.params.id
+  const picking = widget != null
+  // The notes widget has nothing to pick, so it gets the tree once the server can hand out a token.
+  const allNotes = picking && new URLSearchParams(location.search).has('tree')
   const roots = children(null)
   const trash = trashed()
   const [trashOpen, setTrashOpen] = useState(false)
@@ -144,6 +148,10 @@ export function Tree({ selected }: { selected?: string }) {
   const pointer = useRef<{ y: number } | null>(null)
   const spot = dragging && hint ? spotOf(dragging, hint) : null
   const mark = dragging && spot ? markOf(dragging, spot) : null
+
+  useEffect(() => {
+    if (widget && allNotes && s.online) handOff(widget, store.me!.id)
+  }, [widget, allNotes, s.online])
 
   useEffect(() => {
     for (const id of s.lost) removeFromTree(id)
@@ -218,15 +226,10 @@ export function Tree({ selected }: { selected?: string }) {
         setDragging(null)
       }}
     >
-      {picking && (
-        <div className="flex items-center border-b-2 border-border bg-accent pr-1 pl-4 text-sm font-bold text-on-accent">
-          <p className="flex-1">
-            {s.online === false ? 'Connect to the internet to pick a note' : 'Tap a note to show it in the widget'}
-          </p>
-          <IconButton label="All notes" onClick={() => openNote(s.me!.id)}>
-            <ListTreeIcon />
-          </IconButton>
-        </div>
+      {picking && (!allNotes || s.online === false) && (
+        <p className="border-b-2 border-border bg-accent px-4 py-3 text-sm font-bold text-on-accent">
+          {s.online === false ? 'Connect to the internet to add the widget' : 'Tap a note to show it in the widget'}
+        </p>
       )}
       <RootDropZone active={hint?.id === ROOT}>
         <div className="relative flex min-w-0 flex-1 items-center">

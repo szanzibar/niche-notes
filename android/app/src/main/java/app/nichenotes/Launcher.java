@@ -20,7 +20,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -64,7 +66,10 @@ public class Launcher extends LauncherActivity {
             @Override
             public void onNavigationEvent(int event, Bundle extras) {
                 if (event != TAB_HIDDEN) return;
-                int[] widgets = AppWidgetManager.getInstance(app).getAppWidgetIds(new ComponentName(app, NoteWidget.class));
+                AppWidgetManager manager = AppWidgetManager.getInstance(app);
+                int[] widgets = IntStream.concat(
+                        Arrays.stream(manager.getAppWidgetIds(new ComponentName(app, NoteWidget.class))),
+                        Arrays.stream(manager.getAppWidgetIds(new ComponentName(app, TreeWidget.class)))).toArray();
                 app.sendBroadcast(new Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE, null, app, NoteWidget.class)
                         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgets));
             }

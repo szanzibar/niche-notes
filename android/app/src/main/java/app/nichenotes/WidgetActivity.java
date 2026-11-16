@@ -18,7 +18,7 @@ public class WidgetActivity extends Activity {
             // Placed right away, so a picker left without choosing leaves a widget that offers the picker again.
             setResult(RESULT_OK, new Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widget));
             NoteWidget.show(this, widget);
-            startActivity(NoteWidget.inApp(this, "/widget/" + widget));
+            startActivity(NoteWidget.inApp(this, NoteWidget.picker(this, widget)));
         } else {
             Uri pick = intent.getData();
             int widget = Integer.parseInt(pick.getQueryParameter("id"));

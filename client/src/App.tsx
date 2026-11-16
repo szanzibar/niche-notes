@@ -69,8 +69,8 @@ function Shell() {
       const onNote = location.pathname.startsWith('/n/')
       if (pathname.startsWith('/n/')) return navigate(pathname + search, { replace: onNote })
       // Anything else, such as the widget picker, takes the list's place, so an open note closes first.
-      if (!onNote) return navigate(pathname, { replace: true })
-      addEventListener('popstate', () => navigate(pathname, { replace: true }), { once: true })
+      if (!onNote) return navigate(pathname + search, { replace: true })
+      addEventListener('popstate', () => navigate(pathname + search, { replace: true }), { once: true })
       navigate(-1)
     }
     window.launchQueue?.setConsumer(({ targetURL }) => targetURL && open(targetURL))

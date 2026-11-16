@@ -239,20 +239,25 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       if (end == null && line && node.isTextblock && node.textContent === line) end = pos + node.nodeSize - 1
       return end == null
     })
-    if (end != null) {
-      editor.commands.focus(end)
-      return
+    if (end != null) editor.commands.focus(end)
+    else if (!titleRef.current?.value) titleRef.current?.focus()
+    else {
+      const { binding } = ySyncPluginKey.getState(editor.state)!
+      const saved = localStorage.getItem(`cursor:${id}`)
+      const pos = saved
+        ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
+        : null
+      editor.commands.focus(pos ?? 'end')
     }
-    if (!titleRef.current?.value) {
-      titleRef.current?.focus()
-      return
-    }
-    const { binding } = ySyncPluginKey.getState(editor.state)!
-    const saved = localStorage.getItem(`cursor:${id}`)
-    const pos = saved
-      ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
-      : null
-    editor.commands.focus(pos ?? 'end')
+    // A phone raises the keyboard for a tap, not for a note opened from a widget, so we ask for it. Chrome says no
+    // on a page nobody has tapped since it loaded.
+    const focused = document.activeElement
+    const keyboard = (navigator as Navigator & { virtualKeyboard?: { show(): void } }).virtualKeyboard
+    if (!(focused instanceof HTMLElement) || !keyboard) return
+    focused.setAttribute('virtualkeyboardpolicy', 'manual')
+    keyboard.show()
+    // Back to the default once Chrome has acted on it, so a later tap raises the keyboard as usual.
+    setTimeout(() => focused.removeAttribute('virtualkeyboardpolicy'), 300)
   }, [editor, deleted, id, doc])
 
   // Anchored to the text, so someone else's edit above the cursor doesn't move where it reopens.

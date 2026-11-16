@@ -3,6 +3,7 @@ package app.nichenotes;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -28,7 +29,7 @@ import org.json.JSONObject;
 
 // Each widget shows the note picked for it, or all the notes as the tree shows them, read from the server with the
 // token that came with the pick. A tap opens that note in the app, the list for the tree, or the picker until one is
-// picked.
+// picked. Every widget is drawn and refreshed here, whichever kind it is.
 public class NoteWidget extends AppWidgetProvider {
     static final String REFRESH = "app.nichenotes.REFRESH";
 
@@ -52,6 +53,16 @@ public class NoteWidget extends AppWidgetProvider {
                 .remove("rows." + widget).remove("color." + widget).remove("ink." + widget);
     }
 
+    static boolean isTree(Context context, int widget) {
+        AppWidgetProviderInfo info = AppWidgetManager.getInstance(context).getAppWidgetInfo(widget);
+        return info != null && info.provider.getClassName().equals(TreeWidget.class.getName());
+    }
+
+    // A notes widget's picker hands over the tree at once.
+    static String picker(Context context, int widget) {
+        return "/widget/" + widget + (isTree(context, widget) ? "?tree" : "");
+    }
+
     static void show(Context context, int widget) {
         SharedPreferences picks = picks(context);
         String note = picks.getString("note." + widget, null);
@@ -61,13 +72,14 @@ public class NoteWidget extends AppWidgetProvider {
         views.setTextColor(R.id.title, ink);
         views.setInt(R.id.refresh, "setColorFilter", ink);
         views.setTextViewText(R.id.title,
-                note == null ? context.getString(R.string.widget_pick) : picks.getString("title." + widget, ""));
+                note != null ? picks.getString("title." + widget, "")
+                        : context.getString(isTree(context, widget) ? R.string.tree_widget_pick : R.string.widget_pick));
         views.setViewVisibility(R.id.refresh, note == null ? View.GONE : View.VISIBLE);
         views.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(context, widget,
                 refresh(context, widget), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
 
         // Mutable, because a tap on a row fills its intent into this one, and a note in the tree names its own page.
-        String page = note == null ? "/widget/" + widget : note.equals("tree") ? "/" : "/n/" + note;
+        String page = note == null ? picker(context, widget) : note.equals("tree") ? "/" : "/n/" + note;
         PendingIntent open = PendingIntent.getActivity(context, widget, inApp(context, page),
                 PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT | Intent.FILL_IN_DATA);
         views.setOnClickPendingIntent(android.R.id.background, open);
