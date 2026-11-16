@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  type Modifier,
 } from '@dnd-kit/core'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -27,9 +28,10 @@ import {
   isCollapsed,
   isMine,
   isPinned,
+  landing,
+  moveNote,
+  nodes,
   ownerName,
-  placeNote,
-  placeSibling,
   purgeNote,
   removeFromTree,
   restoreNote,
@@ -38,6 +40,7 @@ import {
   titleOf,
   toggleCollapsed,
   trashed,
+  type Spot,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import { CheckedIcon, GripIcon, LeaveIcon, ListTreeIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
@@ -53,6 +56,37 @@ interface Hint {
   id: string
   zone: Zone
 }
+// The note a dragged note goes into is outlined, and a line marks its place among the rows in view.
+interface Mark {
+  into: string | null
+  line: { row: string; edge: 'top' | 'bottom'; depth: number } | null
+}
+
+// Below an open note with children is where its first child goes, since that is where the line shows.
+function spotOf(id: string, { id: target, zone }: Hint): Spot | null {
+  if (target === ROOT) return landing(id, null)
+  if (zone === 'inside') return landing(id, target)
+  if (zone === 'after' && !isCollapsed(target) && children(target).length > 0) return landing(id, target, 0)
+  const parent = nodes().get(target)?.parent ?? null
+  const index = children(parent).filter((s) => s !== id).indexOf(target)
+  return landing(id, parent, zone === 'before' ? index : index + 1)
+}
+
+function markOf(id: string, { parent, index }: Spot): Mark {
+  const kids = children(parent).filter((s) => s !== id)
+  if (kids.length === 0 || (parent && isCollapsed(parent))) return { into: parent, line: null }
+  let depth = 0
+  for (let p = parent; p; p = nodes().get(p)?.parent ?? null) depth++
+  if (index < kids.length) return { into: parent, line: { row: kids[index], edge: 'top', depth } }
+  // At the end, the line goes under the last row of the last child's open subtree.
+  let last = kids[kids.length - 1]
+  while (!isCollapsed(last) && children(last).length > 0) last = children(last).at(-1)!
+  return { into: parent, line: { row: last, edge: 'bottom', depth } }
+}
+
+// On a touch screen the dragged title rides a row above the finger, so the row it would land on stays in sight.
+const aboveFinger: Modifier = ({ transform, activatorEvent }) =>
+  activatorEvent && 'touches' in activatorEvent ? { ...transform, y: transform.y - 48 } : transform
 
 // On a touch screen a row drags by its grip, at once, like a line in a note. A touch anywhere else taps or scrolls.
 class HandleSensor extends TouchSensor {
@@ -107,6 +141,9 @@ export function Tree({ selected }: { selected?: string }) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [hint, setHint] = useState<Hint | null>(null)
   const latestHint = useRef<Hint | null>(null)
+  const pointer = useRef<{ y: number } | null>(null)
+  const spot = dragging && hint ? spotOf(dragging, hint) : null
+  const mark = dragging && spot ? markOf(dragging, spot) : null
 
   useEffect(() => {
     for (const id of s.lost) removeFromTree(id)
@@ -127,15 +164,12 @@ export function Tree({ selected }: { selected?: string }) {
   )
 
   // Top and bottom edges of a row mean "next to it", the middle means "inside it".
-  const onDragMove = ({ over, activatorEvent, delta }: DragMoveEvent) => {
+  // The pointer is the one dnd-kit picked `over` with, so the two agree while the list scrolls.
+  const onDragMove = ({ over }: DragMoveEvent) => {
     let next: Hint | null = null
     if (over?.id === ROOT) next = { id: ROOT, zone: 'inside' }
-    else if (over) {
-      const startY =
-        'clientY' in activatorEvent
-          ? (activatorEvent as MouseEvent).clientY
-          : ((activatorEvent as TouchEvent).touches?.[0]?.clientY ?? 0)
-      const rel = (startY + delta.y - over.rect.top) / over.rect.height
+    else if (over && pointer.current) {
+      const rel = (pointer.current.y - over.rect.top) / over.rect.height
       next = { id: String(over.id), zone: rel < 0.3 ? 'before' : rel > 0.7 ? 'after' : 'inside' }
     }
     latestHint.current = next
@@ -147,13 +181,10 @@ export function Tree({ selected }: { selected?: string }) {
     latestHint.current = null
     setHint(null)
     setDragging(null)
-    if (!target) return
-    const id = String(active.id)
-    if (target.id === ROOT) placeNote(id, null)
-    else if (target.zone === 'inside') {
-      placeNote(id, target.id)
-      expand(target.id)
-    } else placeSibling(id, target.id, target.zone)
+    const to = target && spotOf(String(active.id), target)
+    if (!to) return
+    moveNote(String(active.id), to)
+    if (to.parent) expand(to.parent)
   }
 
   const onSearchKey = (e: React.KeyboardEvent) => {
@@ -174,9 +205,13 @@ export function Tree({ selected }: { selected?: string }) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={(args) => {
+        pointer.current = args.pointerCoordinates
+        return pointerWithin(args)
+      }}
       onDragStart={({ active }: DragStartEvent) => setDragging(String(active.id))}
       onDragMove={onDragMove}
+      onDragOver={onDragMove}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
         setHint(null)
@@ -288,7 +323,7 @@ export function Tree({ selected }: { selected?: string }) {
           <>
             {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet.{!s.me!.guest && ' Tap New.'}</p>}
             {roots.map((id) => (
-              <Row key={id} id={id} depth={0} selected={selected} hint={hint} />
+              <Row key={id} id={id} depth={0} selected={selected} mark={mark} />
             ))}
           </>
         )}
@@ -320,7 +355,7 @@ export function Tree({ selected }: { selected?: string }) {
         </IconButton>
       </footer>
       {createPortal(
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} modifiers={[aboveFinger]}>
           {dragging && (
             <div className="truncate border-2 border-border bg-surface px-3 py-2 font-medium shadow-brutal">
               {titleOf(dragging)}
@@ -385,7 +420,7 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
   )
 }
 
-function Row({ id, depth, selected, hint }: { id: string; depth: number; selected?: string; hint: Hint | null }) {
+function Row({ id, depth, selected, mark }: { id: string; depth: number; selected?: string; mark: Mark | null }) {
   const showNote = useShowNote()
   const openNote = useOpenNote()
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
@@ -399,14 +434,16 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
   const active = selected === id
   const color = noteTheme(id)?.color
   const tag = !isMine(id) ? ownerName(id) : shareCount(id) > 0 ? 'shared' : null
-  const zone = hint?.id === id ? hint.zone : null
+  const line = mark?.line?.row === id ? mark.line : null
+  const into = mark?.into === id
 
   return (
     <>
       <div
         ref={dropRef}
-        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
+        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking || into ? `outline-2 -outline-offset-2 ${active ? 'outline-ink' : 'outline-accent-ink'}` : ''}`}
         style={{ paddingLeft: 4 + depth * INDENT }}
+        data-drop-into={into || undefined}
         onDragOver={(e) => {
           if (!draggedLine()) return
           e.preventDefault()
@@ -419,11 +456,11 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
           draggedLine()?.(id)
         }}
       >
-        {/* The drop line sits where the note will land, indented the way the note will be. */}
-        {zone && (
+        {line && (
           <span
-            className={`pointer-events-none absolute right-0 h-[3px] before:absolute before:-top-1 before:left-0 before:h-[11px] before:w-[11px] before:content-[''] ${zone === 'before' ? 'top-0' : 'bottom-0'} ${active ? 'bg-ink before:bg-ink' : 'bg-accent-ink before:bg-accent-ink'}`}
-            style={{ left: 4 + (zone === 'inside' ? depth + 1 : depth) * INDENT }}
+            data-drop-line
+            className={`pointer-events-none absolute right-0 h-[3px] before:absolute before:-top-1 before:left-0 before:h-[11px] before:w-[11px] before:content-[''] ${line.edge === 'top' ? 'top-0' : 'bottom-0'} ${active ? 'bg-ink before:bg-ink' : 'bg-accent-ink before:bg-accent-ink'}`}
+            style={{ left: 4 + line.depth * INDENT }}
           />
         )}
         {/* The note's color sits beside its grip and moves in with its nesting. */}
@@ -483,7 +520,7 @@ function Row({ id, depth, selected, hint }: { id: string; depth: number; selecte
           </button>
         )}
       </div>
-      {open && kids.map((kid) => <Row key={kid} id={kid} depth={depth + 1} selected={selected} hint={hint} />)}
+      {open && kids.map((kid) => <Row key={kid} id={kid} depth={depth + 1} selected={selected} mark={mark} />)}
     </>
   )
 }

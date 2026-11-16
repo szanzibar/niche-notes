@@ -1,5 +1,9 @@
-import { expect } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { drag, newNote, row, rowTitles, shareWith, signIn, test, uid } from './helpers'
+
+// A row's nesting, from the indent it is drawn with.
+const depth = async (page: Page, title: string) =>
+  (parseInt(await row(page, title).locator('..').evaluate((el) => getComputedStyle(el).paddingLeft)) - 4) / 16
 
 test('dragging a note onto another nests it, stays folded across a reload, and onto the header goes back to the top', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
@@ -32,16 +36,18 @@ test('dropping on the edge of a row makes a sibling, in the order you dropped it
   await expect(page.getByRole('button', { name: 'Collapse' })).toHaveCount(0)
 })
 
-test('a pinned note sits above its siblings until unpinned', async ({ browser }) => {
+test('a new pin goes below the other pins, and an unpinned note goes on top of the rest', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
-  await newNote(page, 'Apple')
-  await newNote(page, 'Banana')
-  await newNote(page, 'Cherry')
-  await row(page, 'Apple').click()
-  await page.getByRole('button', { name: 'Pin', exact: true }).click()
-  expect(await rowTitles(page)).toEqual(['Apple', 'Cherry', 'Banana'])
-  await page.getByRole('button', { name: 'Unpin' }).click()
-  expect(await rowTitles(page)).toEqual(['Cherry', 'Banana', 'Apple'])
+  for (const title of ['Apple', 'Banana', 'Cherry', 'Date']) await newNote(page, title)
+  const pin = async (title: string, name: 'Pin' | 'Unpin') => {
+    await row(page, title).click()
+    await page.getByRole('button', { name, exact: true }).click()
+  }
+  await pin('Banana', 'Pin')
+  await pin('Apple', 'Pin')
+  expect(await rowTitles(page)).toEqual(['Banana', 'Apple', 'Date', 'Cherry'])
+  await pin('Banana', 'Unpin')
+  expect(await rowTitles(page)).toEqual(['Apple', 'Banana', 'Date', 'Cherry'])
 })
 
 test('on a touch screen every row has a grip on its left, like the lines of a note, that a finger drags at once', async ({
@@ -88,19 +94,51 @@ test('a note dropped inside another becomes its first child, and the header puts
   expect(await rowTitles(page)).toEqual(['Old', 'Parent', 'Kid'])
 })
 
-test('dropping just under the pinned notes puts a note at the top of the rest, unpinned', async ({ browser }) => {
+test('a drop keeps a note pinned or not, and the line shows the end of its own group where it lands', async ({
+  browser,
+}) => {
   const page = await signIn(browser, `alice-${uid()}`)
-  await newNote(page, 'Top')
-  await page.getByRole('button', { name: 'Pin', exact: true }).click()
-  await newNote(page, 'Apple')
-  await newNote(page, 'Banana')
-  await newNote(page, 'Cherry')
-  expect(await rowTitles(page)).toEqual(['Top', 'Cherry', 'Banana', 'Apple'])
+  for (const title of ['Apple', 'Banana', 'Next', 'Top']) {
+    await newNote(page, title)
+    if (title === 'Next' || title === 'Top') await page.getByRole('button', { name: 'Pin', exact: true }).click()
+  }
+  expect(await rowTitles(page)).toEqual(['Next', 'Top', 'Banana', 'Apple'])
+  const line = (title: string) => row(page, title).locator('..').locator('[data-drop-line]')
 
-  await drag(page, row(page, 'Apple'), row(page, 'Cherry'), 'top')
-  expect(await rowTitles(page)).toEqual(['Top', 'Apple', 'Cherry', 'Banana'])
+  await drag(page, row(page, 'Next'), row(page, 'Apple'), 'bottom', () => expect(line('Banana')).toBeVisible())
+  expect(await rowTitles(page)).toEqual(['Top', 'Next', 'Banana', 'Apple'])
+  await drag(page, row(page, 'Apple'), row(page, 'Top'), 'top', () => expect(line('Banana')).toBeVisible())
+  expect(await rowTitles(page)).toEqual(['Top', 'Next', 'Apple', 'Banana'])
+  await row(page, 'Next').click()
+  await expect(page.getByRole('button', { name: 'Unpin', exact: true })).toBeVisible()
   await row(page, 'Apple').click()
   await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
+})
+
+test('the note a drop goes into is outlined, and under an open one the note goes in first where the line shows', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Loose')
+  await newNote(page, 'Parent')
+  await page.getByRole('button', { name: 'New note inside' }).first().click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Kid')
+  expect(await rowTitles(page)).toEqual(['Parent', 'Kid', 'Loose'])
+  const into = page.locator('aside [data-drop-into]')
+
+  await drag(page, row(page, 'Loose'), row(page, 'Parent'), 'bottom', async () => {
+    await expect(into).toHaveCount(1)
+    await expect(into.getByRole('button', { name: /^Parent/ })).toBeVisible()
+    await expect(row(page, 'Kid').locator('..').locator('[data-drop-line]')).toBeVisible()
+  })
+  await expect(into).toHaveCount(0)
+  expect(await rowTitles(page)).toEqual(['Parent', 'Loose', 'Kid'])
+  expect(await depth(page, 'Loose')).toBe(1)
+
+  // A drop beside a top-level note outlines nothing, since it goes into no note.
+  await drag(page, row(page, 'Loose'), row(page, 'Parent'), 'top', () => expect(into).toHaveCount(0))
+  expect(await rowTitles(page)).toEqual(['Loose', 'Parent', 'Kid'])
 })
 
 test('notes someone shared reorder like any other', async ({ browser }) => {
@@ -141,4 +179,53 @@ test('a launch draws the tree with saved titles, without waiting for the notes',
   })
   await page.reload()
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('firstRows'))).toBe('["Final"]')
+})
+
+test('a finger dragging a note can still drop it inside another after the list scrolls', async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 500 } })
+  const page = await context.newPage()
+  await page.goto(`/auth/login?as=alice-${uid()}`)
+  for (let n = 1; n <= 12; n++) {
+    await page.getByRole('button', { name: 'New note', exact: true }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(`Note ${n}`)
+    await page.getByRole('button', { name: 'Back' }).click()
+  }
+
+  const grip = (await row(page, 'Note 12').locator('..').locator('[data-handle]').boundingBox())!
+  const x = grip.x + grip.width / 2
+  const cdp = await context.newCDPSession(page)
+  const touch = (type: string, y = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+  await touch('touchStart', grip.y + grip.height / 2)
+  await touch('touchMove', grip.y + grip.height)
+  await page.locator('nav').evaluate((nav) => nav.scrollBy(0, 200))
+  const to = (await row(page, 'Note 2').boundingBox())!
+  for (let step = 0; step < 3; step++) await touch('touchMove', to.y + to.height / 2 + step)
+  await touch('touchEnd')
+
+  await expect(page.getByRole('button', { name: 'Collapse' })).toHaveCount(1)
+  expect(await depth(page, 'Note 12')).toBe(1)
+})
+
+test('a drop on a device that is behind leaves a move made on another device alone', async ({ browser }) => {
+  const name = `alice-${uid()}`
+  const desk = await signIn(browser, name)
+  for (const title of ['P', 'X', 'Y']) await newNote(desk, title)
+  const phone = await signIn(browser, name)
+  await expect(row(phone, 'P')).toBeVisible()
+  expect(await rowTitles(phone)).toEqual(['Y', 'X', 'P'])
+
+  await phone.context().setOffline(true)
+  await expect(phone.locator('aside').getByRole('img', { name: 'Offline' })).toBeVisible()
+  await drag(desk, row(desk, 'X'), row(desk, 'P'))
+  expect(await depth(desk, 'X')).toBe(1)
+  await drag(phone, row(phone, 'Y'), row(phone, 'P'), 'bottom')
+  expect(await rowTitles(phone)).toEqual(['X', 'P', 'Y'])
+  await phone.context().setOffline(false)
+
+  for (const page of [desk, phone]) {
+    await expect.poll(() => rowTitles(page)).toEqual(['P', 'X', 'Y'])
+    expect(await depth(page, 'X')).toBe(1)
+  }
 })

@@ -51,7 +51,14 @@ export async function typeAtEnd(page: Page, text: string) {
 }
 
 // `edge` picks the drop zone: the top or bottom 30% of a row means "next to it", the middle "inside".
-export async function drag(page: Page, source: Locator, target: Locator, edge: 'top' | 'middle' | 'bottom' = 'middle') {
+// With `check`, looks at the tree while the note is still held over its landing place.
+export async function drag(
+  page: Page,
+  source: Locator,
+  target: Locator,
+  edge: 'top' | 'middle' | 'bottom' = 'middle',
+  check?: () => Promise<void>,
+) {
   const from = (await source.boundingBox())!
   const to = (await target.boundingBox())!
   const y = edge === 'top' ? to.y + to.height * 0.12 : edge === 'bottom' ? to.y + to.height * 0.88 : to.y + to.height / 2
@@ -60,6 +67,7 @@ export async function drag(page: Page, source: Locator, target: Locator, edge: '
   await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2 + 12, { steps: 4 })
   await page.mouse.move(to.x + to.width / 2, y, { steps: 12 })
   await page.mouse.move(to.x + to.width / 2 + 1, y, { steps: 2 })
+  await check?.()
   await page.mouse.up()
   // dnd-kit swallows a click that lands within a few ms of the drop.
   await page.waitForTimeout(150)

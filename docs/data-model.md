@@ -17,7 +17,7 @@ Access rule, used by every channel join and share endpoint: a user may open a do
 ## Documents
 
 **Tree doc**, one per user, id = user id.
-- `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number, pinned?: boolean, collapsed?: boolean, leftAt?: number }`. `collapsed` hides the row's children on all of the user's devices. `leftAt` is set when the user puts someone else's note in their trash; it only ever touches their own tree. Siblings sort pinned first, then by `order` descending. A new note gets the current time, so it lands on top. A drop next to a sibling takes that sibling's pin state and renumbers the whole group it lands in, so orders never tie.
+- `nodes`: Y.Map keyed by note id, value `{ parent: note id | null, order: number, pinned?: boolean, collapsed?: boolean, leftAt?: number }`. `collapsed` hides the row's children on all of the user's devices. `leftAt` is set when the user puts someone else's note in their trash; it only ever touches their own tree. Siblings sort pinned first, then by `order` descending. A new note gets the current time, so it lands on top. A drop keeps the note's pin state and writes only that note, with an order between its new neighbours, since a device that is behind would write back old parents for every sibling it touched. Its group is renumbered only when two orders tie.
 - `settings`: Y.Map of per-user preferences, `accent` (a hex color), `theme`, and whether search covers the trash (`searchTrash`, unless false) and checked lines (`searchChecked`, only when true). Living in the tree doc, they sync to every device with no server change. Density stays in each device's `localStorage`.
 
 **Note doc**

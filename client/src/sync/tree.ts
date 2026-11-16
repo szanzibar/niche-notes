@@ -68,9 +68,14 @@ export function isPinned(id: string) {
   return nodes().get(id)?.pinned === true
 }
 
+// A new pin goes below the others, which are most likely already in the order we want.
 export function togglePin(id: string) {
   const node = nodes().get(id)
-  if (node) nodes().set(id, { ...node, pinned: !node.pinned })
+  if (!node) return
+  nodes().doc!.transact(() => {
+    nodes().set(id, { ...node, pinned: !node.pinned })
+    moveNote(id, landing(id, node.parent)!)
+  })
 }
 
 export function setColor(id: string, color: string | undefined) {
@@ -134,28 +139,39 @@ export function createNote(parent: string | null, order = Date.now()): string {
 
 const wouldLoop = (id: string, parent: string | null) => parent === id || (!!parent && descendants(id).has(parent))
 
-// A moved note goes on top of its new scope, where the drop line showed it.
-export function placeNote(id: string, parent: string | null) {
-  if (wouldLoop(id, parent)) return
-  nodes().set(id, { parent, order: Date.now(), collapsed: isCollapsed(id) })
+// A place among `parent`'s children, counted without the note that moves there.
+export interface Spot {
+  parent: string | null
+  index: number
 }
 
-// Dropped among the pinned, it is pinned, so it lands where the line showed. The whole group it
-// lands in gets fresh orders, so ties and midpoints can never put it anywhere else.
-export function placeSibling(id: string, target: string, where: 'before' | 'after') {
+// A moved note keeps its pin, so it lands within its own group. With no index it goes where the pins end.
+export function landing(id: string, parent: string | null, index?: number): Spot | null {
+  if (wouldLoop(id, parent)) return null
+  const pins = children(parent).filter((s) => s !== id && isPinned(s)).length
+  const at = index ?? pins
+  return { parent, index: isPinned(id) ? Math.min(at, pins) : Math.max(at, pins) }
+}
+
+// Only the moved note is written, since a device that is behind would write back old parents for any note it
+// renumbered. The group is renumbered only when its neighbours' orders leave no room between them.
+export function moveNote(id: string, { parent, index }: Spot) {
   const map = nodes()
-  const parent = map.get(target)?.parent ?? null
-  if (target === id || wouldLoop(id, parent)) return
-  const pinned = isPinned(target)
-  const group = children(parent).filter((s) => s !== id && isPinned(s) === pinned)
-  group.splice(group.indexOf(target) + (where === 'after' ? 1 : 0), 0, id)
-  let order = Date.now()
-  map.doc!.transact(() => {
-    for (const s of group) {
-      map.set(s, s === id ? { parent, order, pinned, collapsed: isCollapsed(id) } : { ...map.get(s)!, order })
-      order--
-    }
-  })
+  const pinned = isPinned(id)
+  const kids = children(parent).filter((s) => s !== id)
+  kids.splice(index, 0, id)
+  const group = kids.filter((s) => isPinned(s) === pinned)
+  const at = group.indexOf(id)
+  const above = at > 0 ? orderOf(group[at - 1]) : Infinity
+  const below = at < group.length - 1 ? orderOf(group[at + 1]) : -Infinity
+  const now = Date.now()
+  const order = above === Infinity ? Math.max(now, below + 1) : below === -Infinity ? above - 1 : (above + below) / 2
+  const write = (s: string, to: number) => map.set(s, { ...map.get(s)!, ...(s === id && { parent }), order: to })
+  if (order < above && order > below) write(id, order)
+  else
+    map.doc!.transact(() => {
+      for (const [i, s] of group.entries()) write(s, now - i)
+    })
 }
 
 // Children move up to the removed note's parent, so nothing drops out of the tree.
