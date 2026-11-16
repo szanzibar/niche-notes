@@ -3,6 +3,7 @@
 //   node scripts/note.mjs list
 //   node scripts/note.mjs show "<title>"
 //   node scripts/note.mjs check "<title>" "<item text>"
+//   node scripts/note.mjs bullet "<title>" "<heading>" "<text>"
 // NOTES_URL (default http://localhost:4000) and NOTES_AS (dev login name, default dev).
 // NOTES_LINK, a note's guest link, reads and ticks just that note on whichever server the link is for.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -12,7 +13,7 @@ import * as Y from 'yjs'
 const LINK = process.env.NOTES_LINK
 const BASE = LINK ? new URL(LINK).origin : (process.env.NOTES_URL ?? 'http://localhost:4000')
 const AS = process.env.NOTES_AS ?? 'dev'
-const [command, titleArg, itemArg] = process.argv.slice(2)
+const [command, titleArg, itemArg, bulletArg] = process.argv.slice(2)
 
 // A visit without the guest's cookie would sign in yet another guest.
 const GUEST = new URL('../../.guest-cookie', import.meta.url)
@@ -141,8 +142,39 @@ if (command === 'list') {
   })
   for (const el of items) console.log(`checked: ${text(el.toArray()[0])}`)
   for (const line of lines) console.log(`checked: ${text(line)}`)
+} else if (command === 'bullet') {
+  // A new bullet at the end of the list under a heading, or in a list of its own when the heading has none.
+  const note = pick()
+  const content = note.doc.getXmlFragment('content')
+  const blocks = content.toArray()
+  const at = blocks.findIndex((el) => el.nodeName === 'heading' && text(el).toLowerCase().includes(itemArg.toLowerCase()))
+  if (at < 0) {
+    console.error(`no heading containing ${JSON.stringify(itemArg)}`)
+    process.exit(1)
+  }
+  await new Promise((resolve) => {
+    note.doc.once('update', (update) => {
+      note.channel.push('update', { update: Buffer.from(update).toString('base64') }).receive('ok', resolve)
+    })
+    note.doc.transact(() => {
+      const words = new Y.XmlText()
+      words.insert(0, bulletArg)
+      const paragraph = new Y.XmlElement('paragraph')
+      paragraph.insert(0, [words])
+      const item = new Y.XmlElement('listItem')
+      item.insert(0, [paragraph])
+      const list = blocks[at + 1]
+      if (list?.nodeName === 'bulletList') list.insert(list.length, [item])
+      else {
+        const made = new Y.XmlElement('bulletList')
+        made.insert(0, [item])
+        content.insert(at + 1, [made])
+      }
+    })
+  })
+  console.log(`added under ${text(blocks[at])}: ${bulletArg}`)
 } else {
-  console.error('usage: note.mjs list | show "<title>" | check "<title>" "<item>"')
+  console.error('usage: note.mjs list | show "<title>" | check "<title>" "<item>" | bullet "<title>" "<heading>" "<text>"')
   process.exit(1)
 }
 socket.disconnect()
