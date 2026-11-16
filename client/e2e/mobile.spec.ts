@@ -81,7 +81,7 @@ test('every action folds behind the dots at once, and the offline cloud stays be
   await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('a shared note keeps Share beside the dots for its owner, and a people icon for the other person', async ({
+test('a shared note keeps Share beside the dots for its owner, and an icon of its own for the other person', async ({
   browser,
 }) => {
   const a = `alice-${uid()}`
@@ -96,30 +96,25 @@ test('a shared note keeps Share beside the dots for its owner, and a people icon
   await expect(alice.getByRole('img', { name: 'Shared' })).toHaveCount(0)
 
   await bob.getByRole('button', { name: 'Groceries' }).click()
-  await expect(bob.getByRole('img', { name: 'Shared' })).toBeVisible()
+  await expect(bob.getByRole('img', { name: /^Shared by/ })).toBeVisible()
   await bob.getByRole('button', { name: 'More' }).click()
   await expect(bob.getByText(/^Shared by/)).toBeVisible()
   await expect(bob.getByRole('button', { name: 'Leave' })).toBeVisible()
 })
 
 test('actions too wide for the row fold behind the dots, instead of wrapping under a short title', async ({ browser }) => {
-  const a = `alice-${uid()}`
-  const b = `bob-${uid()}`
-  const bob = await phone(browser, b)
-  const alice = await phone(browser, a)
-  await alice.getByRole('button', { name: 'New note', exact: true }).click()
-  await expect(alice.getByPlaceholder('Title')).toBeFocused()
-  await alice.keyboard.type('M')
-  await alice.keyboard.press('Enter')
-  await alice.getByRole('button', { name: 'Checklist', exact: true }).click()
-  await alice.keyboard.type('Eggs')
-  await shareWith(alice, b)
+  const page = await phone(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('M')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await page.keyboard.type('Eggs')
+  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
 
-  // Who shared it and the checked lines button make the row wider than the phone.
-  await bob.getByRole('button', { name: /^M(\s|$)/ }).click()
-  await expect(bob.locator('.editor-body')).toContainText('Eggs')
-  await expect(bob.getByRole('button', { name: 'More' })).toBeVisible()
-  await expect(bob.getByRole('button', { name: 'Pin', exact: true })).toBeHidden()
+  await page.setViewportSize({ width: 280, height: 844 })
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeHidden()
 })
 
 test('back from a note goes to the list and back again leaves, also when a widget opened the note', async ({

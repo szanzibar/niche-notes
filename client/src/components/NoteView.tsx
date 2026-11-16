@@ -44,6 +44,7 @@ import {
   PinIcon,
   RemoveNoteIcon,
   RemoveWithNotesIcon,
+  SharedWithMeIcon,
   TrashIcon,
   UncheckAllIcon,
   UsersIcon,
@@ -380,15 +381,21 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     </div>
   )
 
-  const sharedBy = !mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>
-  // Every action folds at once, except Share, which stays beside the dots. Elsewhere a people icon stays there
-  // when the note is shared. Behind the dots, the checked-line options and the choice of what to delete get their
-  // own rows instead of a box inside the box.
+  // Someone else's note wears this where the owner has Share, and behind the dots there is room for the name.
+  const sharedBy = !mine && (
+    <span role="img" aria-label={`Shared by ${ownerName(id)}`} title={`Shared by ${ownerName(id)}`} className="shrink-0 text-ink-muted">
+      <SharedWithMeIcon />
+    </span>
+  )
+  // Every action folds at once, except Share or its stand-in, which stays beside the dots. Elsewhere a people icon
+  // stays there when the note is shared. Behind the dots, the checked-line options and the choice of what to delete
+  // get their own rows instead of a box inside the box.
   const actions = (share: React.ReactNode, buttons: React.ReactNode, checked?: React.ReactNode, choices?: React.ReactNode) =>
     folded ? (
       <>
         {share ||
-          ((!mine || shareCount(id) > 0) && (
+          sharedBy ||
+          (shareCount(id) > 0 && (
             <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
               <UsersIcon />
             </span>
@@ -406,7 +413,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           <div className="flex flex-col items-end gap-2">
             {checked && <div className="flex items-center gap-2">{checked}</div>}
             <div className="flex items-center gap-2">
-              {sharedBy}
+              {!mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>}
               {buttons}
             </div>
             {(panel === 'remove' || panel === 'color') && <div className="flex items-center gap-2">{choices}</div>}

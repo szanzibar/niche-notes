@@ -40,6 +40,10 @@ export const UsersIcon = icon(
 export const UserPlusIcon = icon(
   'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M19 8v6M22 11h-6',
 )
+// The person of UserPlusIcon with an arrow coming in, for a note that came from someone else.
+export const SharedWithMeIcon = icon(
+  'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M22 11h-6M19 8l-3 3 3 3',
+)
 export const CloudOffIcon = icon(
   'M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78M2 2l20 20',
 )
