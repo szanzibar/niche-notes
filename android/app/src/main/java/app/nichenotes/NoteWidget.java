@@ -67,6 +67,10 @@ public class NoteWidget extends AppWidgetProvider {
         SharedPreferences picks = picks(context);
         String note = picks.getString("note." + widget, null);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget);
+        // Sizes in dp, scaled by the font size setting here, since a home screen's first draw can turn sp into text
+        // a third bigger than its later draws.
+        float font = context.getResources().getConfiguration().fontScale;
+        views.setTextViewTextSize(R.id.title, TypedValue.COMPLEX_UNIT_DIP, 17 * font);
         int ink = picks.getInt("ink." + widget, context.getColor(R.color.on_accent));
         views.setInt(R.id.header, "setBackgroundColor", picks.getInt("color." + widget, context.getColor(R.color.accent)));
         views.setTextColor(R.id.title, ink);
@@ -99,6 +103,7 @@ public class NoteWidget extends AppWidgetProvider {
                     line.setSpan(new RelativeSizeSpan(1.3f - 0.1f * level), 0, line.length(), 0);
                 }
                 item.setTextViewText(R.id.line, line);
+                item.setTextViewTextSize(R.id.line, TypedValue.COMPLEX_UNIT_DIP, 15 * font);
                 float indent = 18 * row.getInt("depth");
                 boolean box = row.has("checked");
                 item.setViewVisibility(R.id.box, box ? View.VISIBLE : View.GONE);

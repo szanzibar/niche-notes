@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Text is set in the app's own font, so it looks the same on every redraw, whichever font the home screen would
-     pick. The header wears the note's color, like the note's header in the app. -->
+<!-- Text is in the phone's own font, since a home screen draws widgets without access to fonts an app bundles.
+     NoteWidget sets the text sizes. The header wears the note's color, like the note's header in the app. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
@@ -26,10 +26,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:ellipsize="end"
-            android:fontFamily="@font/space_grotesk"
             android:maxLines="2"
             android:textColor="@color/on_accent"
-            android:textSize="17sp"
             android:textStyle="bold" />
 
         <ImageView
