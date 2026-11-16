@@ -7,7 +7,7 @@ defmodule NicheNotesWeb.UserChannel do
   @impl true
   def join("user:" <> user_id, params, %{assigns: %{current_user_id: user_id}} = socket) do
     {changed, seq} = Docs.changed_for(user_id, params["after"] || 0)
-    {:ok, %{changed: changed, seq: seq, generation: Docs.generation()}, socket}
+    {:ok, %{changed: changed, seq: seq, generation: NicheNotes.Generation.id()}, socket}
   end
 
   def join(_topic, _params, _socket), do: {:error, %{reason: "forbidden"}}

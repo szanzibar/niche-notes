@@ -9,3 +9,11 @@ The server folds its own log, and nothing a device sends removes rows. Devices u
 Emptying the trash needs the server's own copy of the note to be in the trash, since a device with an old copy once purged a live note.
 
 Known and accepted: the launch after a restore loads every note at once, which ADR 009 measured at 45 seconds for 1,000 notes. Sharing lives only on the server, so shares, links and people added since the backup are gone. A note that was both made and shared since the backup belongs to whoever's device reconnects first.
+
+## Amendment 2026-11-16: the app recognizes a backup by itself
+
+`restore.sh` is gone, because the tool for a crisis has to be simpler than a script. The app marks its database open while it runs and clears the mark when it stops. A database still marked at start is a backup taken while the app ran, or what a crash left, and it gets the new generation with no step from us. Restoring is putting the snapshot in an empty `data/` and starting the app.
+
+A crash looks the same as a restore, so after one every device sends its notes again. That costs a slow launch and loses nothing. Known and accepted: a copy made while the app is stopped carries no mark. Our hourly snapshot only meets that in the seconds a deploy takes, and the README says how to mark such a copy by hand.
+
+A database from before the mark starts out marked, so older backups restore the same way. The first start on this version therefore renames the live log once.

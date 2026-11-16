@@ -6,6 +6,7 @@ defmodule NicheNotes.Application do
   def start(_type, _args) do
     children = [
       NicheNotes.Repo,
+      NicheNotes.Generation,
       {Phoenix.PubSub, name: NicheNotes.PubSub},
       NicheNotesWeb.Endpoint
     ]

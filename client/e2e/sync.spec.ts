@@ -76,8 +76,8 @@ test('a launch loads only the tree, and notes it never opened still show, search
   await expect(laptop.locator('.editor-body')).toContainText('wool socks')
 })
 
-// What restoring a backup leaves: the server's log as it was at the backup, numbering new rows from there, under a
-// new generation.
+// What a restored backup leaves once the app has started on it: the server's log as it was at the backup,
+// numbering new rows from there, under a new generation.
 const restoreWithout = (note: string) =>
   execFileSync('sqlite3', [
     '-cmd',

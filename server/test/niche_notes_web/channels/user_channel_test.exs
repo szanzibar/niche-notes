@@ -65,7 +65,7 @@ defmodule NicheNotesWeb.UserChannelTest do
 
   test "the join names this copy of the log", %{me: me} do
     assert {:ok, %{generation: generation}, _} = join_user(me, %{})
-    assert generation == Docs.generation()
+    assert generation == NicheNotes.Generation.id()
     assert generation =~ ~r/^[0-9a-f]{32}$/
   end
 

@@ -1,0 +1,13 @@
+# Runs a backup as an offline copy beside the app, to look at (README). With no way out of its network the copy
+# sends no alerts, writes to no calendar and signs nobody in.
+services:
+  app:
+    ports: !reset []
+    volumes: !override
+      - ./restore-test:/data
+    environment:
+      PHX_HOST: localhost
+    networks: [offline]
+networks:
+  offline:
+    internal: true

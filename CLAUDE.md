@@ -56,7 +56,7 @@ client/src/lib/                API client and types
 android/                       Trusted Web Activity launcher, build.sh runs gradle in the Android SDK image
 icon/                          vector app icon and the script that renders every size
 docs/                          spec, data model, ADRs, todo
-restore.sh                     puts a backup in the database's place, or runs it as an offline copy (README)
+docker-compose.restore-test.yml  runs a backup as an offline copy beside the app (README)
 ```
 
 ## Design system

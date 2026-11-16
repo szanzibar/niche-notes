@@ -82,12 +82,6 @@ defmodule NicheNotes.Docs do
     end
   end
 
-  # Names this copy of the log. A restore gives it a new name, and a device that sees a new one sends its notes
-  # again.
-  def generation, do: Repo.one!(from g in "generation", select: g.id)
-
-  def new_generation, do: Repo.query!("update generation set id = lower(hex(randomblob(16)))")
-
   # What the log holds, for someone checking a restored backup: each person's notes, and the notes edited last.
   def summary do
     people = for u <- Repo.all(User), do: "#{u.name}: #{length(note_ids(u.id))} notes"

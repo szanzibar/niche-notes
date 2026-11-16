@@ -45,4 +45,5 @@ RUN chown nobody /app && mkdir /data && chown nobody /data
 COPY --from=builder --chown=nobody:root /app/_build/prod/rel/niche_notes ./
 USER nobody
 VOLUME /data
-CMD ["sh", "-c", "/app/bin/migrate && /app/bin/server"]
+# exec, so the app gets the stop signal itself and shuts down, where the shell would sit on it until it is killed.
+CMD ["sh", "-c", "/app/bin/migrate && exec /app/bin/server"]

@@ -57,9 +57,9 @@ Dates, repeats and a time on checkbox lines, alerts through Web Push (ADR 006), 
 
 ## Restore
 
-`restore.sh` and the generation it starts are built and tested with a made-up database (2026-11-15, ADR 010).
+A backup restores by putting it in an empty `data/` and starting the app, which recognizes it and starts a new generation (ADR 010, amended 2026-11-16).
 
-- [ ] Steven runs `./restore.sh --test` on the server with a backup fetched from the off-site copy
+- [ ] Steven runs the README's offline copy on the server with a backup fetched from the off-site copy
 - [ ] One restore for real on a spare server, with a phone that holds newer edits than the backup
 
 ## Later
