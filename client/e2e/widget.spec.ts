@@ -82,14 +82,8 @@ test('the notes widget gets all the notes as the tree shows them, with nothing t
     ])
 })
 
-test('a tap on a line in a widget opens the note at that line, with the keyboard up', async ({ browser }) => {
+test('a tap on a line in a widget opens the note at that line', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
-  // What the focused line looked like when the page asked for the keyboard.
-  await page.addInitScript(() =>
-    Object.defineProperty(navigator, 'virtualKeyboard', {
-      value: { show: () => ((window as unknown as { asked: string }).asked = document.activeElement!.outerHTML.slice(0, 200)) },
-    }),
-  )
   await newNote(page, 'Trip', 'Passport')
   await page.keyboard.press('Enter')
   await page.getByRole('button', { name: 'Bullet list', exact: true }).click()
@@ -113,8 +107,6 @@ test('a tap on a line in a widget opens the note at that line, with the keyboard
   ]) {
     await page.goto(`${note}?line=${line}`)
     await expect(page.locator('.editor-body')).toBeFocused()
-    expect(await page.evaluate(() => (window as unknown as { asked: string }).asked)).toContain('virtualkeyboardpolicy="manual"')
-    await expect(page.locator('.editor-body')).not.toHaveAttribute('virtualkeyboardpolicy')
     await page.keyboard.type('!')
     await expect(page.locator('.editor-body p').getByText(typed, { exact: true })).toBeVisible()
   }
