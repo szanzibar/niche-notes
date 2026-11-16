@@ -141,6 +141,41 @@ test('the note a drop goes into is outlined, and under an open one the note goes
   expect(await rowTitles(page)).toEqual(['Loose', 'Parent', 'Kid'])
 })
 
+test('Shift and Ctrl pick several notes, and dragging one of them moves them all in the order they were in', async ({
+  browser,
+}) => {
+  const name = `alice-${uid()}`
+  const page = await signIn(browser, name)
+  for (const title of ['Folder', 'E', 'D', 'C', 'B', 'A']) await newNote(page, title)
+  expect(await rowTitles(page)).toEqual(['A', 'B', 'C', 'D', 'E', 'Folder'])
+
+  // Shift picks the run from the open note, without opening the one clicked, and Ctrl drops one from it.
+  await row(page, 'B').click()
+  await row(page, 'D').click({ modifiers: ['Shift'] })
+  for (const title of ['B', 'C', 'D']) await expect(row(page, title)).toHaveAttribute('aria-pressed', 'true')
+  await expect(row(page, 'A')).not.toHaveAttribute('aria-pressed')
+  await expect(page.getByPlaceholder('Title')).toHaveValue('B')
+  await row(page, 'C').click({ modifiers: ['ControlOrMeta'] })
+  await expect(row(page, 'C')).not.toHaveAttribute('aria-pressed')
+
+  await drag(page, row(page, 'D'), row(page, 'Folder'), 'middle', () => expect(page.getByText('2 notes')).toBeVisible())
+  expect(await rowTitles(page)).toEqual(['A', 'C', 'E', 'Folder', 'B', 'D'])
+  expect(await depth(page, 'B')).toBe(1)
+  expect(await depth(page, 'D')).toBe(1)
+  const other = await signIn(browser, name)
+  await expect.poll(() => rowTitles(other)).toEqual(['A', 'C', 'E', 'Folder', 'B', 'D'])
+
+  // A note under a picked one moves with it, and stays under it.
+  await row(page, 'E').click()
+  await expect(row(page, 'B')).not.toHaveAttribute('aria-pressed')
+  await row(page, 'B').click({ modifiers: ['Shift'] })
+  for (const title of ['E', 'Folder', 'B']) await expect(row(page, title)).toHaveAttribute('aria-pressed', 'true')
+  await drag(page, row(page, 'E'), row(page, 'A'), 'top')
+  expect(await rowTitles(page)).toEqual(['E', 'Folder', 'B', 'D', 'A', 'C'])
+  expect(await depth(page, 'B')).toBe(1)
+  expect(await depth(page, 'Folder')).toBe(0)
+})
+
 test('notes someone shared reorder like any other', async ({ browser }) => {
   const a = `alice-${uid()}`
   const b = `bob-${uid()}`

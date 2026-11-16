@@ -29,7 +29,7 @@ import {
   isMine,
   isPinned,
   landing,
-  moveNote,
+  moveNotes,
   nodes,
   ownerName,
   purgeNote,
@@ -63,18 +63,22 @@ interface Mark {
   line: { row: string; edge: 'top' | 'bottom'; depth: number } | null
 }
 
-// Below an open note with children is where its first child goes, since that is where the line shows.
-function spotOf(id: string, { id: target, zone }: Hint): Spot | null {
-  if (target === ROOT) return landing(id, null)
-  if (zone === 'inside') return landing(id, target)
-  if (zone === 'after' && !isCollapsed(target) && children(target).length > 0) return landing(id, target, 0)
+// Below an open note with children is where its first child goes, since that is where the line shows. A note that
+// moves is no place to drop the notes moving with it.
+function spotOf(ids: string[], { id: target, zone }: Hint): Spot | null {
+  if (target === ROOT) return landing(ids, null)
+  if (ids.includes(target)) return null
+  if (zone === 'inside') return landing(ids, target)
+  if (zone === 'after' && !isCollapsed(target) && children(target).length > 0) return landing(ids, target, 0)
   const parent = nodes().get(target)?.parent ?? null
-  const index = children(parent).filter((s) => s !== id).indexOf(target)
-  return landing(id, parent, zone === 'before' ? index : index + 1)
+  const index = children(parent)
+    .filter((s) => !ids.includes(s))
+    .indexOf(target)
+  return landing(ids, parent, zone === 'before' ? index : index + 1)
 }
 
-function markOf(id: string, { parent, index }: Spot): Mark {
-  const kids = children(parent).filter((s) => s !== id)
+function markOf(ids: string[], { parent, index }: Spot): Mark {
+  const kids = children(parent).filter((s) => !ids.includes(s))
   if (kids.length === 0 || (parent && isCollapsed(parent))) return { into: parent, line: null }
   let depth = 0
   for (let p = parent; p; p = nodes().get(p)?.parent ?? null) depth++
@@ -155,12 +159,39 @@ export function Tree({ selected }: { selected?: string }) {
     .sort((a, b) => a.due.localeCompare(b.due))
   const dueNotes = new Map<string, typeof due>()
   for (const line of due) dueNotes.set(line.id, [...(dueNotes.get(line.id) ?? []), line])
+  // Shift picks every row from the last one clicked to this one, and Ctrl or ⌘ picks or drops this one, so several
+  // notes can be dragged together. A plain click opens the note and lets the rest go.
+  const [picked, setPicked] = useState(new Set<string>())
+  const anchor = useRef<string>(undefined)
+  const pick = (id: string, e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      const shown = (parent: string | null): string[] =>
+        children(parent).flatMap((kid) => [kid, ...(isCollapsed(kid) ? [] : shown(kid))])
+      const rows = shown(null)
+      anchor.current ??= selected ?? id
+      const to = rows.indexOf(id)
+      const from = rows.includes(anchor.current) ? rows.indexOf(anchor.current) : to
+      return setPicked(new Set(rows.slice(Math.min(from, to), Math.max(from, to) + 1)))
+    }
+    anchor.current = id
+    if (!e.metaKey && !e.ctrlKey) {
+      setPicked(new Set())
+      return openNote(id)
+    }
+    const next = new Set(picked.size > 0 || !selected ? picked : [selected])
+    if (!next.delete(id)) next.add(id)
+    setPicked(next)
+  }
+  // Dragging a picked note takes the others along, in the tree's order. A note under a picked one moves with it.
+  const lifted = (parent: string | null): string[] =>
+    children(parent).flatMap((kid) => (picked.has(kid) ? [kid] : lifted(kid)))
+  const moving = (id: string) => (picked.has(id) ? lifted(null) : [id])
   const [dragging, setDragging] = useState<string | null>(null)
   const [hint, setHint] = useState<Hint | null>(null)
   const latestHint = useRef<Hint | null>(null)
   const pointer = useRef<{ y: number } | null>(null)
-  const spot = dragging && hint ? spotOf(dragging, hint) : null
-  const mark = dragging && spot ? markOf(dragging, spot) : null
+  const spot = dragging && hint ? spotOf(moving(dragging), hint) : null
+  const mark = dragging && spot ? markOf(moving(dragging), spot) : null
 
   useEffect(() => {
     if (widget && allNotes && s.online) handOff(widget, store.me!.id)
@@ -204,9 +235,10 @@ export function Tree({ selected }: { selected?: string }) {
     latestHint.current = null
     setHint(null)
     setDragging(null)
-    const to = target && spotOf(String(active.id), target)
+    const ids = moving(String(active.id))
+    const to = target && spotOf(ids, target)
     if (!to) return
-    moveNote(String(active.id), to)
+    moveNotes(ids, to)
     if (to.parent) expand(to.parent)
   }
 
@@ -381,7 +413,7 @@ export function Tree({ selected }: { selected?: string }) {
           <>
             {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet.{!s.me!.guest && ' Tap New.'}</p>}
             {roots.map((id) => (
-              <Row key={id} id={id} depth={0} selected={selected} mark={mark} />
+              <Row key={id} id={id} depth={0} selected={selected} picked={picked} onPick={pick} mark={mark} />
             ))}
           </>
         )}
@@ -416,7 +448,7 @@ export function Tree({ selected }: { selected?: string }) {
         <DragOverlay dropAnimation={null} modifiers={[aboveFinger]}>
           {dragging && (
             <div className="truncate border-2 border-border bg-surface px-3 py-2 font-medium shadow-brutal">
-              {titleOf(dragging)}
+              {moving(dragging).length > 1 ? `${moving(dragging).length} notes` : titleOf(dragging)}
             </div>
           )}
         </DragOverlay>,
@@ -478,9 +510,22 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
   )
 }
 
-function Row({ id, depth, selected, mark }: { id: string; depth: number; selected?: string; mark: Mark | null }) {
+function Row({
+  id,
+  depth,
+  selected,
+  picked,
+  onPick,
+  mark,
+}: {
+  id: string
+  depth: number
+  selected?: string
+  picked: Set<string>
+  onPick: (id: string, e: React.MouseEvent) => void
+  mark: Mark | null
+}) {
   const showNote = useShowNote()
-  const openNote = useOpenNote()
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
   const { setNodeRef: dropRef } = useDroppable({ id, disabled: isDragging })
   // A line dragged out of the open note moves into the note it is dropped on.
@@ -489,7 +534,8 @@ function Row({ id, depth, selected, mark }: { id: string; depth: number; selecte
 
   const kids = children(id)
   const open = !isCollapsed(id)
-  const active = selected === id
+  // While notes are picked, the fill marks them instead of the open note.
+  const active = picked.size > 0 ? picked.has(id) : selected === id
   const color = noteTheme(id)?.color
   const tag = !isMine(id) ? ownerName(id) : shareCount(id) > 0 ? 'shared' : null
   const line = mark?.line?.row === id ? mark.line : null
@@ -499,7 +545,7 @@ function Row({ id, depth, selected, mark }: { id: string; depth: number; selecte
     <>
       <div
         ref={dropRef}
-        className={`relative flex items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking || into ? `outline-2 -outline-offset-2 ${active ? 'outline-ink' : 'outline-accent-ink'}` : ''}`}
+        className={`relative flex select-none items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking || into ? `outline-2 -outline-offset-2 ${active ? 'outline-ink' : 'outline-accent-ink'}` : ''}`}
         style={{ paddingLeft: 4 + depth * INDENT }}
         data-drop-into={into || undefined}
         onDragOver={(e) => {
@@ -553,9 +599,10 @@ function Row({ id, depth, selected, mark }: { id: string; depth: number; selecte
           {...listeners}
           {...attributes}
           type="button"
-          aria-current={active ? 'page' : undefined}
+          aria-current={selected === id ? 'page' : undefined}
+          aria-pressed={picked.has(id) || undefined}
           className="flex min-w-0 flex-1 touch-manipulation items-baseline gap-2 py-3 text-left"
-          onClick={() => openNote(id)}
+          onClick={(e) => onPick(id, e)}
         >
           <span className="truncate font-medium">{titleOf(id)}</span>
           {isPinned(id) && (
@@ -578,7 +625,10 @@ function Row({ id, depth, selected, mark }: { id: string; depth: number; selecte
           </button>
         )}
       </div>
-      {open && kids.map((kid) => <Row key={kid} id={kid} depth={depth + 1} selected={selected} mark={mark} />)}
+      {open &&
+        kids.map((kid) => (
+          <Row key={kid} id={kid} depth={depth + 1} selected={selected} picked={picked} onPick={onPick} mark={mark} />
+        ))}
     </>
   )
 }

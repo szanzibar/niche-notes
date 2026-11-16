@@ -74,7 +74,7 @@ export function togglePin(id: string) {
   if (!node) return
   nodes().doc!.transact(() => {
     nodes().set(id, { ...node, pinned: !node.pinned })
-    moveNote(id, landing(id, node.parent)!)
+    moveNotes([id], landing([id], node.parent)!)
   })
 }
 
@@ -139,39 +139,48 @@ export function createNote(parent: string | null, order = Date.now()): string {
 
 const wouldLoop = (id: string, parent: string | null) => parent === id || (!!parent && descendants(id).has(parent))
 
-// A place among `parent`'s children, counted without the note that moves there.
+// A place among `parent`'s children, counted without the notes that move there.
 export interface Spot {
   parent: string | null
   index: number
 }
 
-// A moved note keeps its pin, so it lands within its own group. With no index it goes where the pins end.
-export function landing(id: string, parent: string | null, index?: number): Spot | null {
-  if (wouldLoop(id, parent)) return null
-  const pins = children(parent).filter((s) => s !== id && isPinned(s)).length
+// Where notes that move together land. A moved note keeps its pin, so the first lands within its own group and the
+// rest beside it, each within theirs. With no index they go where the pins end.
+export function landing(ids: string[], parent: string | null, index?: number): Spot | null {
+  if (ids.some((id) => wouldLoop(id, parent))) return null
+  const pins = children(parent).filter((s) => !ids.includes(s) && isPinned(s)).length
   const at = index ?? pins
-  return { parent, index: isPinned(id) ? Math.min(at, pins) : Math.max(at, pins) }
+  return { parent, index: isPinned(ids[0]) ? Math.min(at, pins) : Math.max(at, pins) }
 }
 
-// Only the moved note is written, since a device that is behind would write back old parents for any note it
-// renumbered. The group is renumbered only when its neighbours' orders leave no room between them.
-export function moveNote(id: string, { parent, index }: Spot) {
+// Only the moved notes are written, since a device that is behind would write back old parents for any note it
+// renumbered. They keep the order given and share the room between their new neighbours, and a group is renumbered
+// only when its neighbours' orders leave no room.
+export function moveNotes(ids: string[], { parent, index }: Spot) {
   const map = nodes()
-  const pinned = isPinned(id)
-  const kids = children(parent).filter((s) => s !== id)
-  kids.splice(index, 0, id)
-  const group = kids.filter((s) => isPinned(s) === pinned)
-  const at = group.indexOf(id)
-  const above = at > 0 ? orderOf(group[at - 1]) : Infinity
-  const below = at < group.length - 1 ? orderOf(group[at + 1]) : -Infinity
+  const kids = children(parent).filter((s) => !ids.includes(s))
+  const pins = kids.filter(isPinned).length
   const now = Date.now()
-  const order = above === Infinity ? Math.max(now, below + 1) : below === -Infinity ? above - 1 : (above + below) / 2
-  const write = (s: string, to: number) => map.set(s, { ...map.get(s)!, ...(s === id && { parent }), order: to })
-  if (order < above && order > below) write(id, order)
-  else
-    map.doc!.transact(() => {
-      for (const [i, s] of group.entries()) write(s, now - i)
-    })
+  const write = (s: string, to: number) => map.set(s, { ...map.get(s)!, ...(ids.includes(s) && { parent }), order: to })
+  map.doc!.transact(() => {
+    for (const pinned of [true, false]) {
+      const moved = ids.filter((s) => isPinned(s) === pinned)
+      const group = kids.filter((s) => isPinned(s) === pinned)
+      const at = pinned ? Math.min(index, pins) : Math.max(index, pins) - pins
+      const above = at > 0 ? orderOf(group[at - 1]) : Infinity
+      const below = at < group.length ? orderOf(group[at]) : -Infinity
+      const top = above === Infinity ? Math.max(now, below + moved.length) + 1 : above
+      const step = above === Infinity || below === -Infinity ? 1 : (above - below) / (moved.length + 1)
+      const orders = moved.map((_, i) => top - step * (i + 1))
+      if (orders.every((order, i) => order < (i ? orders[i - 1] : above) && order > below)) {
+        moved.forEach((s, i) => write(s, orders[i]))
+      } else {
+        group.splice(at, 0, ...moved)
+        group.forEach((s, i) => write(s, now - i))
+      }
+    }
+  })
 }
 
 // Children move up to the removed note's parent, so nothing drops out of the tree.
