@@ -4,8 +4,14 @@ defmodule NicheNotesWeb.AuthController do
   alias NicheNotes.Accounts
 
   def login(conn, _params) do
+    # Pocket ID signs the same person straight back in while its own session lasts, so after Sign out it asks.
+    config =
+      if get_session(conn, :signed_out),
+        do: put_in(oidc_config(), [:authorization_params, :prompt], "select_account"),
+        else: oidc_config()
+
     {:ok, %{url: url, session_params: session_params}} =
-      Assent.Strategy.OIDC.authorize_url(oidc_config())
+      Assent.Strategy.OIDC.authorize_url(config)
 
     conn
     |> put_session(:oidc_session_params, session_params)
@@ -18,7 +24,7 @@ defmodule NicheNotesWeb.AuthController do
     with {:ok, %{user: claims}} <- Assent.Strategy.OIDC.callback(config, params),
          {:ok, user} <- Accounts.find_or_create_user(claims) do
       conn
-      |> delete_session(:oidc_session_params)
+      |> clear_session()
       |> put_session(:user_id, user.id)
       |> redirect(to: "/")
     else
@@ -28,7 +34,7 @@ defmodule NicheNotesWeb.AuthController do
   end
 
   def logout(conn, _params) do
-    conn |> clear_session() |> send_resp(:no_content, "")
+    conn |> clear_session() |> put_session(:signed_out, true) |> send_resp(:no_content, "")
   end
 
   defp oidc_config, do: Application.fetch_env!(:niche_notes, :oidc)

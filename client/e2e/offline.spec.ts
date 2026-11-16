@@ -49,6 +49,17 @@ test('signing in as someone else on the same browser shows their tree', async ({
   await expect(row(page, 'Alice only')).toHaveCount(0)
 })
 
+test('Sign out ends the session and takes the notes off the device', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Alice only')
+  // The dev login would sign someone in again at once.
+  await page.route('**/auth/login', (route) => route.fulfill({ body: 'signed out' }))
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByText('signed out')).toBeVisible()
+  const left = () => Promise.all([fetch('/api/me').then((r) => r.status), localStorage.getItem('session'), indexedDB.databases()])
+  expect(await page.evaluate(left)).toEqual([401, null, []])
+})
+
 test('a launch with an expired token still syncs once the server answers', async ({ browser }) => {
   const a = `alice-${uid()}`
   const page = await signIn(browser, a)
