@@ -160,6 +160,39 @@ test('notes someone shared reorder like any other', async ({ browser }) => {
   expect(titles).toEqual(['One', 'Two', 'Three'])
 })
 
+test('signing in on another device leaves a shared note where it was put', async ({ browser }) => {
+  const a = `alice-${uid()}`
+  const b = `bob-${uid()}`
+  const bob = await signIn(browser, b)
+  const alice = await signIn(browser, a)
+  await newNote(alice, 'Homework')
+  await shareWith(alice, b)
+  await expect(row(bob, 'Homework')).toBeVisible()
+  await newNote(bob, 'Kids')
+  await drag(bob, row(bob, 'Homework'), row(bob, 'Kids'))
+  expect(await depth(bob, 'Homework')).toBe(1)
+
+  // The new device hears who shared what before its tree arrives. Of two placements made without knowing of
+  // each other, Y.js keeps the one from the higher client id, which this device is given.
+  const phone = await (await browser.newContext()).newPage()
+  await phone.addInitScript(() => {
+    const random = crypto.getRandomValues.bind(crypto)
+    crypto.getRandomValues = <T extends ArrayBufferView | null>(array: T) =>
+      array instanceof Uint32Array && array.length === 1 ? (array.fill(0xffffffff) as T) : random(array)
+  })
+  await phone.routeWebSocket(/\/socket/, (ws) => {
+    const server = ws.connectToServer()
+    ws.onMessage((message) => server.send(message))
+    server.onMessage((message) => setTimeout(() => ws.send(message), 500))
+  })
+  await phone.goto(`/auth/login?as=${b}`)
+  await expect(row(phone, 'Kids')).toBeVisible()
+  expect(await depth(phone, 'Homework')).toBe(1)
+  // Long enough for a placement written by the new device to reach the first one.
+  await bob.waitForTimeout(1000)
+  expect(await depth(bob, 'Homework')).toBe(1)
+})
+
 test('a launch draws the tree with saved titles, without waiting for the notes', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Draft')
