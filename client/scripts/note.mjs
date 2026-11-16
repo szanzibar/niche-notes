@@ -42,7 +42,7 @@ function openDoc(id) {
 
 const text = (node) =>
   node instanceof Y.XmlText
-    ? node.toString().replace(/<[^>]+>/g, '')
+    ? node.toDelta().map((part) => (typeof part.insert === 'string' ? part.insert : '')).join('')
     : node.toArray().map(text).join('')
 
 function render(node, depth = 0) {
