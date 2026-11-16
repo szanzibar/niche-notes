@@ -63,7 +63,12 @@ function Shell() {
   // instead of loading a page over it. So a note always sits right over the list, and back from the list leaves.
   useEffect(() => {
     const open = (link: string) => {
-      const { pathname, search } = new URL(link, location.origin)
+      const url = new URL(link, location.origin)
+      const n = url.searchParams.get('n')
+      url.searchParams.delete('n')
+      // A widget names its note as /?n=<id>, so Chrome hands it to this page instead of loading a new one.
+      const pathname = n ? `/n/${n}` : url.pathname
+      const search = url.search
       // A note's share link signs in on the server.
       if (pathname.startsWith('/s/')) return location.assign(link)
       const onNote = location.pathname.startsWith('/n/')

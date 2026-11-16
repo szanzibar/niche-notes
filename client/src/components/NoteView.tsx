@@ -255,6 +255,18 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     editor.commands.focus(pos ?? 'end')
   }, [editor, deleted, id, doc])
 
+  // A phone raises the keyboard for a tap, not for a note a widget opened in the running app, so we ask for it.
+  // Chrome says no on a page nobody has tapped since it loaded.
+  useEffect(() => {
+    const focused = document.activeElement
+    const keyboard = (navigator as Navigator & { virtualKeyboard?: { show(): void } }).virtualKeyboard
+    if (!editor || deleted || !(focused instanceof HTMLElement) || !keyboard) return
+    focused.setAttribute('virtualkeyboardpolicy', 'manual')
+    keyboard.show()
+    // Back to the default once Chrome has acted on it, so a later tap raises the keyboard as usual.
+    setTimeout(() => focused.removeAttribute('virtualkeyboardpolicy'), 300)
+  }, [editor, deleted, id])
+
   // Anchored to the text, so someone else's edit above the cursor doesn't move where it reopens.
   useEffect(() => {
     if (!editor) return

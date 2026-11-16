@@ -37,10 +37,12 @@ public class NoteWidget extends AppWidgetProvider {
         return context.getSharedPreferences("widgets", Context.MODE_PRIVATE);
     }
 
-    // Starts the app afresh, since Android would bring back an app opened by this same link wherever it was left.
+    // Hands the page to the running app, if there is one, so it keeps its page and a note can raise the keyboard.
+    // Chrome hands a link to the open page only when that page sits under the link's directory, so a note's link is
+    // /?n=<id>, which covers every page, and not /n/<id>.
     static Intent inApp(Context context, String path) {
         return new Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.site) + path), context, Launcher.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
     }
 
     static Intent refresh(Context context, int widget) {
@@ -83,7 +85,7 @@ public class NoteWidget extends AppWidgetProvider {
                 refresh(context, widget), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
 
         // Mutable, because a tap on a row fills its intent into this one, and a note in the tree names its own page.
-        String page = note == null ? picker(context, widget) : note.equals("tree") ? "/" : "/n/" + note;
+        String page = note == null ? picker(context, widget) : note.equals("tree") ? "/" : "/?n=" + note;
         PendingIntent open = PendingIntent.getActivity(context, widget, inApp(context, page),
                 PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT | Intent.FILL_IN_DATA);
         views.setOnClickPendingIntent(android.R.id.background, open);
@@ -114,7 +116,7 @@ public class NoteWidget extends AppWidgetProvider {
                         TypedValue.COMPLEX_UNIT_DIP);
                 // A tap on a line opens the note at that line, and a tap on a note in the tree opens that note.
                 item.setOnClickFillInIntent(R.id.row, row.has("note")
-                        ? new Intent().setData(Uri.parse(context.getString(R.string.site) + "/n/" + row.getString("note")))
+                        ? new Intent().setData(Uri.parse(context.getString(R.string.site) + "/?n=" + row.getString("note")))
                         : new Intent().putExtra(Launcher.LINE, row.getString("text")));
                 items.addItem(i, item);
             }

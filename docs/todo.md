@@ -43,7 +43,8 @@ Several home-screen widgets, each showing a whole note Steven picks, read-only; 
 - [x] Steven tries the widget on his phone: re-pick widgets added before tokens existed, see the lines, refresh, tap to open the note, reconfigure it, and see it offer the picker again once its note is deleted (2026-11-12)
 - [x] A widget's header wears its note's color, the picker's All notes shows the tree, and the text and boxes no longer depend on the home screen's fonts (2026-11-15)
 - [x] Two kinds of widget, a note and all notes, both 2×3 when added (2026-11-16)
-- [ ] The keyboard when a widget or calendar link opens a note: not possible in a TWA, since every such link lands in a freshly loaded page and Chrome raises the keyboard only on a page someone has tapped. The cursor is already in place, so one tap brings it
+- [x] A widget opens its note in the running app with the keyboard up. Its links are `/?n=<id>`, since Chrome hands a link to the open page only when that page sits under the link's directory, and Chrome raises the keyboard only on a page someone has tapped (2026-11-16)
+- [ ] Calendar links still load a new page, since the calendar starts the app in its own task, so they open without the keyboard
 - [x] Widget text keeps its size on every redraw: sizes are dp scaled by the font size setting, since a home screen's first draw read sp as if at the phone's physical density. The bundled font is gone, since a home screen never loads an app's fonts in a widget (2026-11-16)
 - [ ] On Samsung with a downloaded system font, some rows of a newly added widget draw in another face until its first refresh; only text drawn into images in the app would avoid it
 - [ ] Leaving the app refreshes the widgets, through Chrome's tab-hidden signal to the launcher; untested on the phone, since Android may freeze the app before the signal arrives
