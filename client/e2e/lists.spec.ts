@@ -197,6 +197,38 @@ test('Uncheck all clears every box in one step that Undo takes back', async ({ b
   await expect(checked).toHaveCount(2)
 })
 
+test('Delete checked shows hidden checked lines for a moment, then removes them in one step that Undo takes back', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs', 'Bread')
+  for (const item of ['Eggs', 'Bread']) await page.getByRole('checkbox', { name: `Task item checkbox for ${item}` }).check()
+  const lines = body(page).locator('li p')
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Milk'])
+  // Undo merges edits made within half a second of each other.
+  await page.waitForTimeout(600)
+
+  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Milk', 'Eggs', 'Bread'])
+  await expect(lines).toHaveText(['Milk'])
+  await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Delete checked' })).toBeHidden()
+  await tool(page, 'Undo').click()
+  await expect(lines).toHaveText(['Milk', 'Eggs', 'Bread'])
+
+  // With every line checked the list goes too, and the note still takes typing.
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
+  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await expect(body(page).locator('ul')).toHaveCount(0)
+  await body(page).click()
+  await page.keyboard.type('done')
+  await expect(body(page)).toHaveText('done')
+})
+
 test('a tick while typing moves the cursor to the ticked line, and a tick with the keyboard down keeps it down', async ({
   browser,
 }) => {

@@ -51,6 +51,8 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
   await page.getByLabel('Day', { exact: true }).fill(inDays(-1))
   await page.getByLabel('Time', { exact: true }).fill('09:30')
   await expect(line(page, 'Bins')).toHaveAttribute('data-due', `${inDays(-1)}T09:30`)
+  // A line that gets a time lasts as long as the last length picked.
+  await expect(line(page, 'Bins')).toHaveAttribute('data-duration', '60')
   await expect(chip(page, 'Bins')).toHaveAttribute('data-label', 'Yesterday 9:30 AM')
   await expect(chip(page, 'Bins')).toHaveAttribute('data-overdue')
 

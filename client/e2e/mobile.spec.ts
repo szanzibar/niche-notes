@@ -102,6 +102,26 @@ test('a shared note keeps Share beside the dots for its owner, and a people icon
   await expect(bob.getByRole('button', { name: 'Leave' })).toBeVisible()
 })
 
+test('actions too wide for the row fold behind the dots, instead of wrapping under a short title', async ({ browser }) => {
+  const a = `alice-${uid()}`
+  const b = `bob-${uid()}`
+  const bob = await phone(browser, b)
+  const alice = await phone(browser, a)
+  await alice.getByRole('button', { name: 'New note', exact: true }).click()
+  await expect(alice.getByPlaceholder('Title')).toBeFocused()
+  await alice.keyboard.type('M')
+  await alice.keyboard.press('Enter')
+  await alice.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await alice.keyboard.type('Eggs')
+  await shareWith(alice, b)
+
+  // Who shared it and the checked lines button make the row wider than the phone.
+  await bob.getByRole('button', { name: /^M(\s|$)/ }).click()
+  await expect(bob.locator('.editor-body')).toContainText('Eggs')
+  await expect(bob.getByRole('button', { name: 'More' })).toBeVisible()
+  await expect(bob.getByRole('button', { name: 'Pin', exact: true })).toBeHidden()
+})
+
 test('back from a note goes to the list and back again leaves, also when a widget opened the note', async ({
   browser,
 }) => {

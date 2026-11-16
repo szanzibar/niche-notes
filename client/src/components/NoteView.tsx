@@ -34,6 +34,7 @@ import {
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import {
+  ArrowRightIcon,
   CheckedIcon,
   DeleteWhenCheckedIcon,
   GripIcon,
@@ -219,6 +220,17 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     return () => dom.removeEventListener('move-line', ask)
   }, [editor])
 
+  // Delete checked shows hidden checked lines on this device for a moment first, so you see what goes.
+  const [clearing, setClearing] = useState(false)
+  useEffect(() => {
+    if (!clearing || !editor) return
+    const timer = setTimeout(() => {
+      deleteChecked(editor)
+      setClearing(false)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [clearing, editor])
+
   // Lines ticked while the note is open stay, hidden, until it opens again. Someone ticking in it right then
   // loses the line a moment early.
   useEffect(() => {
@@ -296,8 +308,11 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   }, [])
   useLayoutEffect(() => setFolded(false), [title, width, tasks, deleted, s.online])
   useLayoutEffect(() => {
-    const shown = header.current?.querySelector('[data-title]')
-    if (!folded && shown && shown.scrollWidth > shown.clientWidth) setFolded(true)
+    const shown = header.current?.querySelector<HTMLElement>('[data-title]')
+    if (folded || !shown) return
+    // Actions too wide for the row wrap under the title, which then looks as if it had room.
+    const wrapped = (header.current!.lastElementChild as HTMLElement).offsetTop >= shown.offsetTop + shown.offsetHeight
+    if (wrapped || shown.scrollWidth > shown.clientWidth) setFolded(true)
   }, [folded, title, width, tasks, deleted, s.online])
 
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
@@ -533,9 +548,21 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
                 <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent-ink' : ''}`} />
               </IconButton>
               {tasks.checked && (
-                <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
-                  <UncheckAllIcon />
-                </IconButton>
+                <>
+                  <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
+                    <UncheckAllIcon />
+                  </IconButton>
+                  {/* Spelled out in icons, checked lines into the trash, so it can't be taken for Delete when checked. */}
+                  <IconButton
+                    label="Delete checked"
+                    className="px-1"
+                    onClick={() => (hiding ? setClearing(true) : deleteChecked(editor))}
+                  >
+                    <CheckedIcon />
+                    <ArrowRightIcon className="h-4 w-4" />
+                    <TrashIcon />
+                  </IconButton>
+                </>
               )}
             </>
           ),
@@ -545,7 +572,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       <EditorContent
         editor={editor}
         className="relative flex-1 overflow-y-auto bg-surface"
-        data-hide-checked={hiding || undefined}
+        data-hide-checked={(hiding && !clearing) || undefined}
       />
       {editor && moving && (
         <MoveDialog

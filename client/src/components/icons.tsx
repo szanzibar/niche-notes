@@ -49,6 +49,7 @@ export const HideCheckedIcon = icon(
   'M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49M14.08 14.16a3 3 0 0 1-4.24-4.24M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14M2 2l20 20',
 )
 export const DeleteWhenCheckedIcon = icon('M4 7h16M6 7l1 13h10l1-13M9 7V4h6v3M9.5 13.5l2 2 3.5-4')
+export const ArrowRightIcon = icon('M5 12h14M13 6l6 6-6 6')
 export const UncheckAllIcon = icon('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M9 9h6v6H9z')
 export const SettingsIcon = icon('M20 7h-9M14 17H5M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M10 7a3 3 0 1 1-6 0a3 3 0 1 1 6 0')
 

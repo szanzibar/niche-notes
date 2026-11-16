@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/react'
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus'
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
+import { settings } from '../sync/tree'
 import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
 import {
   AddColumnIcon,
@@ -115,7 +116,9 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
       })
       .run()
   const setDue = (next: string | null, repeat: string | null = rule && formatRule(rule)) => {
-    setLine({ due: next, repeat: next ? repeat : null, duration: next ? line!.attrs.duration : null })
+    // A line that gets a time lasts as long as the last length this person picked.
+    const picked = !time && next?.includes('T') ? settings().get('duration') : null
+    setLine({ due: next, repeat: next ? repeat : null, duration: next ? (line!.attrs.duration ?? picked ?? null) : null })
     if (next) void enableAlerts()
   }
   const pick = (next: string) => setDue(time ? `${next}T${time}` : next)
@@ -235,7 +238,10 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                       key={minutes}
                       label={label}
                       active={(line!.attrs.duration ?? 30) === minutes}
-                      onClick={() => setLine({ duration: minutes })}
+                      onClick={() => {
+                        setLine({ duration: minutes })
+                        settings().set('duration', minutes)
+                      }}
                     >
                       {text}
                     </Tool>
