@@ -96,9 +96,9 @@ test('a shared note keeps Share beside the dots for its owner, and an icon of it
   await expect(alice.getByRole('img', { name: 'Shared' })).toHaveCount(0)
 
   await bob.getByRole('button', { name: 'Groceries' }).click()
-  await expect(bob.getByRole('img', { name: /^Shared by/ })).toBeVisible()
-  await bob.getByRole('button', { name: 'More' }).click()
+  await bob.getByRole('button', { name: /^Shared by/ }).click()
   await expect(bob.getByText(/^Shared by/)).toBeVisible()
+  await bob.getByRole('button', { name: 'More' }).click()
   await expect(bob.getByRole('button', { name: 'Leave' })).toBeVisible()
 })
 

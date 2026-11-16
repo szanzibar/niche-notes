@@ -166,8 +166,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       meta.set('deleteChecked', on && mode === 'deleteChecked')
     })
   // One box opens under the title at a time: the folded actions, what to do with checked lines, whether the notes
-  // under this one go with it, or the note's color.
-  const [panel, setPanel] = useState<'more' | 'checked' | 'remove' | 'color' | null>(null)
+  // under this one go with it, the note's color, or who shared it.
+  const [panel, setPanel] = useState<'more' | 'checked' | 'remove' | 'color' | 'shared' | null>(null)
 
   const editor = useEditor(
     {
@@ -381,11 +381,20 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     </div>
   )
 
-  // Someone else's note wears this where the owner has Share, and behind the dots there is room for the name.
+  // Someone else's note has this where the owner has Share.
   const sharedBy = !mine && (
-    <span role="img" aria-label={`Shared by ${ownerName(id)}`} title={`Shared by ${ownerName(id)}`} className="shrink-0 text-ink-muted">
-      <SharedWithMeIcon />
-    </span>
+    <Popover
+      side="bottom"
+      open={panel === 'shared'}
+      onOpenChange={(open) => setPanel(open ? 'shared' : null)}
+      trigger={
+        <IconButton label={`Shared by ${ownerName(id)}`}>
+          <SharedWithMeIcon />
+        </IconButton>
+      }
+    >
+      <span className="px-2 py-1 text-sm font-bold">Shared by {ownerName(id)}</span>
+    </Popover>
   )
   // Every action folds at once, except Share or its stand-in, which stays beside the dots. Elsewhere a people icon
   // stays there when the note is shared. Behind the dots, the checked-line options and the choice of what to delete
@@ -412,10 +421,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         >
           <div className="flex flex-col items-end gap-2">
             {checked && <div className="flex items-center gap-2">{checked}</div>}
-            <div className="flex items-center gap-2">
-              {!mine && <span className="shrink-0 text-sm text-ink-muted">Shared by {ownerName(id)}</span>}
-              {buttons}
-            </div>
+            <div className="flex items-center gap-2">{buttons}</div>
             {(panel === 'remove' || panel === 'color') && <div className="flex items-center gap-2">{choices}</div>}
           </div>
         </Popover>
