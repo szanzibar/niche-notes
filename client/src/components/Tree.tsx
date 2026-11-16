@@ -19,7 +19,7 @@ import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
-import { store, wipeLocal } from '../sync/store'
+import { store, textOf, wipeLocal } from '../sync/store'
 import {
   children,
   createNote,
@@ -43,7 +43,8 @@ import {
   type Spot,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { dayOf, dueLabel, overdue } from './dates'
+import { CalendarIcon, CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -98,11 +99,13 @@ class HandleSensor extends TouchSensor {
   ]
 }
 
-// A note opens over the list, never over another note, so back always returns to the list.
+// A note opens over the list, never over another note, so back always returns to the list. With a line, it opens
+// with the cursor at the end of that line.
 function useShowNote() {
   const navigate = useNavigate()
   const open = useMatch('/n/:id') != null
-  return (id: string) => navigate(`/n/${id}`, { replace: open })
+  return (id: string, line?: string) =>
+    navigate(`/n/${id}${line == null ? '' : `?line=${encodeURIComponent(line)}`}`, { replace: open })
 }
 
 // The token lets the widget read from the server while the app is closed. The tree is the user's own doc, and a
@@ -142,6 +145,16 @@ export function Tree({ selected }: { selected?: string }) {
   const searchTrash = prefs.get('searchTrash') !== false
   const searchChecked = prefs.get('searchChecked') === true
   const hits = search(query, { trash: searchTrash, checked: searchChecked })
+  // Every line due today or earlier, under its note. The note with the oldest line comes first.
+  const [dueOpen, setDueOpen] = useState(false)
+  const today = dayOf(new Date())
+  const due = [...nodes().keys()]
+    .filter((id) => !inTrash(id))
+    .flatMap((id) => textOf(id).dated.map((line) => ({ id, ...line })))
+    .filter((line) => line.due.split('T')[0] <= today)
+    .sort((a, b) => a.due.localeCompare(b.due))
+  const dueNotes = new Map<string, typeof due>()
+  for (const line of due) dueNotes.set(line.id, [...(dueNotes.get(line.id) ?? []), line])
   const [dragging, setDragging] = useState<string | null>(null)
   const [hint, setHint] = useState<Hint | null>(null)
   const latestHint = useRef<Hint | null>(null)
@@ -242,6 +255,7 @@ export function Tree({ selected }: { selected?: string }) {
             onChange={(e) => {
               setQuery(e.target.value)
               setCursor(0)
+              setDueOpen(false)
             }}
             onKeyDown={onSearchKey}
           />
@@ -275,6 +289,20 @@ export function Tree({ selected }: { selected?: string }) {
               <CheckedIcon />
             </IconButton>
           </>
+        )}
+        {!picking && (due.length > 0 || dueOpen) && (
+          <IconButton
+            label={`Due (${due.length})`}
+            aria-pressed={dueOpen}
+            className={`px-1 ${dueOpen ? 'text-accent-ink' : ''}`}
+            onClick={() => {
+              setQuery('')
+              setDueOpen(!dueOpen)
+            }}
+          >
+            <CalendarIcon />
+            <span className="font-bold">{due.length}</span>
+          </IconButton>
         )}
         <OfflineIcon />
         {!s.me!.guest && (
@@ -320,6 +348,31 @@ export function Tree({ selected }: { selected?: string }) {
                   </li>
                 )
               })}
+            </ul>
+          )
+        ) : dueOpen ? (
+          due.length === 0 ? (
+            <p className="p-6 text-ink-muted">Nothing due.</p>
+          ) : (
+            <ul aria-label="Due">
+              {[...dueNotes].map(([id, lines]) => (
+                <li key={id}>
+                  <p className="truncate px-4 pt-3 text-xs font-bold uppercase tracking-wide text-ink-muted">{titleOf(id)}</p>
+                  {lines.map((line, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="flex w-full items-baseline gap-2 px-4 py-2 text-left hover:bg-bg"
+                      onClick={() => showNote(id, line.text)}
+                    >
+                      <span className="min-w-0 flex-1 truncate font-medium">{line.text}</span>
+                      <span className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}>
+                        {dueLabel(line.due)}
+                      </span>
+                    </button>
+                  ))}
+                </li>
+              ))}
             </ul>
           )
         ) : (

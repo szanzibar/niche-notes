@@ -18,6 +18,7 @@ interface DocRow {
   meta?: Record<string, unknown>
   text?: string
   checked?: string
+  dated?: Dated[]
 }
 interface KvRow {
   key: string
@@ -30,8 +31,8 @@ const db = new Dexie('niche-notes') as Dexie & {
   kv: EntityTable<KvRow, 'key'>
 }
 db.version(2).stores({ updates: '++id, doc, seq', docs: 'id', kv: 'key' })
-// Copies from before checked lines were kept apart are redone from each note's rows, once.
-db.version(3).upgrade(async (tx) => {
+// Copies from before they held what they hold now are redone from each note's rows, once.
+db.version(4).upgrade(async (tx) => {
   for (const row of await tx.table<DocRow>('docs').toArray()) {
     if (row.text == null) continue
     const doc = new Y.Doc()
@@ -86,8 +87,13 @@ export function getAwareness(id: string) {
   return awarenesses.get(id)!
 }
 
+// An unchecked checkbox line with a date.
+export interface Dated {
+  due: string
+  text: string
+}
 // Search leaves out checked lines unless asked, so their text sits apart. The lines nested under one stay in.
-export type Text = { text: string; checked: string }
+export type Text = { text: string; checked: string; dated: Dated[] }
 
 function plain(content: Y.XmlFragment): Text {
   const text: string[] = []
@@ -101,14 +107,21 @@ function plain(content: Y.XmlFragment): Text {
     }
   }
   walk(content, text)
-  return { text: text.join(' '), checked: checked.join(' ') }
+  const dated = content.querySelectorAll('taskItem').flatMap((item) => {
+    const due = item instanceof Y.XmlElement && !item.getAttribute('checked') && item.getAttribute('due')
+    if (!due) return []
+    const words: string[] = []
+    walk(item.get(0), words)
+    return [{ due, text: words.join('') }]
+  })
+  return { text: text.join(' '), checked: checked.join(' '), dated }
 }
 
 // An open note's edits empty its entry, and the next lookup rebuilds it.
 export function textOf(id: string): Text {
   const doc = docs.get(id)
   if (doc && !store.texts.has(id)) store.texts.set(id, plain(doc.getXmlFragment('content')))
-  return store.texts.get(id) ?? { text: '', checked: '' }
+  return store.texts.get(id) ?? { text: '', checked: '', dated: [] }
 }
 
 let starting: Promise<void> | undefined
@@ -176,7 +189,7 @@ async function run(me: User) {
   for (const row of await db.docs.toArray()) {
     if (row.owner) store.owners.set(row.id, row.owner)
     if (row.meta) store.meta.set(row.id, row.meta)
-    if (row.text != null) store.texts.set(row.id, { text: row.text, checked: row.checked ?? '' })
+    if (row.text != null) store.texts.set(row.id, { text: row.text, checked: row.checked ?? '', dated: row.dated ?? [] })
   }
   cursor = ((await db.kv.get('cursor'))?.value as number | undefined) ?? 0
 
@@ -313,7 +326,8 @@ async function pullBatch(ids: string[]) {
     (resolve, reject) =>
       userChannel.push('pull', { docs: asked }, 30_000).receive('ok', resolve).receive('error', reject).receive('timeout', reject),
   )
-  // The tree draws titles, trash and owners, so a pull that changed only text doesn't redraw it.
+  // The tree draws titles, trash, owners and the lines that are due, so a pull that changed only other text doesn't
+  // redraw it.
   let redraw = false
   for (const [id, owner, seq, updates] of pulled) {
     if (opening.has(id)) continue
@@ -322,16 +336,19 @@ async function pullBatch(ids: string[]) {
     for (const row of local) Y.applyUpdate(doc, row.update)
     for (const [, update] of updates) Y.applyUpdate(doc, fromBase64(update))
     const meta = doc.getMap('meta').toJSON()
-    const { text, checked } = plain(doc.getXmlFragment('content'))
+    const copy = plain(doc.getXmlFragment('content'))
     await db.transaction('rw', db.updates, db.docs, async () => {
       await db.updates.bulkDelete(local.filter((row) => row.seq != null).map((row) => row.id))
       await db.updates.add({ doc: id, seq, update: Y.encodeStateAsUpdate(doc) })
-      await db.docs.put({ id, seq, owner, meta, text, checked })
+      await db.docs.put({ id, seq, owner, meta, ...copy })
     })
-    redraw ||= owner !== store.owners.get(id) || JSON.stringify(meta) !== JSON.stringify(store.meta.get(id))
+    redraw ||=
+      owner !== store.owners.get(id) ||
+      JSON.stringify(meta) !== JSON.stringify(store.meta.get(id)) ||
+      JSON.stringify(copy.dated) !== JSON.stringify(textOf(id).dated)
     store.owners.set(id, owner)
     store.meta.set(id, meta)
-    store.texts.set(id, { text, checked })
+    store.texts.set(id, copy)
   }
   if (redraw) notify()
 }
@@ -371,6 +388,9 @@ async function load(id: string): Promise<Y.Doc> {
   }
   copyMeta()
   meta.observe(copyMeta)
+  // The tree draws the lines that are due, so it hears when an open note's change, once the note has been still.
+  let dated = JSON.stringify(textOf(id).dated)
+  let still: number | undefined
   store.texts.delete(id)
   let logged = rows.length
   let since = (await db.docs.get(id))?.seq ?? 0
@@ -421,6 +441,12 @@ async function load(id: string): Promise<Y.Doc> {
   // Send before the local write lands, so a reload right after a keystroke loses nothing the server can give back.
   doc.on('update', (update: Uint8Array, origin: unknown) => {
     store.texts.delete(id)
+    clearTimeout(still)
+    still = window.setTimeout(() => {
+      const now = JSON.stringify(textOf(id).dated)
+      if (now !== dated) notify()
+      dated = now
+    }, 500)
     if (origin === 'remote' || origin === 'local') return
     logged += 1
     const saved = db.updates.add({ doc: id, seq: null, update })
