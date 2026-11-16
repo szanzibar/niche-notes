@@ -11,7 +11,7 @@ import {
   ySyncPluginKey,
 } from '@tiptap/y-tiptap'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { useDoc, useStore, useY } from '../sync/hooks'
@@ -149,6 +149,8 @@ export function NoteView({ id }: { id: string }) {
 function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   const s = useStore()
   const navigate = useNavigate()
+  // New with every link that opens this note, so a link to the note already open still goes to its line.
+  const { key: visit } = useLocation()
   const meta = doc.getMap('meta')
   useY(meta)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -253,7 +255,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
       : null
     editor.commands.focus(pos ?? 'end')
-  }, [editor, deleted, id, doc])
+  }, [editor, deleted, id, doc, visit])
 
   // A phone raises the keyboard for a tap, not for a note a widget opened in the running app, so we ask for it.
   // Chrome says no on a page nobody has tapped since it loaded.
@@ -265,7 +267,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     keyboard.show()
     // Back to the default once Chrome has acted on it, so a later tap raises the keyboard as usual.
     setTimeout(() => focused.removeAttribute('virtualkeyboardpolicy'), 300)
-  }, [editor, deleted, id])
+  }, [editor, deleted, id, visit])
 
   // Anchored to the text, so someone else's edit above the cursor doesn't move where it reopens.
   useEffect(() => {

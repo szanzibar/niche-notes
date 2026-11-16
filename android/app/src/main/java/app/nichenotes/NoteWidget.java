@@ -38,11 +38,12 @@ public class NoteWidget extends AppWidgetProvider {
     }
 
     // Hands the page to the running app, if there is one, so it keeps its page and a note can raise the keyboard.
-    // Chrome hands a link to the open page only when that page sits under the link's directory, so a note's link is
-    // /?n=<id>, which covers every page, and not /n/<id>.
+    // Clear top, since Android otherwise drops a link equal to the one that started the app. Chrome hands a link to
+    // the open page only when that page sits under the link's directory, so a note's link is /?n=<id>, which covers
+    // every page, and not /n/<id>.
     static Intent inApp(Context context, String path) {
         return new Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.site) + path), context, Launcher.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
     }
 
     static Intent refresh(Context context, int widget) {

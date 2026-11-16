@@ -86,12 +86,16 @@ test('a tap on a line in a widget opens the note at that line, over the list, an
   browser,
 }) => {
   const page = await signIn(browser, `alice-${uid()}`)
-  // What the focused line looked like when the page asked for the keyboard.
-  await page.addInitScript(() =>
+  // What the focused line looked like when the page asked for the keyboard, and Chrome's way to hand a link to the
+  // running app.
+  await page.addInitScript(() => {
     Object.defineProperty(navigator, 'virtualKeyboard', {
       value: { show: () => ((window as unknown as { asked: string }).asked = document.activeElement!.outerHTML.slice(0, 200)) },
-    }),
-  )
+    })
+    Object.defineProperty(window, 'launchQueue', {
+      value: { setConsumer: (consumer: unknown) => Object.assign(window, { launch: consumer }) },
+    })
+  })
   await newNote(page, 'Trip', 'Passport')
   await page.keyboard.press('Enter')
   await page.getByRole('button', { name: 'Bullet list', exact: true }).click()
@@ -121,6 +125,19 @@ test('a tap on a line in a widget opens the note at that line, over the list, an
     await page.keyboard.type('!')
     await expect(page.locator('.editor-body p').getByText(typed, { exact: true })).toBeVisible()
   }
+
+  // A tap on another line, with the note still open in the running app, goes to that line and asks again.
+  await page.evaluate(
+    (targetURL) => {
+      const app = window as unknown as { asked: string; launch(params: { targetURL: string }): void }
+      app.asked = ''
+      app.launch({ targetURL })
+    },
+    `${new URL('/', note)}?${new URLSearchParams({ n: note.split('/n/')[1], line: 'Socks' })}`,
+  )
+  await expect.poll(() => page.evaluate(() => (window as unknown as { asked: string }).asked)).toContain('manual')
+  await page.keyboard.type('!')
+  await expect(page.locator('.editor-body p').getByText('Socks!', { exact: true })).toBeVisible()
   await page.goBack()
   await expect(page).toHaveURL(/\/$/)
 })
