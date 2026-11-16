@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.browser.customtabs.CustomTabsCallback;
 import androidx.core.content.FileProvider;
 import com.google.androidbrowserhelper.trusted.LauncherActivity;
@@ -62,9 +64,19 @@ public class Launcher extends LauncherActivity {
     @Override
     protected CustomTabsCallback getCustomTabsCallback() {
         Context app = getApplicationContext();
+        Uri link = getIntent().getData();
         return new QualityEnforcer() {
+            // A note a widget opens in a new page wants the keyboard. A page that was already open raises it itself.
+            boolean raise = link != null && link.getQueryParameter("n") != null;
+
             @Override
             public void onNavigationEvent(int event, Bundle extras) {
+                if (event == NAVIGATION_FINISHED && raise) {
+                    raise = false;
+                    // The cursor is in the note 100 ms after the page has loaded, and not yet as it loads.
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> app.startActivity(
+                            new Intent(app, RaiseKeyboard.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)), 400);
+                }
                 if (event != TAB_HIDDEN) return;
                 AppWidgetManager manager = AppWidgetManager.getInstance(app);
                 int[] widgets = IntStream.concat(
