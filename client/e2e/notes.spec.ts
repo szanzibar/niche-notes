@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { newNote, row, rowTitles, signIn, test, uid } from './helpers'
+import { lineEnd, newNote, row, rowTitles, signIn, test, uid } from './helpers'
 
 test('a new note starts in the title, Enter moves to the body, and it survives a reload', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
@@ -37,7 +37,7 @@ test('a note reopens where this device left the cursor, even after a reload and 
   }
   const typed = await saved(page)
   await page.keyboard.press('ArrowUp')
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await expect.poll(() => saved(page)).not.toBe(typed)
   await page.goto('/')
 
@@ -46,7 +46,7 @@ test('a note reopens where this device left the cursor, even after a reload and 
   await expect(phone.locator('.editor-body p')).toHaveText(['top', 'first', 'second'])
   const opened = await saved(phone)
   await phone.locator('.editor-body p').first().click()
-  await phone.keyboard.press('End')
+  await phone.keyboard.press(lineEnd)
   await expect.poll(() => saved(phone)).not.toBe(opened)
   await phone.keyboard.press('Enter')
   await phone.keyboard.type('zero')
@@ -89,7 +89,7 @@ test('checked items are crossed out, but not their children or the line typed af
   expect(await struck('brown')).toBe('none')
 
   await page.locator('.editor-body p', { hasText: 'eggs' }).click()
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.press('Enter')
   await page.keyboard.type('milk')
   await expect(page.locator('.editor-body li[data-checked="true"]')).toHaveCount(1)

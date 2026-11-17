@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { nextDue, onRule, typedDates, withTyped } from '../src/components/dates'
-import { newNote, row, signIn, test, uid } from './helpers'
+import { lineEnd, newNote, phoneOnly, row, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const line = (page: Page, text: string) =>
@@ -41,7 +41,7 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
 
   // A line split from a dated one starts without a date.
   await page.locator('.editor-body p').getByText('Rent', { exact: true }).click()
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.press('Enter')
   await page.keyboard.type('Water')
   await expect(line(page, 'Water')).not.toHaveAttribute('data-due')
@@ -65,6 +65,7 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
 })
 
 test('on a phone, a tap right of a dated line puts the cursor at its end', async ({ browser }) => {
+  phoneOnly()
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)
@@ -203,7 +204,7 @@ test('words typed as a date turn into the date of their line once it is left', a
 
   // Words typed onto a dated line change only what they say.
   await page.locator('.editor-body p').getByText('buy coffee', { exact: true }).click()
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.type(' at 5pm')
   await page.keyboard.press('Enter')
   await expect(line(page, 'buy coffee')).toHaveAttribute('data-due', `${inDays(1)}T17:00`)
@@ -266,7 +267,7 @@ test('typed words turn into the date when the note closes or the app goes to the
   await expect(line(page, 'water plants')).toHaveAttribute('data-due', inDays(1))
 
   await page.locator('.editor-body p').getByText('water plants', { exact: true }).click()
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.press('Enter')
   await page.keyboard.type('feed cat today')
   await page.evaluate(() => {
@@ -391,7 +392,7 @@ test('a dated line keeps its date beside its own text when a longer line is nest
   await tool(page, 'Tomorrow').click()
   const office = page.locator('.editor-body p').getByText('Clean office', { exact: true })
   await office.click()
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.press('Enter')
   await tool(page, 'Indent').click()
   await page.keyboard.type('and vacuum the whole bathroom too')

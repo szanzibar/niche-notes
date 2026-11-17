@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { newNote, row, signIn, test, uid } from './helpers'
+import { lineStart, newNote, row, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -252,7 +252,7 @@ test('deleting the blank line between two checklists makes them one list', async
   await tool(page, 'Checklist').click()
   await expect(body(page).locator('> ul')).toHaveCount(2)
 
-  await page.keyboard.press('Home')
+  await page.keyboard.press(lineStart)
   await page.keyboard.press('ArrowUp')
   // Chromium hands ProseMirror the caret move on the next frame.
   await page.waitForTimeout(60)

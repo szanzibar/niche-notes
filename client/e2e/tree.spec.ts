@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { drag, newNote, row, rowTitles, shareWith, signIn, test, uid } from './helpers'
+import { drag, newNote, phoneOnly, row, rowTitles, shareWith, signIn, test, uid } from './helpers'
 
 // A row's nesting, from the indent it is drawn with.
 const depth = async (page: Page, title: string) =>
@@ -53,6 +53,7 @@ test('a new pin goes below the other pins, and an unpinned note goes on top of t
 test('on a touch screen every row has a grip on its left, like the lines of a note, that a finger drags at once', async ({
   browser,
 }) => {
+  phoneOnly()
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)
@@ -317,6 +318,7 @@ test('a launch draws the tree with saved titles, without waiting for the notes',
 })
 
 test('a finger dragging a note can still drop it inside another after the list scrolls', async ({ browser }) => {
+  phoneOnly()
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 500 } })
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)

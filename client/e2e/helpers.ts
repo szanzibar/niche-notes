@@ -11,7 +11,16 @@ export const test = base.extend<{ closeWindows: void }>({
   ],
 })
 
+// A flow of the phone alone: a finger, which Chrome DevTools drives here, or a widget. Safari's engine is in the
+// suite for the Mac app, which has neither.
+export const phoneOnly = () => test.skip(test.info().project.use.browserName === 'webkit', 'a flow of the phone alone')
+
 export const uid = () => Math.random().toString(36).slice(2, 8)
+
+// Home and End scroll the page on a Mac in Safari's engine, and ⌘ with an arrow moves the cursor in every engine there.
+const mac = process.platform === 'darwin'
+export const lineStart = mac ? 'Meta+ArrowLeft' : 'Home'
+export const lineEnd = mac ? 'Meta+ArrowRight' : 'End'
 
 // The dev login capitalizes the name the same way.
 export const display = (name: string) => name[0].toUpperCase() + name.slice(1).toLowerCase()

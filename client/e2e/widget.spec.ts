@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { newNote, row, signIn, test, uid } from './helpers'
+import { newNote, phoneOnly, row, signIn, test, uid } from './helpers'
 
 // Desktop Chromium can't open the Android app, so the hand-off shows up as a failed request.
 const handOff = async (page: Page) => {
@@ -8,6 +8,7 @@ const handOff = async (page: Page) => {
 }
 
 test('the widget picker is the tree: choosing a note hands it to the app instead of opening it', async ({ browser }) => {
+  phoneOnly()
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Groceries', 'milk')
   const groceries = page.url().split('/n/')[1]
@@ -34,6 +35,7 @@ test('a widget reads its note as lines with the token from the hand-off, without
   browser,
   request,
 }) => {
+  phoneOnly()
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Groceries', 'milk')
   await page.getByRole('button', { name: 'Checklist', exact: true }).click()
@@ -61,6 +63,7 @@ test('a widget reads its note as lines with the token from the hand-off, without
 })
 
 test('the notes widget gets all the notes as the tree shows them, with nothing to pick', async ({ browser, request }) => {
+  phoneOnly()
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores')
   const chores = page.url().split('/n/')[1]

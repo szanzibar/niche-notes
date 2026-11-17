@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { newNote, signIn, test, uid } from './helpers'
+import { lineEnd, newNote, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -53,13 +53,13 @@ test('Link adds, changes and removes a link, and a click on a link edits it whil
   await expect(links).toHaveText('docs')
   await expect(links).toHaveAttribute('href', 'https://example.com')
 
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.press('ArrowLeft')
   await tool(page, 'Link').click()
   await expect(address).toHaveValue('https://example.com')
   await tool(page, 'Remove link').click()
   await expect(links).toHaveCount(0)
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.type(' ')
   await tool(page, 'Link').click()
   await address.fill('https://tiptap.dev')
@@ -67,7 +67,7 @@ test('Link adds, changes and removes a link, and a click on a link edits it whil
   await expect(links).toHaveText('https://tiptap.dev')
 
   const open = page.getByTitle('Open link')
-  await page.keyboard.press('Home')
+  await body(page).getByText('see docs').click({ position: { x: 5, y: 5 } })
   await expect(open).toBeHidden()
   const popup = page.waitForEvent('popup', { timeout: 1000 }).catch(() => null)
   await links.click()

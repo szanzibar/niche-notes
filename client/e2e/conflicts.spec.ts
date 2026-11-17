@@ -1,5 +1,5 @@
 import { expect, type Browser, type Page } from '@playwright/test'
-import { newNote, row, shareWith, signIn, test, uid } from './helpers'
+import { lineEnd, lineStart, newNote, row, shareWith, signIn, test, uid } from './helpers'
 
 const item = (page: Page, text: string) => page.locator('.editor-body li', { hasText: text })
 const check = (page: Page, text: string) => item(page, text).locator('input[type="checkbox"]').click()
@@ -12,7 +12,7 @@ const textOf = (page: Page, text: string) =>
 // Chromium reports a moved caret to ProseMirror once per frame, so a key sent in the same instant
 // acts where the caret was. A person cannot type that fast; a test can.
 const settle = (page: Page) => page.waitForTimeout(60)
-async function caretIn(page: Page, text: string, where: 'Home' | 'End') {
+async function caretIn(page: Page, text: string, where: string) {
   await item(page, text).locator('p').click({ position: { x: 8, y: 10 } })
   await settle(page)
   await page.keyboard.press(where)
@@ -57,17 +57,17 @@ test('two people shopping offline: ticks, new rows and edits to one row all merg
   await check(bob, 'bread')
 
   // Each adds a row after butter.
-  await caretIn(alice, 'butter', 'End')
+  await caretIn(alice, 'butter', lineEnd)
   await alice.keyboard.press('Enter')
   await alice.keyboard.type('apples')
-  await caretIn(bob, 'butter', 'End')
+  await caretIn(bob, 'butter', lineEnd)
   await bob.keyboard.press('Enter')
   await bob.keyboard.type('pears')
 
   // Both change the butter row, at opposite ends.
-  await caretIn(alice, 'butter', 'End')
+  await caretIn(alice, 'butter', lineEnd)
   await alice.keyboard.type(' (salted)')
-  await caretIn(bob, 'butter', 'Home')
+  await caretIn(bob, 'butter', lineStart)
   await bob.keyboard.type('organic ')
 
   await reconnect(alice, bob)
@@ -87,12 +87,12 @@ test('one person clears a row while the other adds to it: the clearing lands, th
 }) => {
   const { alice, bob } = await sharedChecklist(browser, ['milk', 'bread'])
 
-  await caretIn(alice, 'bread', 'End')
+  await caretIn(alice, 'bread', lineEnd)
   await alice.keyboard.press('Shift+Home')
   await settle(alice)
   await alice.keyboard.press('Backspace')
   await expect(alice.locator('.editor-body')).not.toContainText('bread')
-  await caretIn(bob, 'bread', 'End')
+  await caretIn(bob, 'bread', lineEnd)
   await bob.keyboard.type(' x2')
 
   await reconnect(alice, bob)

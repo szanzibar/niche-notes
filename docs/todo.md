@@ -81,46 +81,54 @@ The design, which becomes ADR amendments once the spike passes:
 - **Alerts come from the tray, over the socket.** Closing the window ends the webview and leaves a small tray process, which starts at login. It holds a channel to the server and counts as one more subscription, so every alert the server sends reaches it as it is sent, a due line and a shared note alike. An alert sent while the computer is off or asleep goes nowhere, since the phone gets it too and nobody wants stale alerts on coming back. A hidden window can't hold the socket instead, because a hidden webview is suspended after about five minutes and Tauri can prevent that only on macOS. Firebase has no desktop client.
 - **Updates** come from Tauri's updater, which checks Tauri's own key, so there is no Apple or Microsoft certificate. The Mac build is ad-hoc signed and the Windows installer unsigned. A Mac asks for Open Anyway in System Settings once, Windows shows SmartScreen once, and Smart App Control has to be off.
 
-Server first, since the spike logs in against production:
+Server first, since the app signs in through it:
 
 - [x] A callback whose `state` its session never asked for hands its query to `nichenotes://callback`, on a page whose one button opens the app again. With `app=1` it never hands over, so a bad link only reloads the notes. `/auth/google/callback` does the same as `nichenotes://google/callback`, since Google's page opens in the browser too (2026-11-17)
 - [x] The session cookie is plain in dev, since WebKit refuses a `Secure` cookie on `http://localhost`. So the suite runs with `--browser=webkit` and a Tauri window can sign in to the dev server (2026-11-17)
 
-Spike, a day in a scratch directory outside the repo, thrown away. It needs `cargo install tauri-cli` on the Mac. We stop if either of the first two fails.
+Spike, in a scratch directory outside the repo and thrown away, on macOS 27.2 against a local server (2026-11-17):
 
-- [ ] Login: the window sends Pocket ID to the browser, the passkey works there, and the window comes back signed in. After Sign out the next login asks which account
-- [ ] Offline: quit, turn Wi-Fi off, open. The tree and a note are there
-- [ ] Update: an ad-hoc signed build replaces itself from a throwaway release without a Gatekeeper prompt
-- [ ] Alert: a notification shows from the tray with the window closed, and a click opens the window. Tauri's notification plugin has an open bug with banners on macOS
-- [ ] Session: the tray reads the window's session cookie and gets a token from `/api/me` with it
-- [ ] Editor: typing with autocorrect, dragging a tree row and dragging a list line all work in the window
-- [ ] Memory of the tray alone and with the window open, measured
+- [x] Login: the shell cancels the redirect to another host, the window's session still takes the login's state, and a `nichenotes://` link finishes the callback in the window
+- [x] Offline: with the server stopped, the app starts with the tree and a note
+- [x] Update: an ad-hoc signed build replaces itself from a throwaway release and starts again, with nothing blocking it
+- [x] Alert: a notification reaches Notification Center from the tray with the window closed, as a banner once notifications are allowed
+- [x] Session: the tray reads the window's session cookie, through a hidden window when the app's own is closed, and gets a token from `/api/me` with it
+- [x] Memory: 95 MB with the window open, and 35 MB for the tray two minutes after it closes
 
-The app, in `tauri/`:
+The app, in `tauri/`, tested on macOS against a local server and compiled for Windows without ever running there (2026-11-17):
 
-- [ ] The window on the server, one instance, remembering its size and place. Other hosts and links that ask for a new window open in the default browser
-- [ ] `nichenotes://callback` finishes a login in the window. On Windows the link arrives as an argument to a second process
-- [ ] Closing the window leaves the tray icon. A click on it opens the window, its menu has Quit, and the app starts at login
-- [x] A connected tray is one more subscription. It joins `alerts:<user id>` with its time zone, `Push.subscriptions/1` returns it beside the Web Push ones, and `Push.send/2` sends its alert down the socket. `Reminders`, sharing and the other senders stay as they are (2026-11-17)
-- [ ] The tray connects with a token from `/api/me`, which it fetches with the window's session cookie, read when the window closes, so there is no second credential. If Tauri can't read the cookie, a token like a widget's (ADR 005)
-- [ ] The tray reconnects after a sleep or a lost network, and shows each alert as a notification whose click opens the window on that line
+- [x] The window on the server, one instance, remembering its size and place. Other hosts and links that ask for a new window open in the default browser
+- [x] `nichenotes://callback` and `nichenotes://google/callback` finish a login in the window. On Windows the link arrives as an argument to a second process
+- [x] Closing the window leaves the tray icon and, on a Mac, takes the app out of the Dock. A click on the icon or opening the app again shows the window, the tray's menu has Quit, ⌘Q quits too, and the app starts at login
+- [x] A connected tray is one more subscription. It joins `alerts:<user id>` with its time zone, `Push.subscriptions/1` returns it beside the Web Push ones, and `Push.send/2` sends its alert down the socket. `Reminders`, sharing and the other senders stay as they are
+- [x] The tray connects with a token from `/api/me`, which it fetches with the window's session cookie, so there is no second credential. It reads the cookie when the app starts and whenever the window loads a page, since signing in and out both load one, so alerts work right after the first login
+- [x] The tray reconnects after a sleep or a lost network, and shows each alert as a notification
 - [x] Settings hides Alerts on a device without Web Push, since the button there can't turn anything on (2026-11-17)
-- [ ] `icon/render.sh` writes the Tauri icons too
-- [ ] The app updates itself when it starts and once a day while its window is closed, so it never restarts under someone typing
+- [x] `icon/render.sh` writes the Tauri icons too, the Mac's as the rounded square macOS expects and the menu bar's as the three lines alone
+- [x] The app updates itself while its window is closed, so it never restarts under someone typing: when it starts at login, when the window closes, and once a day. It starts again in the tray
+
+Left for Steven, who has the passkey, the eyes and the Windows machine:
+
+- [ ] `tauri/updater.key` goes into the password manager and into the repository as the secret `TAURI_SIGNING_PRIVATE_KEY`, before the push, or the first build fails
+- [ ] Login against production: the Pocket ID page opens in the browser, the passkey works there, and the window comes back signed in. After Sign out the next login asks which account
+- [ ] A click on an alert's banner opens the window on that line. Without the click reaching the app it only opens the window
+- [ ] Typing with autocorrect, dragging a tree row and dragging a list line, also onto a note in the tree, all work in the window
+- [ ] On Windows: the app installs and signs in, Settings shows no Alerts, an alert shows from the tray, and an update leaves the app in the tray instead of opening its window
 
 Releases:
 
-- [ ] `.github/workflows/desktop.yml` builds on a push to `main` that touches `tauri/`, or by hand, on macOS and Windows runners, with the commit count as the version like the APK
-- [ ] A desktop release never becomes the repository's latest release, because the Android app looks for its update in `releases/latest`
-- [ ] Steven keeps the updater's key in the password manager and adds it as a repository secret
+- [x] `.github/workflows/desktop.yml` builds on a push to `main` that touches `tauri/`, or by hand, on macOS and Windows runners, with the commit count as the version like the APK. It has never run, since it needs the push
+- [x] Every build replaces the files of one `desktop` release, which is made as not the latest, because the Android app looks for its update in `releases/latest`
+- [ ] The first run passes on both runners, and `releases/latest` is still the newest APK
 - [ ] Steven installs it on the Mac and on Windows, and an update arrives by itself
+- Later: an Intel Mac build, if someone has one
 
-WebKit, since the Mac app runs on Safari's engine. On 2026-11-17 the suite passed 91 of 106 there:
+WebKit, since the Mac app runs on Safari's engine (2026-11-17):
 
-- [ ] Find out why eight flows fail on WebKit and fix what is real: five in `dates.spec.ts`, the offline merge in `conflicts.spec.ts`, dragging a line onto a tree note in `drag.spec.ts`, and the link box in `editor.spec.ts`
-- [ ] The four touch tests that drive Chrome DevTools and the three widget hand-off tests skip on WebKit, and the suite runs on WebKit before a desktop release
+- [x] The eight flows that failed on WebKit were the tests, not the app. Six pressed Home or End, which scroll the page on a Mac in Safari's engine, so the tests press ⌘ with an arrow there. The link test also left its link with a key just after the toolbar gave the cursor back, which ProseMirror undoes for 200 ms when the cursor lands at the start of the note, so it clicks instead. A line dragged onto a tree note needs one more move over the row before the drop. The tap beside a dated line fails only with a touch screen on Safari's engine, which the Mac app doesn't have
+- [x] The four touch tests that drive Chrome DevTools, the tap beside a dated line and the three widget hand-off tests skip on WebKit (`phoneOnly`), and the suite runs on WebKit before a desktop release. There 99 pass and 8 skip, and all 107 pass on Chrome
 
-Docs, once it works: amendments to ADR 002 and ADR 006, the spec's Native and alerts lines, the README's Apps, and the stack, commands and layout in CLAUDE.md.
+- [x] Docs: amendments to ADR 002 and ADR 006, the spec's Native and alerts lines, the data model's alerts channel and callback, the README's Apps, and the stack, commands and layout in CLAUDE.md (2026-11-17)
 
 Then Android, a day on Steven's phone with the same Tauri project. It needs a Firebase project from Steven. Android moves to Tauri if all five hold, and stays the TWA otherwise:
 

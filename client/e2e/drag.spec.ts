@@ -1,5 +1,5 @@
 import { expect, type Browser, type Page } from '@playwright/test'
-import { newNote, row, signIn, test, uid } from './helpers'
+import { newNote, phoneOnly, row, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -188,6 +188,7 @@ test('the floating handle shows for paragraphs and never over a list line', asyn
 test('on a touch screen every list line shows its grip, and a finger moves a line down one or under another', async ({
   browser,
 }) => {
+  phoneOnly()
   const page = await phone(browser)
   await checklist(page, 'A', 'B', 'C')
   await expect(grip(page, 'A')).toHaveCSS('opacity', '1')
@@ -199,6 +200,7 @@ test('on a touch screen every list line shows its grip, and a finger moves a lin
 })
 
 test('a tap on the grip of a line moves it to the end of the note picked for it, into the list there', async ({ browser }) => {
+  phoneOnly()
   const page = await phone(browser)
   await newNote(page, 'Groceries', 'Milk')
   await tool(page, 'Checklist').click()
@@ -238,6 +240,8 @@ test('dropping a line on a note in the tree moves it there', async ({ browser })
   for (let step = 1; step <= 6; step++) {
     await page.mouse.move(from.x + ((to.x + 40 - from.x) * step) / 6, from.y + ((to.y + to.height / 2 - from.y) * step) / 6)
   }
+  // Safari's engine asks a row whether it takes the line only on a move over it, not on arriving.
+  await page.mouse.move(to.x + 41, to.y + to.height / 2)
   await page.mouse.up()
   await expect(body(page).locator('li p')).toHaveText(['Bread'])
   await row(page, 'Packing').click()
