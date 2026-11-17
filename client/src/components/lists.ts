@@ -14,6 +14,7 @@ import { enableAlerts } from '../lib/alerts'
 import { openDoc } from '../sync/store'
 import { settings } from '../sync/tree'
 import { dueLabel, nextDue, overdue, parseRule, type Typed, typedDates, withTyped } from './dates'
+import { dragged } from './dragged'
 import { GRIP } from './icons'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
@@ -167,10 +168,6 @@ export async function moveLine(editor: Editor, line: () => number | undefined, f
   editor.commands.deleteRange({ from: pos, to: pos + node.nodeSize })
 }
 
-// The line a grip is dragging: where it is, and how a note in the tree takes it.
-let dragged: { line: () => number | undefined; moveTo: (note: string) => void } | null = null
-export const draggedLine = () => dragged?.moveTo
-
 const isLine = (node: Node) => node.type.name === 'taskItem' || node.type.name === 'listItem'
 
 // Whether a node is a list or sits in one, so the floating handle can leave list lines to their grips.
@@ -295,7 +292,7 @@ export const LineGrips = (note: string) =>
         into.style.height = `${drop.into.bottom - drop.into.top}px`
       }
       const target = (view: EditorView, e: DragEvent) => {
-        const from = dragged?.line()
+        const from = dragged.current?.line()
         return from == null ? null : dropAt(view, e.clientY, from)
       }
       const grip = (view: EditorView, getPos: () => number | undefined) => {
@@ -317,7 +314,7 @@ export const LineGrips = (note: string) =>
           const at = line()
           if (at == null) return
           view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at)).setMeta(held, at))
-          dragged = { line, moveTo: (to) => void moveLine(editor, line, note, to) }
+          dragged.current = { line, moveTo: (to) => void moveLine(editor, line, note, to) }
           const row = el.closest('li')!.getBoundingClientRect()
           ghost.textContent = view.state.doc.nodeAt(at)!.firstChild!.textContent
           ghost.style.width = `${row.width}px`
@@ -336,7 +333,7 @@ export const LineGrips = (note: string) =>
           requestAnimationFrame(() => (ghost.hidden = true))
         })
         el.addEventListener('dragend', () => {
-          dragged = null
+          dragged.current = null
           show(null)
           if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(held, null))
           ghost.hidden = true
@@ -389,7 +386,7 @@ export const LineGrips = (note: string) =>
             // Off every list line, the editor places the line as it would anything else.
             handleDOMEvents: {
               dragover: (view, e) => {
-                if (!dragged) return false
+                if (!dragged.current) return false
                 const drop = target(view, e)
                 show(drop)
                 if (drop === undefined) return false
@@ -402,11 +399,11 @@ export const LineGrips = (note: string) =>
               },
             },
             handleDrop: (view, e) => {
-              if (!dragged) return false
+              if (!dragged.current) return false
               const drop = target(view, e)
               show(null)
               if (drop === undefined) return false
-              if (drop) dropLine(view, dragged.line()!, drop)
+              if (drop) dropLine(view, dragged.current.line()!, drop)
               return true
             },
           },

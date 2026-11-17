@@ -44,8 +44,8 @@ import {
 } from '../sync/tree'
 import { IconButton } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
+import { dragged } from './dragged'
 import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon, UsersIcon } from './icons'
-import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
 import { noteTheme } from './themes'
@@ -638,7 +638,7 @@ function Row({
         style={{ paddingLeft: 4 + depth * INDENT }}
         data-drop-into={into || undefined}
         onDragOver={(e) => {
-          if (!draggedLine()) return
+          if (!dragged.current) return
           e.preventDefault()
           setTaking(true)
         }}
@@ -646,7 +646,7 @@ function Row({
         onDrop={(e) => {
           e.preventDefault()
           setTaking(false)
-          draggedLine()?.(id)
+          dragged.current?.moveTo(id)
         }}
       >
         {line && (

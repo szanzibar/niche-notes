@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, useMatch, useNavigate } from 'react-router-dom'
-import { NoteView } from './components/NoteView'
 import { appTheme } from './components/themes'
 import { Tree } from './components/Tree'
 import { registerAlerts } from './lib/alerts'
@@ -108,12 +107,20 @@ function Shell() {
         <Tree selected={noteId} />
       </aside>
       <main className={`${noteId ? 'flex' : 'hidden md:flex'} h-full flex-col overflow-hidden`}>
-        {noteId ? (
-          <NoteView key={noteId} id={noteId} />
-        ) : (
-          <p className="m-auto text-ink-muted">Pick a note, or make a new one.</p>
-        )}
+        <Note id={noteId} />
       </main>
     </div>
   )
+}
+
+// The editor is half the app's code, so it loads once the tree is up, or straight away when the app opens on a note.
+// Its arrival redraws this side, not the tree.
+const loadEditor = () => import('./components/NoteView')
+if (/^\/n\/|[?&]n=/.test(location.pathname + location.search)) void loadEditor()
+
+function Note({ id }: { id?: string }) {
+  const [editor, setEditor] = useState<Awaited<ReturnType<typeof loadEditor>>>()
+  useEffect(() => void loadEditor().then(setEditor), [])
+  if (!id) return <p className="m-auto text-ink-muted">Pick a note, or make a new one.</p>
+  return editor && <editor.NoteView key={id} id={id} />
 }
