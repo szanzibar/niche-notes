@@ -83,8 +83,8 @@ The design, which becomes ADR amendments once the spike passes:
 
 Server first, since the spike logs in against production:
 
-- [ ] `/auth/callback` that arrives without OIDC state in its session hands its query to `nichenotes://callback`, on a page whose one button opens the app again. With `app=1` it never hands over, so a bad link can't loop. `/auth/google/callback` does the same, since Google's page opens in the browser too
-- [ ] The session cookie is `__Host-` and `Secure` only in prod, since WebKit refuses a `Secure` cookie on `http://localhost`. Then the suite runs with `--browser=webkit` and a Tauri window can sign in to the dev server
+- [x] A callback whose `state` its session never asked for hands its query to `nichenotes://callback`, on a page whose one button opens the app again. With `app=1` it never hands over, so a bad link only reloads the notes. `/auth/google/callback` does the same as `nichenotes://google/callback`, since Google's page opens in the browser too (2026-11-17)
+- [x] The session cookie is plain in dev, since WebKit refuses a `Secure` cookie on `http://localhost`. So the suite runs with `--browser=webkit` and a Tauri window can sign in to the dev server (2026-11-17)
 
 Spike, a day in a scratch directory outside the repo, thrown away. It needs `cargo install tauri-cli` on the Mac. We stop if either of the first two fails.
 
@@ -101,10 +101,10 @@ The app, in `tauri/`:
 - [ ] The window on the server, one instance, remembering its size and place. Other hosts and links that ask for a new window open in the default browser
 - [ ] `nichenotes://callback` finishes a login in the window. On Windows the link arrives as an argument to a second process
 - [ ] Closing the window leaves the tray icon. A click on it opens the window, its menu has Quit, and the app starts at login
-- [ ] A connected tray is one more subscription. It joins a channel with its time zone, `Push.subscriptions/1` returns it beside the Web Push ones, and `Push.send/2` sends its alert down the socket. `Reminders`, sharing and the other senders stay as they are
+- [x] A connected tray is one more subscription. It joins `alerts:<user id>` with its time zone, `Push.subscriptions/1` returns it beside the Web Push ones, and `Push.send/2` sends its alert down the socket. `Reminders`, sharing and the other senders stay as they are (2026-11-17)
 - [ ] The tray connects with a token from `/api/me`, which it fetches with the window's session cookie, read when the window closes, so there is no second credential. If Tauri can't read the cookie, a token like a widget's (ADR 005)
 - [ ] The tray reconnects after a sleep or a lost network, and shows each alert as a notification whose click opens the window on that line
-- [ ] Settings hides Alerts on a device without Web Push, since the button there can't turn anything on
+- [x] Settings hides Alerts on a device without Web Push, since the button there can't turn anything on (2026-11-17)
 - [ ] `icon/render.sh` writes the Tauri icons too
 - [ ] The app updates itself when it starts and once a day while its window is closed, so it never restarts under someone typing
 

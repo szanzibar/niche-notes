@@ -80,6 +80,19 @@ test('density scales the whole interface and stays on this device', async ({ bro
   expect(await rootSize(other)).toBe('16px')
 })
 
+test('Settings offers alerts only on a device with Web Push', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByText('Alerts', { exact: true })).toBeVisible()
+
+  // The desktop app's window has none.
+  await page.addInitScript(() => delete (window as { PushManager?: unknown }).PushManager)
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByText('Calendar', { exact: true })).toBeVisible()
+  await expect(page.getByText('Alerts', { exact: true })).toBeHidden()
+})
+
 test('Settings connects Google Calendar through Google, then shows the account with Disconnect', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ body: 'Google' }))
