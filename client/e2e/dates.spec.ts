@@ -277,18 +277,22 @@ test('typed words turn into the date when the note closes or the app goes to the
   await expect(line(page, 'feed cat')).toHaveAttribute('data-due', inDays(0))
 })
 
-test('the tree lists every line due today or earlier under its note, and a tap opens the note at the line', async ({ browser }) => {
+test('the tree lists dated lines by when they are due, under their notes, and a tap opens the note at the line', async ({
+  browser,
+}) => {
   const name = `alice-${uid()}`
   const page = await signIn(browser, name)
   const due = page.getByRole('button', { name: /^Due \(/ })
   await expect(due).toHaveCount(0)
 
+  // The count is what needs doing by today, so a line due tomorrow shows the button without one.
   await newNote(page, 'Chores', 'Milk')
   await tool(page, 'Checklist').click()
   await page.keyboard.press('Enter')
-  await page.keyboard.type('pay rent today')
-  await page.keyboard.press('Enter')
   await page.keyboard.type('book dentist tomorrow')
+  await page.keyboard.press('Enter')
+  await expect(due).toHaveText('')
+  await page.keyboard.type('pay rent today')
   await page.keyboard.press('Enter')
   await expect(due).toHaveText('1')
 
@@ -297,37 +301,53 @@ test('the tree lists every line due today or earlier under its note, and a tap o
   await tool(page, 'Date').click()
   await page.getByLabel('Day', { exact: true }).fill(inDays(-2))
   await page.keyboard.press('Escape')
+  await page.locator('.editor-body p').getByText('rake leaves', { exact: true }).click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('plant bulbs')
+  await tool(page, 'Date').click()
+  await page.getByLabel('Day', { exact: true }).fill(inDays(9))
+  await page.keyboard.press('Escape')
   await expect(due).toHaveText('2')
 
-  // The note with the oldest line comes first, and what is due later stays out.
   await due.click()
-  const notes = page.getByRole('list', { name: 'Due' }).getByRole('listitem')
-  await expect(notes).toHaveCount(2)
-  await expect(notes.first()).toContainText('Garden')
-  await expect(notes.first()).toContainText('rake leaves')
-  await expect(notes.last()).toContainText('Chores')
-  await expect(notes.last().getByRole('button')).toHaveText('pay rentToday')
+  const section = (name: string) => page.getByRole('list', { name, exact: true }).getByRole('listitem')
+  await expect(page.getByRole('button', { expanded: true })).toHaveText(['▼Past due1', '▼Today1', '▼Tomorrow1', '▼Later1'])
+  await expect(section('Past due')).toContainText('Garden')
+  await expect(section('Past due')).toContainText('rake leaves')
+  await expect(section('Today').getByRole('button')).toHaveText('pay rentToday')
+  await expect(section('Tomorrow')).toContainText('book dentist')
+  await expect(section('Later')).toContainText('Garden')
+  await expect(section('Later')).toContainText('plant bulbs')
 
-  await notes.last().getByRole('button').click()
+  // A folded section stays folded for this person, on every device.
+  await page.getByRole('button', { name: 'Later' }).click()
+  await expect(section('Later')).toHaveCount(0)
+  const other = await signIn(browser, name)
+  const otherDue = other.getByRole('button', { name: /^Due \(/ })
+  await otherDue.click()
+  await expect(other.getByRole('button', { name: 'Later' })).toHaveAttribute('aria-expanded', 'false')
+  await expect(other.getByRole('list', { name: 'Later', exact: true })).toHaveCount(0)
+  await expect(other.getByRole('list', { name: 'Today', exact: true })).toContainText('pay rent')
+
+  await section('Today').getByRole('button').click()
   await expect(page.getByPlaceholder('Title')).toHaveValue('Chores')
   await expect(page.locator('.editor-body')).toBeFocused()
   await page.keyboard.type('!')
   await expect(line(page, 'pay rent!')).toBeVisible()
 
-  // A device that has neither note open counts the same, and a ticked line leaves the list on both.
-  const other = await signIn(browser, name)
-  const otherDue = other.getByRole('button', { name: /^Due \(/ })
-  await expect(otherDue).toHaveText('2')
+  // A ticked line leaves the list on both devices, the one without the note open too.
   await page.getByRole('checkbox', { name: 'Task item checkbox for pay rent!' }).check()
   await expect(due).toHaveText('1')
   await expect(otherDue).toHaveText('1')
+  await expect(other.getByRole('list', { name: 'Today', exact: true })).toHaveCount(0)
 
   // A note in the trash has nothing due.
   await due.click()
   await row(page, 'Garden').click()
   await page.getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect(due).toHaveCount(0)
-  await expect(otherDue).toHaveCount(0)
+  await expect(due).toHaveAccessibleName('Due (0)')
+  await expect(otherDue).toHaveAccessibleName('Due (0)')
 })
 
 test('typed words read as the dates they say', () => {

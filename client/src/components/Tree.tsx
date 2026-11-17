@@ -43,7 +43,7 @@ import {
   type Spot,
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { dayOf, dueLabel, overdue } from './dates'
+import { dayOf, dueLabel, inDays, overdue } from './dates'
 import { CalendarIcon, CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
@@ -52,6 +52,7 @@ import { noteTheme } from './themes'
 
 const ROOT = 'root'
 const INDENT = 16
+const DUE_SECTIONS = ['Past due', 'Today', 'Tomorrow', 'Later']
 type Zone = 'before' | 'inside' | 'after'
 interface Hint {
   id: string
@@ -149,16 +150,23 @@ export function Tree({ selected }: { selected?: string }) {
   const searchTrash = prefs.get('searchTrash') !== false
   const searchChecked = prefs.get('searchChecked') === true
   const hits = search(query, { trash: searchTrash, checked: searchChecked })
-  // Every line due today or earlier, under its note. The note with the oldest line comes first.
+  // Every dated line, in a section for when it is due, under its note. The note with the oldest line comes first.
+  // The count is what needs doing by today.
   const [dueOpen, setDueOpen] = useState(false)
   const today = dayOf(new Date())
-  const due = [...nodes().keys()]
+  const tomorrow = inDays(1)
+  const dated = [...nodes().keys()]
     .filter((id) => !inTrash(id))
     .flatMap((id) => textOf(id).dated.map((line) => ({ id, ...line })))
-    .filter((line) => line.due.split('T')[0] <= today)
     .sort((a, b) => a.due.localeCompare(b.due))
-  const dueNotes = new Map<string, typeof due>()
-  for (const line of due) dueNotes.set(line.id, [...(dueNotes.get(line.id) ?? []), line])
+  const dueCount = dated.filter((line) => line.due.split('T')[0] <= today).length
+  const sections = new Map<string, Map<string, typeof dated>>(DUE_SECTIONS.map((name) => [name, new Map()]))
+  for (const line of dated) {
+    const day = line.due.split('T')[0]
+    const notes = sections.get(day < today ? 'Past due' : day === today ? 'Today' : day === tomorrow ? 'Tomorrow' : 'Later')!
+    notes.set(line.id, [...(notes.get(line.id) ?? []), line])
+  }
+  const dueCollapsed = (prefs.get('dueCollapsed') as string[] | undefined) ?? []
   // Shift picks every row from the last one clicked to this one, and Ctrl or ⌘ picks or drops this one, so several
   // notes can be dragged together. A plain click opens the note and lets the rest go.
   const [picked, setPicked] = useState(new Set<string>())
@@ -326,9 +334,9 @@ export function Tree({ selected }: { selected?: string }) {
             </IconButton>
           </>
         )}
-        {!picking && (due.length > 0 || dueOpen) && (
+        {!picking && (dated.length > 0 || dueOpen) && (
           <IconButton
-            label={`Due (${due.length})`}
+            label={`Due (${dueCount})`}
             aria-pressed={dueOpen}
             className={`px-1 ${dueOpen ? 'text-accent-ink' : ''}`}
             onClick={() => {
@@ -337,7 +345,7 @@ export function Tree({ selected }: { selected?: string }) {
             }}
           >
             <CalendarIcon />
-            <span className="font-bold">{due.length}</span>
+            {dueCount > 0 && <span className="font-bold">{dueCount}</span>}
           </IconButton>
         )}
         <OfflineIcon />
@@ -387,29 +395,57 @@ export function Tree({ selected }: { selected?: string }) {
             </ul>
           )
         ) : dueOpen ? (
-          due.length === 0 ? (
+          dated.length === 0 ? (
             <p className="p-6 text-ink-muted">Nothing due.</p>
           ) : (
-            <ul aria-label="Due">
-              {[...dueNotes].map(([id, lines]) => (
-                <li key={id}>
-                  <p className="truncate px-4 pt-3 text-xs font-bold uppercase tracking-wide text-ink-muted">{titleOf(id)}</p>
-                  {lines.map((line, i) => (
+            [...sections].map(
+              ([name, notes]) =>
+                notes.size > 0 && (
+                  <section key={name}>
                     <button
-                      key={i}
                       type="button"
-                      className="flex w-full items-baseline gap-2 px-4 py-2 text-left hover:bg-bg"
-                      onClick={() => showNote(id, line.text)}
+                      aria-expanded={!dueCollapsed.includes(name)}
+                      className="flex w-full items-center gap-2 px-4 pt-3 pb-1 text-left font-bold"
+                      onClick={() =>
+                        prefs.set(
+                          'dueCollapsed',
+                          dueCollapsed.includes(name) ? dueCollapsed.filter((n) => n !== name) : [...dueCollapsed, name],
+                        )
+                      }
                     >
-                      <span className="min-w-0 flex-1 truncate font-medium">{line.text}</span>
-                      <span className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}>
-                        {dueLabel(line.due)}
-                      </span>
+                      <span aria-hidden className="w-4 text-xs">{dueCollapsed.includes(name) ? '▶' : '▼'}</span>
+                      {name}
+                      <span className="text-sm text-ink-muted">{[...notes.values()].flat().length}</span>
                     </button>
-                  ))}
-                </li>
-              ))}
-            </ul>
+                    {!dueCollapsed.includes(name) && (
+                      <ul aria-label={name}>
+                        {[...notes].map(([id, lines]) => (
+                          <li key={id}>
+                            <p className="truncate px-4 pt-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
+                              {titleOf(id)}
+                            </p>
+                            {lines.map((line, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                className="flex w-full items-baseline gap-2 px-4 py-2 text-left hover:bg-bg"
+                                onClick={() => showNote(id, line.text)}
+                              >
+                                <span className="min-w-0 flex-1 truncate font-medium">{line.text}</span>
+                                <span
+                                  className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}
+                                >
+                                  {dueLabel(line.due)}
+                                </span>
+                              </button>
+                            ))}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                ),
+            )
           )
         ) : (
           <>
