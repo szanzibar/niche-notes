@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // The e2e suite runs its own Phoenix on another port.
-const phoenix = `localhost:${process.env.PHOENIX_PORT ?? 4000}`
+const phoenix = `localhost:${process.env.PHOENIX_PORT ?? 4100}`
 
 export default defineConfig({
   plugins: [

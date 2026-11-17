@@ -5,14 +5,14 @@
 //   node scripts/note.mjs check "<title>" "<item text>"
 //   node scripts/note.mjs bullet "<title>" "<heading>" "<text>"
 //   node scripts/note.mjs rewrite "<title>" "<line text>" "<text>"
-// NOTES_URL (default http://localhost:4000) and NOTES_AS (dev login name, default dev).
+// NOTES_URL (default http://localhost:4100) and NOTES_AS (dev login name, default dev).
 // NOTES_LINK, a note's guest link, reads and ticks just that note on whichever server the link is for.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { Socket } from 'phoenix'
 import * as Y from 'yjs'
 
 const LINK = process.env.NOTES_LINK
-const BASE = LINK ? new URL(LINK).origin : (process.env.NOTES_URL ?? 'http://localhost:4000')
+const BASE = LINK ? new URL(LINK).origin : (process.env.NOTES_URL ?? 'http://localhost:4100')
 const AS = process.env.NOTES_AS ?? 'dev'
 const [command, titleArg, itemArg, textArg] = process.argv.slice(2)
 

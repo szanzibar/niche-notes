@@ -24,7 +24,7 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 ## Commands
 
 ```bash
-./dev.sh                     # migrate, Phoenix on :4000, Vite on :5173, the desktop app built and opened on Vite's page
+./dev.sh                     # migrate, Phoenix on :4100, Vite on :5173, the desktop app built and opened on Vite's page
 cd server && mix test        # also mix compile --warnings-as-errors, mix format
 cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)

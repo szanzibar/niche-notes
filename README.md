@@ -58,7 +58,7 @@ open `/s/<link>` on `localhost` there. Delete the copy with the same `docker com
 ## Develop
 
 ```bash
-./dev.sh                 # Phoenix :4000 + Vite :5173 + the desktop app, which needs cargo install tauri-cli
+./dev.sh                 # Phoenix :4100 + Vite :5173 + the desktop app, which needs cargo install tauri-cli
 cd server && mix test
 cd client && npm run build   # writes into server/priv/static
 ```

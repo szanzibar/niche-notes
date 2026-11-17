@@ -1,7 +1,8 @@
 import Config
 
-config :niche_notes, NicheNotesWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+# Dev stays off 4000, which other projects on the same machine use.
+port = System.get_env("PORT", if(config_env() == :prod, do: "4000", else: "4100"))
+config :niche_notes, NicheNotesWeb.Endpoint, http: [port: String.to_integer(port)]
 
 if config_env() == :prod do
   host = System.fetch_env!("PHX_HOST")

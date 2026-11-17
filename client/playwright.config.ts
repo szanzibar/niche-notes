@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 // Runs a fresh Phoenix on :4199 with its own SQLite file, build dir and Vite on :5199, so the dev
-// loop on :4000 and :5173 keeps running untouched (a shared _build trips its code reloader).
+// loop on :4100 and :5173 keeps running untouched (a shared _build trips its code reloader).
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,

@@ -15,11 +15,11 @@ config :niche_notes, :oidc,
   client_id: "niche-notes",
   client_secret: "",
   base_url: "http://localhost:8080",
-  redirect_uri: "http://localhost:4000/auth/callback",
+  redirect_uri: "http://localhost:4100/auth/callback",
   http_adapter: {Assent.HTTPAdapter.Req, []}
 
 config :niche_notes, :google,
-  redirect_uri: "http://localhost:4000/auth/google/callback",
+  redirect_uri: "http://localhost:4100/auth/google/callback",
   http_adapter: {Assent.HTTPAdapter.Req, []}
 
 config :logger, :default_formatter,
