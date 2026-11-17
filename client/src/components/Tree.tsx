@@ -254,7 +254,9 @@ export function Tree({ selected }: { selected?: string }) {
   const signOut = async () => {
     await api.logout()
     await wipeLocal()
-    window.location.href = '/auth/login'
+    // The app starts again signed out and goes to the login from there. A login that opens in another window,
+    // as the desktop app's does, would leave the notes on this page.
+    window.location.reload()
   }
 
   return (

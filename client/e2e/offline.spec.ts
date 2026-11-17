@@ -60,6 +60,18 @@ test('Sign out ends the session and takes the notes off the device', async ({ br
   expect(await page.evaluate(left)).toEqual([401, null, []])
 })
 
+test('Sign out clears the screen when the login opens in another window, as the desktop app does it', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Alice only')
+  // An answer without content leaves the browser on the page it has.
+  await page.route('**/auth/login', (route) => route.fulfill({ status: 204 }))
+  const login = page.waitForRequest('**/auth/login')
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await login
+  await expect(page.getByText('Alice only')).toHaveCount(0)
+  await expect(page.getByPlaceholder('Search notes')).toHaveCount(0)
+})
+
 test('a launch with an expired token still syncs once the server answers', async ({ browser }) => {
   const a = `alice-${uid()}`
   const page = await signIn(browser, a)
