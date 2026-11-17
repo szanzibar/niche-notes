@@ -17,8 +17,9 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 
 - `server/`: Elixir and Phoenix with Ecto on SQLite. Phoenix Channels relay and persist Y.js updates. Assent handles OIDC login against Pocket ID, and the session is a cookie.
 - `client/`: React with TypeScript and Vite. TipTap for editing, Y.js for the document model and sync, Dexie for the local update log, Tailwind and Radix UI for the interface.
-- `android/`: a Trusted Web Activity, so Chrome renders the server's app under our icon; a WebView cannot log in with Pocket ID passkeys (ADR 002). On the desktop the browser installs the PWA. Native code goes in `android/` only for what the web cannot do, such as widgets.
-- Deployment: a push to `main` publishes `ghcr.io/szanzibar/niche-notes:latest` from GitHub Actions; the server runs it with `docker-compose.yml`, an `.env` and a `data/` directory for the SQLite file. Phoenix serves the built client from `server/priv/static`.
+- `android/`: a Trusted Web Activity, so Chrome renders the server's app under our icon; a WebView cannot log in with Pocket ID passkeys (ADR 002). Native code goes in `android/` only for what the web cannot do, such as widgets.
+- `tauri/`: the desktop app for macOS and Windows, a Tauri window on the server's app that stays in the tray. Its Rust holds only what the web cannot do there: the login hand-off from the default browser, alerts over the socket, since its webviews have no Web Push, and the self-update (ADR 002 and 006 amendments). The page never calls the shell. Browsers still install the PWA.
+- Deployment: a push to `main` publishes `ghcr.io/szanzibar/niche-notes:latest` from GitHub Actions, and the APK or the desktop app when `android/` or `tauri/` changed; the server runs it with `docker-compose.yml`, an `.env` and a `data/` directory for the SQLite file. Phoenix serves the built client from `server/priv/static`.
 
 ## Commands
 
@@ -27,9 +28,10 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 cd server && mix test        # also mix compile --warnings-as-errors, mix format
 cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
+cd tauri && cargo tauri dev  # the desktop app on Vite's :5173, beside ./dev.sh
 ```
 
-Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one.
+Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one. The Mac app runs on Safari's engine, so the suite also runs with `-- --browser=webkit` before a desktop release.
 
 Steven keeps the running task list in a note on the prod server, shared by the guest link in `.env` as
 `PUBLIC_DEV_TASK_LIST`. Read it from the repo root with
@@ -54,6 +56,7 @@ client/src/sync/               local store, channels, tree helpers, React hooks
 client/src/components/         tree, note editor, toolbar, dialogs
 client/src/lib/                API client and types
 android/                       Trusted Web Activity launcher, build.sh runs gradle in the Android SDK image
+tauri/                         desktop app: window, tray, login hand-off, alerts socket, self-update; build.sh builds it for PHX_HOST
 icon/                          vector app icon and the script that renders every size
 docs/                          spec, data model, ADRs, todo
 docker-compose.restore-test.yml  runs a backup as an offline copy beside the app (README)

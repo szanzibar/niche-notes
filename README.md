@@ -61,6 +61,7 @@ open `/s/<link>` on `localhost` there. Delete the copy with the same `docker com
 ./dev.sh                 # Phoenix :4000 + Vite :5173
 cd server && mix test
 cd client && npm run build   # writes into server/priv/static
+cd tauri && cargo tauri dev  # the desktop app on Vite's :5173, needs cargo install tauri-cli
 ```
 
 Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife` signs in a second user.
@@ -75,5 +76,14 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
   from two repository secrets and `PHX_HOST` and `ANDROID_APP_ID` from repository variables. Installed apps
   download a newer release by themselves and offer it on their next launch. The first update asks to allow
   installing unknown apps.
-- **Desktop.** Open the site in Chrome or Edge and choose Install. Passkeys, offline and notifications work there
-  as in the browser.
+- **Desktop.** A Tauri app for macOS on Apple silicon and for Windows: the site in its own window, which stays in
+  the tray for alerts, starts at login and updates itself. Install `niche-notes-mac.dmg` or
+  `niche-notes-windows-setup.exe` from the repository's `desktop` release. Neither carries a paid certificate, so
+  a Mac asks for Open Anyway in System Settings once, and Windows shows SmartScreen once and needs Smart App
+  Control off. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
+  push to `main` that touches `tauri/` builds both for the `PHX_HOST` repository variable and publishes them,
+  signed for updates with the `TAURI_SIGNING_PRIVATE_KEY` secret. `tauri/build.sh` builds the same on the machine
+  it runs on, with the key in `tauri/updater.key`. Keep that key safe, because an installed app only takes
+  updates signed with it.
+- **Web.** Chrome and Edge also install the site as an app. Passkeys, offline and notifications work there as in
+  the browser.

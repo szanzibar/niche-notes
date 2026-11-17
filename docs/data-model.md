@@ -42,6 +42,8 @@ Socket at `/socket`, authenticated by the token that `/api/me` returns.
 - Push `pull` `{ docs: [[id, since], ...] }`. Reply `{ docs: [[id, owner_id, seq, [[seq, base64], ...]], ...] }`, like a doc join for each note the user can open. Unlike a join, it leaves out notes the user can't open and never creates one.
 - The server pushes `changed` `{ doc }` to every member of a note when one of its rows is stored, and `shares_changed` when a share involving the user changes, after which the client refetches `/api/shares`.
 
+**`alerts:<id>` channel**, own id only. A desktop app joins with `{ time_zone }` and is one more device with alerts on for as long as it stays, with no row in `push_subscriptions`. The server pushes `alert` with what a Web Push carries: `{ title, body, note, tag }`, and for a dated line `due`, `text` and `repeat` (ADR 006).
+
 **Client side.** One IndexedDB table of updates, each row tagged with its server `seq` once known. On join the client sends the `seq` from its last join reply, applies what comes back, then pushes every row that has no `seq` yet. `since` advances only on a join reply, because that is the only moment the client knows it holds everything up to a number. Live broadcasts are applied but do not advance it, and duplicates are skipped by `seq`. A join reply is applied as one Y.js transaction, so a note opened on a new device appears whole. When its own log of a doc has grown past a few dozen rows, the client folds them into one the same way.
 
 A device remembers the generation it last saw. When a join names another, the server was restored from a backup, which may lack rows the device holds and numbers its new rows from where the backup ended. The device then marks every row unsent, starts every cursor over and reloads, so it sends what the backup lacks and reads the rest again (ADR 010).
@@ -68,4 +70,5 @@ Cookie session, JSON. The API answers only requests from the app's own pages, by
 - `GET /api/google_calendar` — `{ email }`, the Google account holding the user's Niche Notes calendar, or `null`
 - `DELETE /api/google_calendar` — deletes the Niche Notes calendar and Google's grant
 - `GET /auth/google?time_zone=` and `GET /auth/google/callback` — Google's consent, then the Niche Notes calendar is made in that time zone. Both need a session, and a guest's doesn't count
+- `GET /auth/callback` and `GET /auth/google/callback` with a `state` their session never asked for — the desktop app started that login and sent it to this browser. The answer is a page that hands the query to the app as `nichenotes://callback?…` or `nichenotes://google/callback?…`, and the app loads the same callback in its window with `app=1`, which is never handed on (ADR 002)
 - `GET /auth/login`, `GET /auth/callback`, `DELETE /auth/logout`
