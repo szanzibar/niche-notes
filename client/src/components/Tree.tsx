@@ -400,11 +400,12 @@ export function Tree({ selected }: { selected?: string }) {
             [...sections].map(
               ([name, notes]) =>
                 notes.size > 0 && (
-                  <section key={name}>
+                  // Bars overlap by their border, so two in a row show one line between them.
+                  <section key={name} className="-mt-0.5">
                     <button
                       type="button"
                       aria-expanded={!dueCollapsed.includes(name)}
-                      className="flex w-full items-center gap-2 px-4 pt-3 pb-1 text-left font-bold"
+                      className="flex w-full items-center gap-2 border-y-2 border-border bg-accent px-4 py-2 text-left font-bold text-on-accent"
                       onClick={() =>
                         prefs.set(
                           'dueCollapsed',
@@ -414,10 +415,10 @@ export function Tree({ selected }: { selected?: string }) {
                     >
                       <span aria-hidden className="w-4 text-xs">{dueCollapsed.includes(name) ? '▶' : '▼'}</span>
                       {name}
-                      <span className="text-sm text-ink-muted">{[...notes.values()].flat().length}</span>
+                      <span className="text-sm text-on-accent/80">{[...notes.values()].flat().length}</span>
                     </button>
                     {!dueCollapsed.includes(name) && (
-                      <ul aria-label={name}>
+                      <ul aria-label={name} className="pb-2">
                         {[...notes].map(([id, lines]) => (
                           <li key={id}>
                             <p className="truncate px-4 pt-2 text-xs font-bold uppercase tracking-wide text-ink-muted">

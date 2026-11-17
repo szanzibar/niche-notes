@@ -159,7 +159,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <span className="truncate">{link?.replace(/^https?:\/\//, '')}</span>
         </a>
       </BubbleMenu>
-      <div className="flex gap-2 overflow-x-auto p-2">
+      <div className="flex gap-2 overflow-x-auto p-2 [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2">
         <Group>
           <Tool
             label="Checklist"
