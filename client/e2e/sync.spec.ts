@@ -109,4 +109,13 @@ test('after the server is restored from a backup, a device sends back what the b
   // The laptop's rows take numbers the phone held before the restore.
   await typeAtEnd(laptop, ' and bread')
   await expect(phone.locator('.editor-body')).toContainText('oat milk and bread')
+
+  // The phone sent its tree again too, which the backup still had, so the log holds none of it twice.
+  const copies = execFileSync('sqlite3', [
+    '-cmd',
+    '.timeout 5000',
+    '../server/data/e2e.db',
+    `select count(*) - count(distinct "update") from doc_updates where doc_id = (select id from users where sub = 'dev-${name}')`,
+  ])
+  expect(copies.toString().trim()).toBe('0')
 })

@@ -74,13 +74,17 @@ defmodule NicheNotes.Docs do
     with true <- rows > @fold_rows or (rows > 1 and idle),
          folded = from(u in log, where: u.id <= ^last),
          updates = Repo.all(from u in folded, order_by: u.id, select: u.update),
-         {:ok, update} <- Yex.merge_updates(updates) do
+         {:ok, update} <- merge(updates) do
       Repo.transaction(fn ->
         Repo.delete_all(folded)
         Repo.insert!(%DocUpdate{id: last, doc_id: doc_id, update: update})
       end)
     end
   end
+
+  # A log from before the server stored each update once can hold one several times, and merging enough copies
+  # crashes the Y.js library.
+  defp merge(updates), do: Yex.merge_updates(Enum.uniq(updates))
 
   # What the log holds, for someone checking a restored backup: each person's notes, and the notes edited last.
   def summary do
@@ -134,7 +138,7 @@ defmodule NicheNotes.Docs do
   defp tree(user_id) do
     doc = Yex.Doc.new()
     updates = from u in DocUpdate, where: u.doc_id == ^user_id, order_by: u.id, select: u.update
-    {:ok, update} = Yex.merge_updates(Repo.all(updates))
+    {:ok, update} = merge(Repo.all(updates))
     :ok = Yex.apply_update(doc, update)
 
     {doc |> Yex.Doc.get_map("nodes") |> Yex.Map.to_map(),
@@ -311,7 +315,7 @@ defmodule NicheNotes.Docs do
     doc = Yex.Doc.new()
     updates = from u in DocUpdate, where: u.doc_id == ^doc_id, order_by: u.id, select: u.update
 
-    with {:ok, update} <- Yex.merge_updates(Repo.all(updates)),
+    with {:ok, update} <- merge(Repo.all(updates)),
          :ok <- Yex.apply_update(doc, update) do
       {doc, doc |> Yex.Doc.get_map("meta") |> Yex.Map.to_map()}
     else
@@ -461,6 +465,14 @@ defmodule NicheNotes.Docs do
     else
       _ -> []
     end
+  end
+
+  # The row that already holds this update. After a restore or a crash every device sends its notes again, and the
+  # log still has most of them. Known and accepted: two devices sending one at the same moment both store it.
+  def held_seq(doc_id, update) do
+    Repo.one(
+      from u in DocUpdate, where: u.doc_id == ^doc_id and u.update == ^update, select: min(u.id)
+    )
   end
 
   # Each member's devices hear of it, so one that doesn't have the note open can pull it.

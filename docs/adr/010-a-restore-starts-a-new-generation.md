@@ -17,3 +17,11 @@ Known and accepted: the launch after a restore loads every note at once, which A
 A crash looks the same as a restore, so after one every device sends its notes again. That costs a slow launch and loses nothing. Known and accepted: a copy made while the app is stopped carries no mark. Our hourly snapshot only meets that in the seconds a deploy takes, and the README says how to mark such a copy by hand.
 
 A database from before the mark starts out marked, so older backups restore the same way. The first start on this version therefore renames the live log once.
+
+## Amendment 2026-11-17: the log holds an update once
+
+A device that sends its notes again sends mostly rows the log still holds, and the server stored each of them once more. On the dev server, where Ctrl-C killed the app and every restart so counted as a crash, one note's log came to hold its updates so many times that merging it crashed the Y.js library, and the app stopped at every start. So the server no longer stores an update that a note's log already holds, and a merge leaves out the copies stored until now. Prod held 312 of them from its one renaming, none more than three times, and had merged them at every start since.
+
+Known and accepted: a note that a device holds folded comes back as that device's own fold, one new row per note, which the server's next fold of the note takes in.
+
+`./dev.sh` now stops the app with its database closed, so a dev restart is no crash.

@@ -83,6 +83,30 @@ defmodule NicheNotesWeb.DocChannelTest do
              )
   end
 
+  test "an update the log already holds is not stored or relayed again, as when a device sends its notes again",
+       %{me: me, note: note} do
+    {:ok, _, mine} =
+      subscribe_and_join(
+        socket(NicheNotesWeb.UserSocket, nil, current_user_id: me.id),
+        "doc:#{note}"
+      )
+
+    {:ok, _, _my_other_device} =
+      subscribe_and_join(
+        socket(NicheNotesWeb.UserSocket, nil, current_user_id: me.id),
+        "doc:#{note}"
+      )
+
+    ref = push(mine, "update", %{"update" => Base.encode64("one")})
+    assert_reply ref, :ok, %{seq: seq}
+    assert_push "update", %{seq: ^seq}
+
+    ref = push(mine, "update", %{"update" => Base.encode64("one")})
+    assert_reply ref, :ok, %{seq: ^seq}
+    refute_push "update", _
+    assert Repo.aggregate(from(u in DocUpdate, where: u.doc_id == ^note), :count) == 1
+  end
+
   test "a device that places a note without having seen the place its person chose gets them an alert",
        %{me: me, note: note} do
     {public, _} = :crypto.generate_key(:ecdh, :prime256v1)

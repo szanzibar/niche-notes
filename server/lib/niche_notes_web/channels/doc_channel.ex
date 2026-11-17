@@ -40,11 +40,17 @@ defmodule NicheNotesWeb.DocChannel do
 
   def handle_in("update", %{"update" => encoded}, socket) do
     update = Base.decode64!(encoded)
-    unseen = Docs.unseen_places(socket.assigns.doc_id, update)
-    stored = Docs.append_update(socket.assigns.doc_id, update)
-    broadcast_from!(socket, "update", %{seq: stored.id, update: encoded})
-    if unseen != [], do: warn(socket.assigns.current_user_id, unseen)
-    {:reply, {:ok, %{seq: stored.id}}, socket}
+
+    # Stored once, since merging a log that holds its updates many times over crashes the Y.js library.
+    if seq = Docs.held_seq(socket.assigns.doc_id, update) do
+      {:reply, {:ok, %{seq: seq}}, socket}
+    else
+      unseen = Docs.unseen_places(socket.assigns.doc_id, update)
+      stored = Docs.append_update(socket.assigns.doc_id, update)
+      broadcast_from!(socket, "update", %{seq: stored.id, update: encoded})
+      if unseen != [], do: warn(socket.assigns.current_user_id, unseen)
+      {:reply, {:ok, %{seq: stored.id}}, socket}
+    end
   end
 
   # An app loaded before the server folded its own log still sends its snapshot, and waits for this reply.
