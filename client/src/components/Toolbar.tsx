@@ -153,7 +153,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           target="_blank"
           rel="noopener noreferrer"
           title="Open link"
-          className="flex h-9 max-w-[min(24rem,calc(100vw-2rem))] items-center gap-2 border-2 border-border bg-surface px-2 font-bold shadow-brutal"
+          className="flex h-9 max-w-[min(24rem,calc(100vw-2rem))] items-center gap-2 border-2 border-border bg-surface px-2 font-bold"
         >
           <OpenLinkIcon className={`${ICON} shrink-0`} />
           <span className="truncate">{link?.replace(/^https?:\/\//, '')}</span>
@@ -484,7 +484,6 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   )
 }
 
-// The border goes around a group of related tools, not each tool.
 function Group({
   className = '',
   children,
@@ -494,7 +493,7 @@ function Group({
   children: React.ReactNode
   ref?: React.Ref<HTMLDivElement>
 }) {
-  return <div ref={ref} className={`flex shrink-0 border-2 border-border shadow-[2px_2px_0_var(--border)] ${className}`}>{children}</div>
+  return <div ref={ref} className={`flex shrink-0 ${className}`}>{children}</div>
 }
 
 function Tool({ label, active, ...props }: React.ComponentProps<'button'> & { label: string; active?: boolean }) {

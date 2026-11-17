@@ -50,7 +50,7 @@ export const row = (page: Page, title: string) =>
 export async function shareWith(page: Page, name: string) {
   await page.getByRole('button', { name: /^Share$|^Shared with/ }).click()
   await page.getByRole('listitem').filter({ hasText: display(name) }).getByRole('button').click()
-  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Close' }).click()
 }
 
 export async function typeAtEnd(page: Page, text: string) {

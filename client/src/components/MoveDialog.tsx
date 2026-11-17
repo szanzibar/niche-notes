@@ -27,7 +27,7 @@ export function MoveDialog({ note, onPick, onClose }: { note: string; onPick: (i
         <Dialog.Content
           aria-describedby={undefined}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed left-1/2 top-1/2 flex max-h-[80dvh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 flex-col border-2 border-border bg-surface shadow-brutal"
+          className="fixed left-1/2 top-1/2 flex max-h-[80dvh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 flex-col border-2 border-border bg-surface"
         >
           <Dialog.Title className="px-4 pt-4 text-lg font-bold">Move to note</Dialog.Title>
           <input

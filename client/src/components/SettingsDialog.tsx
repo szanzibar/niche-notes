@@ -7,7 +7,7 @@ import { useY } from '../sync/hooks'
 import { store } from '../sync/store'
 import { settings } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { InfoIcon, SettingsIcon } from './icons'
+import { CloseIcon, InfoIcon, SettingsIcon } from './icons'
 import { THEMES } from './themes'
 
 const APPEARANCES: [string, string | undefined][] = [
@@ -66,15 +66,21 @@ export function SettingsDialog() {
         <Dialog.Overlay className="fixed inset-0 bg-black/40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 max-h-[92dvh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border-2 border-border bg-surface p-5 shadow-brutal"
+          className="fixed left-1/2 top-1/2 max-h-[92dvh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border-2 border-border bg-surface p-5"
         >
-          <Dialog.Title className="mb-3 text-lg font-bold">Settings</Dialog.Title>
+          <div className="mb-3 flex items-center justify-between">
+            <Dialog.Title className="text-lg font-bold">Settings</Dialog.Title>
+            <Dialog.Close asChild>
+              <IconButton label="Close" className="-mr-2.5">
+                <CloseIcon />
+              </IconButton>
+            </Dialog.Close>
+          </div>
           <p className="mb-2 font-medium">Appearance</p>
           <div className="flex flex-wrap gap-2">
             {APPEARANCES.map(([name, value]) => (
               <Button
                 key={name}
-                variant={theme === value ? 'primary' : 'default'}
                 aria-pressed={theme === value}
                 onClick={() => (value ? prefs.set('theme', value) : prefs.delete('theme'))}
               >
@@ -87,7 +93,6 @@ export function SettingsDialog() {
             {SCHEMES.map(([name, value]) => (
               <Button
                 key={name}
-                variant={scheme === value ? 'primary' : 'default'}
                 aria-pressed={scheme === value}
                 onClick={() => (value ? prefs.set('scheme', value) : prefs.delete('scheme'))}
               >
@@ -120,7 +125,6 @@ export function SettingsDialog() {
             {DENSITIES.map(([name, value]) => (
               <Button
                 key={name}
-                variant={density === value ? 'primary' : 'default'}
                 aria-pressed={density === value}
                 onClick={() => chooseDensity(value)}
               >
@@ -177,9 +181,6 @@ export function SettingsDialog() {
               )}
             </>
           )}
-          <Dialog.Close asChild>
-            <Button className="mt-5 w-full">Done</Button>
-          </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -199,7 +200,7 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
         <Popover.Content
           side="top"
           collisionPadding={8}
-          className="max-w-72 border-2 border-border bg-surface p-3 text-sm shadow-brutal"
+          className="max-w-72 border-2 border-border bg-surface p-3 text-sm"
         >
           {children}
         </Popover.Content>

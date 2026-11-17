@@ -12,7 +12,7 @@ test('the theme is a setting that follows the user to every device', async ({ br
 
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Blue' }).click()
-  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Close' }).click()
   await expect.poll(() => accent(page)).toBe('#2F6BFF')
 
   await page.reload()

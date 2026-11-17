@@ -30,7 +30,7 @@ export function Popover({
           collisionPadding={8}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
-          className={`flex items-center gap-2 border-2 border-border bg-surface p-1 shadow-brutal ${className}`}
+          className={`flex items-center gap-2 border-2 border-border bg-surface p-1 ${className}`}
         >
           {children}
         </Radix.Content>

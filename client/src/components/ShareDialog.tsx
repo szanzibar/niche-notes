@@ -5,7 +5,7 @@ import type { User } from '../lib/types'
 import { useStore } from '../sync/hooks'
 import { refreshSharing } from '../sync/store'
 import { Button, IconButton } from './Button'
-import { UsersIcon } from './icons'
+import { CloseIcon, UsersIcon } from './icons'
 
 export function ShareDialog({ id }: { id: string }) {
   const s = useStore()
@@ -63,20 +63,31 @@ export function ShareDialog({ id }: { id: string }) {
         <Dialog.Overlay className="fixed inset-0 bg-black/40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 max-h-[calc(100dvh-2rem)] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border-2 border-border bg-surface p-5 shadow-brutal"
+          className="fixed left-1/2 top-1/2 max-h-[calc(100dvh-2rem)] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border-2 border-border bg-surface p-5"
         >
-          <Dialog.Title className="mb-3 text-lg font-bold">Share this note</Dialog.Title>
+          <div className="mb-3 flex items-center justify-between">
+            <Dialog.Title className="text-lg font-bold">Share this note</Dialog.Title>
+            <Dialog.Close asChild>
+              <IconButton label="Close" className="-mr-2.5">
+                <CloseIcon />
+              </IconButton>
+            </Dialog.Close>
+          </div>
           {people.length === 0 && (
             <p className="text-ink-muted">
               {s.online ? 'Nobody else has signed in yet.' : 'Sharing needs a connection.'}
             </p>
           )}
-          <ul className="flex flex-col gap-2">
+          <ul className="-mx-3 flex flex-col">
             {people.map((user) => (
-              <li key={user.id} className="flex items-center justify-between gap-3">
-                <span className="truncate font-medium">{user.name}</span>
-                <Button variant={sharedWith.has(user.id) ? 'primary' : 'default'} onClick={() => void toggle(user)}>
-                  {sharedWith.has(user.id) ? 'Shared' : 'Share'}
+              <li key={user.id}>
+                <Button
+                  aria-pressed={sharedWith.has(user.id)}
+                  className="w-full justify-between gap-3"
+                  onClick={() => void toggle(user)}
+                >
+                  <span className="truncate">{user.name}</span>
+                  <UsersIcon filled={sharedWith.has(user.id)} />
                 </Button>
               </li>
             ))}
@@ -115,9 +126,6 @@ export function ShareDialog({ id }: { id: string }) {
               </Button>
             )}
           </section>
-          <Dialog.Close asChild>
-            <Button className="mt-4 w-full">Done</Button>
-          </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

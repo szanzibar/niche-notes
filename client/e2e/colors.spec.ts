@@ -8,7 +8,7 @@ const stripe = (page: Page, title: string) => row(page, title).locator('..').loc
 async function scheme(page: Page, name: 'Default' | 'Confetti') {
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name, exact: true }).first().click()
-  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Close' }).click()
 }
 
 async function pick(page: Page, color: string) {
@@ -34,7 +34,7 @@ test('Confetti gives every note a color the app wears while it is open, and a pi
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Confetti' }).click()
   await expect(page.getByRole('button', { name: 'Coral' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Close' }).click()
   await expect(stripe(page, 'Garden')).toHaveCount(1)
   await expect(stripe(page, 'Groceries')).toHaveCount(1)
   const own = await stripe(page, 'Groceries').evaluate((el) => getComputedStyle(el).backgroundColor)

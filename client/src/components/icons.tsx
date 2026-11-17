@@ -83,6 +83,7 @@ export const UnlinkIcon = icon(
 )
 export const OpenLinkIcon = icon('M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6')
 export const CalendarIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 10h16M8 2v4M16 2v4')
+export const CloseIcon = icon('M18 6L6 18M6 6l12 12')
 export const CheckIcon = icon('M20 6L9 17l-5-5')
 export const ClockIcon = icon('M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0M12 6v6l4 2')
 export const InfoIcon = icon('M12 16v-4M12 8h.01M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0')

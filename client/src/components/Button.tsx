@@ -1,13 +1,5 @@
 import type { ButtonHTMLAttributes } from 'react'
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'primary' | 'ghost' }
-
-const styles = {
-  default: 'border-border bg-surface text-ink shadow-brutal',
-  primary: 'border-border bg-accent text-on-accent shadow-brutal',
-  ghost: 'border-transparent bg-transparent text-ink',
-}
-
 // Icons over words: the label is the button's name for screen readers and its tooltip.
 export function IconButton({
   label,
@@ -26,11 +18,13 @@ export function IconButton({
   )
 }
 
-export function Button({ variant = 'default', className = '', type = 'button', ...props }: Props) {
+// A word, where no icon reads clearly. A choice among words passes aria-pressed, and the chosen one wears the accent.
+export function Button({ className = '', type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const choice = props['aria-pressed'] != null
   return (
     <button
       type={type}
-      className={`inline-flex h-10 items-center justify-center whitespace-nowrap border-2 px-3 font-bold active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-50 ${styles[variant]} ${className}`}
+      className={`inline-flex h-10 items-center whitespace-nowrap font-bold disabled:opacity-50 ${choice ? 'px-3 aria-pressed:bg-accent aria-pressed:text-on-accent' : 'underline underline-offset-4'} ${className}`}
       {...props}
     />
   )

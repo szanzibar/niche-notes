@@ -42,7 +42,7 @@ import {
   trashed,
   type Spot,
 } from '../sync/tree'
-import { Button, IconButton } from './Button'
+import { IconButton } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
 import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon, UsersIcon } from './icons'
 import { draggedLine } from './lists'
@@ -355,15 +355,9 @@ export function Tree({ selected }: { selected?: string }) {
         )}
         <OfflineIcon />
         {!s.me!.guest && (
-          <Button
-            variant="primary"
-            aria-label="New note"
-            title="New note"
-            className="w-10 px-0!"
-            onClick={() => showNote(createNote(null))}
-          >
+          <IconButton label="New note" onClick={() => showNote(createNote(null))}>
             <PlusIcon />
-          </Button>
+          </IconButton>
         )}
       </RootDropZone>
       <nav className="flex-1 overflow-x-hidden overflow-y-auto">
@@ -522,7 +516,7 @@ export function Tree({ selected }: { selected?: string }) {
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[aboveFinger]}>
           {dragging && (
-            <div className="truncate border-2 border-border bg-surface px-3 py-2 font-medium shadow-brutal">
+            <div className="truncate border-2 border-border bg-surface px-3 py-2 font-medium">
               {moving(dragging).length > 1 ? `${moving(dragging).length} notes` : titleOf(dragging)}
             </div>
           )}

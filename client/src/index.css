@@ -19,7 +19,6 @@
   --ink: light-dark(#111111, #F2F2EE);
   --ink-muted: light-dark(#555555, #A6A6A0);
   --border: light-dark(#111111, #F2F2EE);
-  --shadow: 4px 4px 0 var(--border);
 }
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="dark"] { color-scheme: dark; }
@@ -40,7 +39,6 @@ html[data-density="large"] { font-size: 18px; }
   --color-ink-muted: var(--ink-muted);
   --color-border: var(--border);
   --font-sans: "Space Grotesk", system-ui, sans-serif;
-  --shadow-brutal: var(--shadow);
 }
 
 /* The search box has its own clear button, shown whenever there is text. */

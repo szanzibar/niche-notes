@@ -69,7 +69,7 @@ test('a link lets someone without an account edit the note under a made-up name,
   await alice.getByRole('button', { name: 'Share', exact: true }).click()
   await alice.getByRole('button', { name: 'Create link' }).click()
   const link = await alice.getByRole('textbox', { name: 'Link' }).inputValue()
-  await alice.getByRole('button', { name: 'Done' }).click()
+  await alice.getByRole('button', { name: 'Close' }).click()
 
   // A phone that has never seen the app.
   const phone = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
@@ -90,7 +90,7 @@ test('a link lets someone without an account edit the note under a made-up name,
   await expect(alice.getByText(`Opened by ${guestName}`)).toBeVisible()
   await alice.getByRole('button', { name: 'Turn off' }).click()
   await expect(guest.getByText('no longer shared')).toBeVisible()
-  await alice.getByRole('button', { name: 'Done' }).click()
+  await alice.getByRole('button', { name: 'Close' }).click()
   await expect(alice.getByRole('button', { name: 'Share', exact: true })).toBeVisible()
 })
 
@@ -106,6 +106,6 @@ test('with many people at a large size, the share dialog scrolls to every button
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   await page.getByRole('button', { name: 'Create link' }).click()
   await page.getByRole('button', { name: 'Turn off' }).click()
-  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Close' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
 })
