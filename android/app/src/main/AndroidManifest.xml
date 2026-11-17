@@ -39,6 +39,14 @@
             <meta-data
                 android:name="android.support.customtabs.trusted.LAUNCH_HANDLER_CLIENT_MODE"
                 android:value="focus-existing" />
+            <!-- The icon shows the moment it is tapped, until Chrome's window covers it. Chrome 157 refuses the image
+                 that would let it hold the icon until the page draws, so the launcher doesn't send it. -->
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
+                android:resource="@mipmap/ic_launcher" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
+                android:resource="@color/splash" />
             <meta-data
                 android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
                 android:resource="@color/bar" />

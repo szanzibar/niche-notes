@@ -45,8 +45,10 @@ public class Launcher extends LauncherActivity {
     protected boolean shouldLaunchImmediately() {
         File apk = new File(getCacheDir(), "update.apk");
         // Null when nothing usable was downloaded.
-        PackageInfo update = getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
+        PackageInfo update = apk.exists() ? getPackageManager().getPackageArchiveInfo(apk.getPath(), 0) : null;
         long ready = update == null ? 0 : update.getLongVersionCode();
+        // An update that is installed is gone, so a normal start has nothing to read.
+        if (ready <= BuildConfig.VERSION_CODE) apk.delete();
         if (BuildConfig.RELEASES != null) {
             long have = Math.max(ready, BuildConfig.VERSION_CODE);
             new Thread(() -> download(apk, have)).start();
