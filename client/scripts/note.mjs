@@ -4,6 +4,7 @@
 //   node scripts/note.mjs show "<title>"
 //   node scripts/note.mjs check "<title>" "<item text>"
 //   node scripts/note.mjs bullet "<title>" "<heading>" "<text>"
+//   node scripts/note.mjs rewrite "<title>" "<line text>" "<text>"
 // NOTES_URL (default http://localhost:4000) and NOTES_AS (dev login name, default dev).
 // NOTES_LINK, a note's guest link, reads and ticks just that note on whichever server the link is for.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -13,7 +14,7 @@ import * as Y from 'yjs'
 const LINK = process.env.NOTES_LINK
 const BASE = LINK ? new URL(LINK).origin : (process.env.NOTES_URL ?? 'http://localhost:4000')
 const AS = process.env.NOTES_AS ?? 'dev'
-const [command, titleArg, itemArg, bulletArg] = process.argv.slice(2)
+const [command, titleArg, itemArg, textArg] = process.argv.slice(2)
 
 // A visit without the guest's cookie would sign in yet another guest.
 const GUEST = new URL('../../.guest-cookie', import.meta.url)
@@ -75,10 +76,10 @@ function render(node, depth = 0) {
 
 const isChecked = (el) => el.getAttribute('checked') === true || el.getAttribute('checked') === 'true'
 
-function* taskItems(node) {
+function* nodes(node, names) {
   if (node instanceof Y.XmlText) return
-  if (node.nodeName === 'taskItem') yield node
-  for (const kid of node.toArray()) yield* taskItems(kid)
+  if (names.includes(node.nodeName)) yield node
+  for (const kid of node.toArray()) yield* nodes(kid, names)
 }
 
 const { doc: tree } = await openDoc(user.id)
@@ -107,7 +108,7 @@ if (command === 'list') {
   const note = pick()
   const content = note.doc.getXmlFragment('content')
   const needle = itemArg.toLowerCase()
-  const items = [...taskItems(content)].filter((el) => text(el.toArray()[0]).toLowerCase().includes(needle))
+  const items = [...nodes(content, ['taskItem'])].filter((el) => text(el.toArray()[0]).toLowerCase().includes(needle))
   // A plain line that matches becomes a ticked item, joining the task list right above it if there is one.
   const lines = content.toArray().filter((el) => el.nodeName === 'paragraph' && text(el).toLowerCase().includes(needle))
   if (items.length === 0 && lines.length === 0) {
@@ -158,7 +159,7 @@ if (command === 'list') {
     })
     note.doc.transact(() => {
       const words = new Y.XmlText()
-      words.insert(0, bulletArg)
+      words.insert(0, textArg)
       const paragraph = new Y.XmlElement('paragraph')
       paragraph.insert(0, [words])
       const item = new Y.XmlElement('listItem')
@@ -172,9 +173,33 @@ if (command === 'list') {
       }
     })
   })
-  console.log(`added under ${text(blocks[at])}: ${bulletArg}`)
+  console.log(`added under ${text(blocks[at])}: ${textArg}`)
+} else if (command === 'rewrite') {
+  // New text for the one list line that contains the old text. The line's formatting goes.
+  const note = pick()
+  const lines = [...nodes(note.doc.getXmlFragment('content'), ['taskItem', 'listItem'])]
+    .map((el) => el.toArray()[0])
+    .filter((line) => text(line).toLowerCase().includes(itemArg.toLowerCase()))
+  if (lines.length !== 1) {
+    console.error(`${lines.length} lines containing ${JSON.stringify(itemArg)}`)
+    process.exit(1)
+  }
+  await new Promise((resolve) => {
+    note.doc.once('update', (update) => {
+      note.channel.push('update', { update: Buffer.from(update).toString('base64') }).receive('ok', resolve)
+    })
+    note.doc.transact(() => {
+      const words = new Y.XmlText()
+      words.insert(0, textArg)
+      lines[0].delete(0, lines[0].length)
+      lines[0].insert(0, [words])
+    })
+  })
+  console.log(`rewrote: ${textArg}`)
 } else {
-  console.error('usage: note.mjs list | show "<title>" | check "<title>" "<item>" | bullet "<title>" "<heading>" "<text>"')
+  console.error(
+    'usage: note.mjs list | show "<title>" | check "<title>" "<item>" | bullet "<title>" "<heading>" "<text>" | rewrite "<title>" "<line text>" "<text>"',
+  )
   process.exit(1)
 }
 socket.disconnect()
