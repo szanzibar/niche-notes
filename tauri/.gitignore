@@ -1,0 +1,4 @@
+target/
+gen/
+# Signs every update. Lose it and installed apps stop updating.
+updater.key

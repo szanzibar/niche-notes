@@ -26,4 +26,16 @@
     <use xlink:href="#lines" transform="translate(512 512) scale(0.6667) translate(-512 -512)"/>
   </g>
 
+  <!-- macOS: its app icons are a rounded square with a margin around it. -->
+  <g id="mac">
+    <use xlink:href="#canvas"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="#FF4F3B"/>
+    <use xlink:href="#lines" transform="translate(512 512) scale(0.8047) translate(-512 -512)"/>
+  </g>
+
+  <!-- The Mac's menu bar colors this shape itself, so it is only the lines. -->
+  <g id="tray">
+    <use xlink:href="#canvas"/>
+    <use xlink:href="#lines" transform="translate(512 512) scale(1.4) translate(-512 -512)"/>
+  </g>
 </svg>

@@ -1,0 +1,93 @@
+name: Desktop app
+
+# The app only wraps the site, so a web change never needs a new one.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tauri/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  # One release holds the newest build, so an installed app finds its update at an address that never changes.
+  # It is never the latest release, because the Android app looks for its APK there.
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          gh release view desktop > /dev/null 2>&1 ||
+            gh release create desktop --latest=false --title "Niche Notes desktop" --notes "The desktop app for macOS and Windows. It updates itself from here."
+
+  build:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            collect: |
+              mv macos/*.app.tar.gz niche-notes-mac.app.tar.gz
+              mv macos/*.app.tar.gz.sig niche-notes-mac.app.tar.gz.sig
+              mv dmg/*.dmg niche-notes-mac.dmg
+          - os: windows-latest
+            collect: |
+              mv nsis/*-setup.exe niche-notes-windows-setup.exe
+              mv nsis/*-setup.exe.sig niche-notes-windows-setup.exe.sig
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Tauri's CLI is compiled here each time, since a desktop build is rare.
+      - name: Build
+        working-directory: tauri
+        env:
+          PHX_HOST: ${{ vars.PHX_HOST }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          : "${PHX_HOST:?set the PHX_HOST repository variable}" "${TAURI_SIGNING_PRIVATE_KEY:?add the TAURI_SIGNING_PRIVATE_KEY secret}"
+          cargo install tauri-cli --version 2.12.5 --locked
+          ./build.sh
+
+      # Names without a version, so each build replaces the last one and the download links stay the same.
+      - name: Publish
+        working-directory: tauri/target/release/bundle
+        run: |
+          ${{ matrix.collect }}
+          gh release upload desktop --clobber niche-notes-*
+
+  # Last, so an installed app hears of the new version only once both downloads are there.
+  updates:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - run: |
+          version=$(git rev-list --count HEAD).0.0
+          download=https://github.com/$GH_REPO/releases/download/desktop
+          gh release download desktop --pattern "*.sig"
+          jq -n --arg version "$version" --arg download "$download" \
+            --rawfile mac niche-notes-mac.app.tar.gz.sig --rawfile windows niche-notes-windows-setup.exe.sig '{
+              version: $version,
+              platforms: {
+                "darwin-aarch64": {signature: $mac, url: "\($download)/niche-notes-mac.app.tar.gz"},
+                "windows-x86_64": {signature: $windows, url: "\($download)/niche-notes-windows-setup.exe"}
+              }
+            }' > latest.json
+          gh release upload desktop --clobber latest.json
+          gh release edit desktop --title "Niche Notes desktop ${version%%.*}"
