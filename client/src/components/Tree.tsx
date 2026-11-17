@@ -44,7 +44,7 @@ import {
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
-import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon, UsersIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -612,7 +612,6 @@ function Row({
   // While notes are picked, the fill marks them instead of the open note.
   const active = picked.size > 0 ? picked.has(id) : selected === id
   const color = noteTheme(id)?.color
-  const tag = !isMine(id) ? ownerName(id) : shareCount(id) > 0 ? 'shared' : null
   const line = mark?.line?.row === id ? mark.line : null
   const into = mark?.into === id
 
@@ -683,7 +682,14 @@ function Row({
           {isPinned(id) && (
             <PinIcon filled className={`h-3.5 w-3.5 shrink-0 self-center ${active ? '' : 'text-accent-ink'}`} />
           )}
-          {tag && <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{tag}</span>}
+          {(!isMine(id) || shareCount(id) > 0) && (
+            <span role="img" aria-label="Shared" title="Shared" className={`shrink-0 self-center ${active ? '' : 'text-accent-ink'}`}>
+              <UsersIcon filled className="h-3.5 w-3.5" />
+            </span>
+          )}
+          {!isMine(id) && (
+            <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{ownerName(id)}</span>
+          )}
         </button>
         {!store.me!.guest && (
           <button

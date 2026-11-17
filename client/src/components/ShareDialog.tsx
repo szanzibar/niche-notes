@@ -5,7 +5,7 @@ import type { User } from '../lib/types'
 import { useStore } from '../sync/hooks'
 import { refreshSharing } from '../sync/store'
 import { Button, IconButton } from './Button'
-import { UserPlusIcon, UsersIcon } from './icons'
+import { UsersIcon } from './icons'
 
 export function ShareDialog({ id }: { id: string }) {
   const s = useStore()
@@ -50,12 +50,12 @@ export function ShareDialog({ id }: { id: string }) {
       <Dialog.Trigger asChild>
         {sharedWith.size > 0 ? (
           <IconButton label={`Shared with ${sharedWith.size}`} className="px-1 text-accent-ink">
-            <UsersIcon />
+            <UsersIcon filled />
             <span className="font-bold">{sharedWith.size}</span>
           </IconButton>
         ) : (
           <IconButton label="Share">
-            <UserPlusIcon />
+            <UsersIcon />
           </IconButton>
         )}
       </Dialog.Trigger>

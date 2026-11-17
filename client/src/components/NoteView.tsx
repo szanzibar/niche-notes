@@ -34,6 +34,7 @@ import {
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import {
+  ArrowDownLeftIcon,
   ArrowRightIcon,
   CheckedIcon,
   DeleteWhenCheckedIcon,
@@ -44,7 +45,6 @@ import {
   PinIcon,
   RemoveNoteIcon,
   RemoveWithNotesIcon,
-  SharedWithMeIcon,
   TrashIcon,
   UncheckAllIcon,
   UsersIcon,
@@ -388,8 +388,9 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       open={panel === 'shared'}
       onOpenChange={(open) => setPanel(open ? 'shared' : null)}
       trigger={
-        <IconButton label={`Shared by ${ownerName(id)}`}>
-          <SharedWithMeIcon />
+        <IconButton label={`Shared by ${ownerName(id)}`} className="px-1">
+          <UsersIcon filled />
+          <ArrowDownLeftIcon className="h-4 w-4" />
         </IconButton>
       }
     >
@@ -406,7 +407,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           sharedBy ||
           (shareCount(id) > 0 && (
             <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
-              <UsersIcon />
+              <UsersIcon filled />
             </span>
           ))}
         <Popover

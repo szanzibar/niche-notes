@@ -22,9 +22,10 @@ test('a shared note lands under the other person\'s pins, can be left via their 
   const x = async (l: Locator) => (await l.boundingBox())!.x
   const checked = (page: typeof alice) => x(page.getByRole('button', { name: 'Checked lines' }))
   expect(await x(alice.getByRole('button', { name: 'Shared with 1' }))).toBeLessThan(await checked(alice))
-  await expect(row(alice, 'Groceries')).toContainText('shared')
+  await expect(row(alice, 'Groceries').getByRole('img', { name: 'Shared' })).toBeVisible()
 
   await expect(row(bob, 'Groceries')).toContainText(first)
+  await expect(row(bob, 'Groceries').getByRole('img', { name: 'Shared' })).toBeVisible()
   expect(await rowTitles(bob)).toEqual(['Mine', 'Groceries'])
   await row(bob, 'Groceries').click()
   expect(await x(bob.getByRole('button', { name: `Shared by ${first}` }))).toBeLessThan(await checked(bob))

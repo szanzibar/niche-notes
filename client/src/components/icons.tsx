@@ -34,16 +34,16 @@ const TREE = 'M3 5v4.5a2.5 2.5 0 0 0 2.5 2.5H7M3 9v7.5a2.5 2.5 0 0 0 2.5 2.5H7M8
 export const RemoveNoteIcon = icon(`${TREE}M10 12h11M10 19h11`)
 export const RemoveWithNotesIcon = icon(`${TREE}M10 12h5M18 10l4 4M22 10l-4 4M10 19h5M18 17l4 4M22 17l-4 4`)
 export const LeaveIcon = icon('M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9')
-export const UsersIcon = icon(
-  'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-)
-export const UserPlusIcon = icon(
-  'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M19 8v6M22 11h-6',
-)
-// The person of UserPlusIcon with an arrow coming in, for a note that came from someone else.
-export const SharedWithMeIcon = icon(
-  'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M22 11h-6M19 8l-3 3 3 3',
-)
+// Filled on a shared note, like a pinned note's pin.
+export function UsersIcon({ filled, className = SIZE }: { filled?: boolean; className?: string }) {
+  return (
+    <svg {...base} className={className} fill={filled ? 'currentColor' : 'none'} aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+// Phones mark an incoming call this way, and here a note someone else shared.
+export const ArrowDownLeftIcon = icon('M17 7L7 17M17 17H7V7')
 export const CloudOffIcon = icon(
   'M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78M2 2l20 20',
 )
