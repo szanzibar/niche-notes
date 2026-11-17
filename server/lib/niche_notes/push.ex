@@ -5,6 +5,10 @@ defmodule NicheNotes.Push do
 
   The signing key comes from SECRET_KEY_BASE, so there is nothing to configure. Changing that secret signs
   everyone out anyway, and each device subscribes again on its next launch.
+
+  A desktop app has no Web Push, so it listens on the socket and gets each alert as it is sent. One sent
+  while the computer is off goes nowhere, because the phone has it too and nobody wants stale alerts on
+  coming back.
   """
   import Ecto.Query
   require Logger
@@ -42,9 +46,27 @@ defmodule NicheNotes.Push do
 
   def subscribe(_user_id, _subscription, _time_zone), do: {:error, :subscription}
 
-  def subscriptions(user_ids), do: Repo.all(from s in Subscription, where: s.user_id in ^user_ids)
+  # The calling process is one more device of this person's for as long as it lives, and gets each alert as
+  # `{:alert, message}`.
+  def listen(user_id, time_zone) do
+    with {:ok, now} <- DateTime.now(time_zone),
+         {:ok, _} <- Registry.register(__MODULE__, user_id, {time_zone, now}) do
+      :ok
+    end
+  end
+
+  def subscriptions(user_ids) do
+    listening =
+      for id <- user_ids, {pid, {time_zone, since}} <- Registry.lookup(__MODULE__, id) do
+        %{pid: pid, time_zone: time_zone, updated_at: since}
+      end
+
+    Repo.all(from s in Subscription, where: s.user_id in ^user_ids) ++ listening
+  end
 
   def public_key, do: keys() |> elem(0) |> encode()
+
+  def send(%{pid: pid}, message), do: Kernel.send(pid, {:alert, message})
 
   # Kept for a day, so a phone that was off still gets it when it comes back. A device that unsubscribed
   # is forgotten.

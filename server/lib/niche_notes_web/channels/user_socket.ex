@@ -4,6 +4,7 @@ defmodule NicheNotesWeb.UserSocket do
 
   channel "doc:*", NicheNotesWeb.DocChannel
   channel "user:*", NicheNotesWeb.UserChannel
+  channel "alerts:*", NicheNotesWeb.AlertChannel
 
   @salt "user socket"
   @month 60 * 60 * 24 * 30

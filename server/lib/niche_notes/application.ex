@@ -8,6 +8,7 @@ defmodule NicheNotes.Application do
       NicheNotes.Repo,
       NicheNotes.Generation,
       {Phoenix.PubSub, name: NicheNotes.PubSub},
+      {Registry, keys: :duplicate, name: NicheNotes.Push},
       NicheNotesWeb.Endpoint
     ]
 
