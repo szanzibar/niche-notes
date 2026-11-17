@@ -106,6 +106,7 @@ The app, in `tauri/`, tested on macOS against a local server and compiled for Wi
 - [x] Settings hides Alerts on a device without Web Push, since the button there can't turn anything on (2026-11-17)
 - [x] `icon/render.sh` writes the Tauri icons too, the Mac's as the rounded square macOS expects and the menu bar's as the three lines alone
 - [x] The app updates itself while its window is closed, so it never restarts under someone typing: when it starts at login, when the window closes, and once a day. It starts again in the tray
+- [x] `./dev.sh` builds the desktop app as a bundle and starts it on the dev server, since macOS shows an alert under an app's own name only for a bundle. Only `tauri/build.sh` builds `Niche Notes`, with `tauri.release.conf.json`. Every other build is `Niche Notes Dev` with its own identifier, so the two run side by side and a test build never touches what the real app stored. The dev app takes no `nichenotes://` links and never updates itself, so Connect Google Calendar is tried in the browser there (2026-11-17)
 
 Left for Steven, who has the passkey, the eyes and the Windows machine:
 

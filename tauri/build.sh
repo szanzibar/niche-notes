@@ -7,4 +7,8 @@ cd "$(dirname "$0")"
 : "${PHX_HOST:=$(grep '^PHX_HOST=' ../.env | cut -d= -f2-)}" "${TAURI_SIGNING_PRIVATE_KEY:=updater.key}"
 : "${PHX_HOST:?set PHX_HOST in .env}"
 export PHX_HOST TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD=
-cargo tauri build --ci --config "{\"version\":\"$(git rev-list --count HEAD).0.0\"}" "$@"
+# tauri.release.conf.json holds what only this build has: the app's own name and identifier, its `nichenotes://`
+# links and its updates. Any other build is "Niche Notes Dev" on the dev server, so the two run side by side and a
+# test build never takes the real app's links or touches what it stored.
+cargo tauri build --ci --config tauri.release.conf.json \
+  --config "{\"version\":\"$(git rev-list --count HEAD).0.0\"}" "$@"

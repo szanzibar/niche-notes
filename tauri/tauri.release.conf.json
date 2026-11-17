@@ -1,0 +1,9 @@
+{
+  "productName": "Niche Notes",
+  "identifier": "app.nichenotes",
+  "bundle": { "createUpdaterArtifacts": true },
+  "plugins": {
+    "deep-link": { "desktop": { "schemes": ["nichenotes"] } },
+    "updater": { "endpoints": ["https://github.com/szanzibar/niche-notes/releases/download/desktop/latest.json"] }
+  }
+}

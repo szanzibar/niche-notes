@@ -49,7 +49,7 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
     let home = page("/").origin();
     let (browser, new_window_browser) = (app.clone(), app.clone());
     let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.unwrap_or(page("/"))))
-        .title("Niche Notes")
+        .title(&app.package_info().name)
         .inner_size(1100.0, 800.0)
         // Windows' webview has this interface with no push service behind it, and Settings offers alerts by it.
         .initialization_script("delete window.PushManager")
@@ -159,7 +159,7 @@ fn main() {
             TrayIconBuilder::new()
                 .icon(icon)
                 .icon_as_template(true)
-                .tooltip("Niche Notes")
+                .tooltip(&app.package_info().name)
                 .menu(&Menu::with_items(app, &[&quit])?)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, _| app.exit(0))

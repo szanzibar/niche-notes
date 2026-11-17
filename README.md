@@ -58,13 +58,15 @@ open `/s/<link>` on `localhost` there. Delete the copy with the same `docker com
 ## Develop
 
 ```bash
-./dev.sh                 # Phoenix :4000 + Vite :5173
+./dev.sh                 # Phoenix :4000 + Vite :5173 + the desktop app, which needs cargo install tauri-cli
 cd server && mix test
 cd client && npm run build   # writes into server/priv/static
-cd tauri && cargo tauri dev  # the desktop app on Vite's :5173, needs cargo install tauri-cli
 ```
 
 Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife` signs in a second user.
+
+The desktop app that `./dev.sh` builds and starts is `Niche Notes Dev`, with its own identifier, so it runs beside
+the installed app.
 
 ## Apps
 
