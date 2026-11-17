@@ -14,16 +14,16 @@ defmodule NicheNotesWeb.AuthControllerTest do
   end
 
   # Outside prod the router sends /auth/login to the dev login, so the real one is called with the session loaded.
-  defp prompt(conn) do
-    conn =
-      conn
-      |> recycle()
-      |> bypass_through(NicheNotesWeb.Router, :browser)
-      |> get("/auth/login")
-      |> NicheNotesWeb.AuthController.login(%{})
-
-    URI.decode_query(URI.parse(redirected_to(conn, 302)).query)["prompt"]
+  defp login(conn) do
+    conn
+    |> recycle()
+    |> bypass_through(NicheNotesWeb.Router, :browser)
+    |> get("/auth/login")
+    |> NicheNotesWeb.AuthController.login(%{})
   end
+
+  defp asked(conn, param), do: URI.decode_query(URI.parse(redirected_to(conn, 302)).query)[param]
+  defp prompt(conn), do: conn |> login() |> asked("prompt")
 
   test "after Sign out, the next login asks which account to use", %{conn: conn} do
     conn = get(conn, "/auth/login?as=me")
@@ -33,5 +33,23 @@ defmodule NicheNotesWeb.AuthControllerTest do
     assert response(conn, 204)
     assert json_response(conn |> recycle() |> get("/api/me"), 401)
     assert prompt(conn) == "select_account"
+  end
+
+  test "a callback goes on to the desktop app from a browser that didn't start the login", %{
+    conn: conn
+  } do
+    window = login(conn)
+    query = "code=code&state=#{asked(window, "state")}"
+
+    browser = get(conn, "/auth/callback?" <> query)
+
+    assert html_response(browser, 200) =~
+             ~s(href="nichenotes://callback?#{String.replace(query, "&", "&amp;")}")
+
+    # The window that started it runs the callback, which fails here for want of a Pocket ID.
+    assert window |> recycle() |> get("/auth/callback?#{query}&app=1") |> json_response(400)
+
+    # A link the window never asked for only reloads the notes.
+    assert conn |> get("/auth/callback?#{query}&app=1") |> redirected_to(302) == "/"
   end
 end

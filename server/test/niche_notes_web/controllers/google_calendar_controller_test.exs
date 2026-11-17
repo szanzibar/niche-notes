@@ -67,8 +67,22 @@ defmodule NicheNotesWeb.GoogleCalendarControllerTest do
     assert conn |> get("/auth/google") |> json_response(401)
 
     assert conn
-           |> get("/auth/google/callback", code: "code", state: "state")
-           |> json_response(401)
+           |> get("/auth/google/callback", code: "code", state: "state", app: "1")
+           |> redirected_to(302) == "/"
+
+    assert Repo.all(Connection) == []
+  end
+
+  test "Google's answer goes on to the desktop app from a browser that didn't ask for the consent",
+       %{conn: conn} do
+    me = user!("me")
+
+    for browser <- [conn, init_test_session(conn, %{user_id: me.id})] do
+      browser = get(browser, "/auth/google/callback", code: "code", state: "state")
+
+      assert html_response(browser, 200) =~
+               ~s(href="nichenotes://google/callback?code=code&amp;state=state")
+    end
 
     assert Repo.all(Connection) == []
   end

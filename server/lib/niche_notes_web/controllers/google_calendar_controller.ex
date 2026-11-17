@@ -4,6 +4,12 @@ defmodule NicheNotesWeb.GoogleCalendarController do
   require Logger
   alias NicheNotes.{Accounts, GoogleCalendar}
 
+  # The browser the desktop app sent to Google may have no session, so the hand-off comes before the sign-in check.
+  plug NicheNotesWeb.Plugs.HandOff,
+       [state: ["google", :session_params, :state]] when action == :callback
+
+  plug NicheNotesWeb.Plugs.RequireAuth when action in [:connect, :callback]
+
   # A guest has one note and no calendar of their own.
   def connect(conn, params) do
     if Accounts.User.guest?(Accounts.get_user(conn.assigns.current_user_id)) do

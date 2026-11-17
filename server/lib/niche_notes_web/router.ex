@@ -25,11 +25,6 @@ defmodule NicheNotesWeb.Router do
 
     get "/callback", AuthController, :callback
     delete "/logout", AuthController, :logout
-  end
-
-  scope "/auth", NicheNotesWeb do
-    pipe_through [:browser, NicheNotesWeb.Plugs.RequireAuth]
-
     get "/google", GoogleCalendarController, :connect
     get "/google/callback", GoogleCalendarController, :callback
   end

@@ -6,9 +6,10 @@ defmodule NicheNotesWeb.Endpoint do
   # Set :encryption_salt if you would also like to encrypt it.
   @session_options [
     store: :cookie,
-    # The prefix makes browsers refuse this cookie from any other site under our domain.
-    key: "__Host-niche_notes",
-    secure: true,
+    # The prefix makes browsers refuse this cookie from any other site under our domain. Dev goes without it,
+    # since Safari's engine refuses a Secure cookie from http://localhost.
+    key: if(Mix.env() == :dev, do: "niche_notes", else: "__Host-niche_notes"),
+    secure: Mix.env() != :dev,
     signing_salt: "LC0kN30a",
     same_site: "Lax",
     # Without an expiry the cookie dies whenever Android restarts Chrome. /api/me renews it.
