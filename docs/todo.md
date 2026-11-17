@@ -78,7 +78,7 @@ The design, which becomes ADR amendments once the spike passes:
 - **The window loads `https://<host>`**, baked in at build time like the APK's. The cookie, service worker, IndexedDB and deploy-on-push stay as they are. Bundling the build is out, because a service worker can't register on Tauri's bundled origins on macOS and Android, and our `SameSite=Lax` cookie would not reach the server from one.
 - **A passkey can't work in a webview, so the Pocket ID page opens in the default browser.** `/auth/login` still runs in the window, so the window's session holds the OIDC state and Sign out's `select_account` works unchanged. The shell opens every other host in the default browser, which is where the redirect to Pocket ID goes. Pocket ID returns that browser to `/auth/callback`. The browser has no OIDC state, so the callback hands its query to the app as `nichenotes://callback?…`, and the shell loads `/auth/callback?…&app=1` in the window, where the state matches. A link that another app catches is useless to it, since only the window's session can finish the login.
 - **The page never calls the shell.** The shell acts on navigation and links only, so the page stays the same web app in every browser and shell. Calls from a remote page with a service worker also fail on Windows after a restart, an open Tauri bug.
-- **Alerts come from the tray.** Closing the window ends the webview and leaves a small tray process, which starts at login. It asks the server once a minute what came due since it last asked and shows a notification, and a click opens the window on that line. `Reminders` passes once a minute anyway, and asking "since" covers a laptop that slept. A hidden window can't listen instead, because a hidden webview is suspended after about five minutes and Tauri can prevent that only on macOS. Firebase has no desktop client.
+- **Alerts come from the tray, over the socket.** Closing the window ends the webview and leaves a small tray process, which starts at login. It holds a channel to the server and counts as one more subscription, so every alert the server sends reaches it as it is sent, a due line and a shared note alike. An alert sent while the computer is off or asleep goes nowhere, since the phone gets it too and nobody wants stale alerts on coming back. A hidden window can't hold the socket instead, because a hidden webview is suspended after about five minutes and Tauri can prevent that only on macOS. Firebase has no desktop client.
 - **Updates** come from Tauri's updater, which checks Tauri's own key, so there is no Apple or Microsoft certificate. The Mac build is ad-hoc signed and the Windows installer unsigned. A Mac asks for Open Anyway in System Settings once, Windows shows SmartScreen once, and Smart App Control has to be off.
 
 Server first, since the spike logs in against production:
@@ -92,6 +92,7 @@ Spike, a day in a scratch directory outside the repo, thrown away. It needs `car
 - [ ] Offline: quit, turn Wi-Fi off, open. The tree and a note are there
 - [ ] Update: an ad-hoc signed build replaces itself from a throwaway release without a Gatekeeper prompt
 - [ ] Alert: a notification shows from the tray with the window closed, and a click opens the window. Tauri's notification plugin has an open bug with banners on macOS
+- [ ] Session: the tray reads the window's session cookie and gets a token from `/api/me` with it
 - [ ] Editor: typing with autocorrect, dragging a tree row and dragging a list line all work in the window
 - [ ] Memory of the tray alone and with the window open, measured
 
@@ -100,8 +101,9 @@ The app, in `tauri/`:
 - [ ] The window on the server, one instance, remembering its size and place. Other hosts and links that ask for a new window open in the default browser
 - [ ] `nichenotes://callback` finishes a login in the window. On Windows the link arrives as an argument to a second process
 - [ ] Closing the window leaves the tray icon. A click on it opens the window, its menu has Quit, and the app starts at login
-- [ ] The server lists what came due for a person since a given moment, in the device's time zone, from `Reminders`' own functions so the two can't drift. The tray asks with the window's session cookie, read when the window closes, so there is no second credential. If Tauri can't read the cookie, a token like a widget's (ADR 005)
-- [ ] The tray alerts from that list once a minute, and after a sleep or a restart it catches up on a day at most
+- [ ] A connected tray is one more subscription. It joins a channel with its time zone, `Push.subscriptions/1` returns it beside the Web Push ones, and `Push.send/2` sends its alert down the socket. `Reminders`, sharing and the other senders stay as they are
+- [ ] The tray connects with a token from `/api/me`, which it fetches with the window's session cookie, read when the window closes, so there is no second credential. If Tauri can't read the cookie, a token like a widget's (ADR 005)
+- [ ] The tray reconnects after a sleep or a lost network, and shows each alert as a notification whose click opens the window on that line
 - [ ] Settings hides Alerts on a device without Web Push, since the button there can't turn anything on
 - [ ] `icon/render.sh` writes the Tauri icons too
 - [ ] The app updates itself when it starts and once a day while its window is closed, so it never restarts under someone typing
