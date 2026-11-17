@@ -54,15 +54,23 @@ async function drag(page: Page, text: string, onto: string, at: number, check?: 
   await page.mouse.up()
 }
 
-// Playwright has no touch drag, so the touches go straight to Chrome.
-async function touchDrag(page: Page, text: string, onto: string, at: number) {
+// Playwright has no touch drag, so the touches go straight to Chrome. `check` gets where the finger is.
+async function touchDrag(page: Page, text: string, onto: string, at: number, check?: (y: number) => Promise<void>) {
   const { x, y0, y1 } = await path(page, text, onto, at)
   const cdp = await page.context().newCDPSession(page)
   const touch = (type: string, y = 0) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
   await touch('touchStart', y0)
   for (let step = 1; step <= 6; step++) await touch('touchMove', y0 + ((y1 - y0) * step) / 6)
+  await check?.(y1)
   await touch('touchEnd')
+}
+
+// The row of the line a drop goes into is outlined, like the note a drop goes into in the tree.
+const outlines = async (page: Page, text: string) => {
+  const box = (await page.locator('.line-into').boundingBox())!
+  const words = (await line(page, text).boundingBox())!
+  return box.y <= words.y && box.y + box.height >= words.y + words.height
 }
 
 test('a line dropped on the bottom of the next line moves down one, and on the top of the line before moves up one', async ({
@@ -73,37 +81,46 @@ test('a line dropped on the bottom of the next line moves down one, and on the t
 
   await drag(page, 'B', 'C', 0.85)
   await expect.poll(() => shape(page)).toEqual(['A', 'C', 'B', 'D'])
-  await drag(page, 'D', 'B', 0.15)
+  // Beside a top-level line it goes into none, so nothing is outlined.
+  await drag(page, 'D', 'B', 0.15, () => expect(page.locator('.line-into')).toBeHidden())
   await expect.poll(() => shape(page)).toEqual(['A', 'C', 'D', 'B'])
   // Dropped where it already is, a line stays.
   await drag(page, 'A', 'C', 0.15)
   await expect.poll(() => shape(page)).toEqual(['A', 'C', 'D', 'B'])
 })
 
-test('a line dropped on the middle of another becomes its first child, and a mark shows where it will land', async ({
+test('a line dropped on the middle of another becomes its first child, outlined while the mark shows where it lands', async ({
   browser,
 }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'A', 'B', 'C', 'D')
   const mark = page.locator('.line-drop')
 
+  // Into a line with nothing under it, the outline alone shows where it goes.
   await drag(page, 'D', 'B', 0.5, async () => {
-    await expect(mark).toBeVisible()
-    await expect(mark).toHaveAttribute('data-inside')
+    await expect(mark).toBeHidden()
     await expect(page.locator('.prosemirror-dropcursor-block')).toBeHidden()
+    expect(await outlines(page, 'B')).toBe(true)
+    // The line being dragged stays in place, dimmed, as a note does in the tree.
+    await expect(body(page).locator('li', { has: page.locator('p:text-is("D")') }).last()).toHaveCSS('opacity', '0.4')
   })
+  await expect(page.locator('.line-into')).toBeHidden()
+  await expect(body(page).locator('li', { has: page.locator('p:text-is("D")') }).last()).toHaveCSS('opacity', '1')
   await expect(mark).toBeHidden()
   await expect.poll(() => shape(page)).toEqual(['A', 'B', '  D', 'C'])
 
-  // Below the middle of a line with lines under it is where its first child goes.
+  // Below the middle of a line with lines under it is where its first child goes, which the mark shows.
   await drag(page, 'A', 'B', 0.85, async () => {
+    await expect(mark).toBeVisible()
     await expect(mark).toHaveAttribute('data-inside')
+    expect(await outlines(page, 'B')).toBe(true)
   })
   await expect.poll(() => shape(page)).toEqual(['B', '  A', '  D', 'C'])
 
-  // The top of a nested line is next to it, in its list.
+  // The top of a nested line is next to it, in its list, so the line above them is outlined.
   await drag(page, 'C', 'D', 0.15, async () => {
     await expect(mark).not.toHaveAttribute('data-inside')
+    expect(await outlines(page, 'B')).toBe(true)
   })
   await expect.poll(() => shape(page)).toEqual(['B', '  A', '  C', '  D'])
 })
@@ -193,7 +210,14 @@ test('on a touch screen every list line shows its grip, and a finger moves a lin
   await checklist(page, 'A', 'B', 'C')
   await expect(grip(page, 'A')).toHaveCSS('opacity', '1')
 
-  await touchDrag(page, 'A', 'B', 0.85)
+  // The line rides as a box with its text, a row above the finger.
+  const ghost = page.locator('.line-ghost')
+  await touchDrag(page, 'A', 'B', 0.85, async (finger) => {
+    await expect(ghost).toHaveText('A')
+    const box = (await ghost.boundingBox())!
+    expect(box.y + box.height).toBeLessThan(finger)
+  })
+  await expect(ghost).toBeHidden()
   await expect.poll(() => shape(page)).toEqual(['B', 'A', 'C'])
   await touchDrag(page, 'C', 'B', 0.5)
   await expect.poll(() => shape(page)).toEqual(['B', '  C', 'A'])

@@ -181,11 +181,27 @@ export function inList(doc: Node, pos: number) {
   return node != null && (isLine(node) || node.type.name in ITEM)
 }
 
+interface Row {
+  top: number
+  bottom: number
+  left: number
+}
 interface Drop {
   pos: number
   zone: 'before' | 'after' | 'inside'
-  top: number
+  // Where the mark goes. None into a line with nothing under it yet, where the outline says it all, as in the tree.
+  top: number | null
   left: number
+  // The line it goes into, none at the top level.
+  into: Row | null
+}
+
+// A line's own row, without the lines nested under it, from its grip on.
+function rowOf(li: Element): Row {
+  const box = li.getBoundingClientRect()
+  const nested = li.querySelector(':scope > div > :is(ul, ol), :scope > :is(ul, ol)')
+  const grip = li.querySelector(':scope > .line-grip, :scope > div > .line-grip') ?? li
+  return { top: box.top, bottom: nested ? nested.getBoundingClientRect().top : box.bottom, left: grip.getBoundingClientRect().left }
 }
 
 // Like a note in the tree, a dragged line lands above the line under the pointer from the top of its row, below it
@@ -206,7 +222,14 @@ function dropAt(view: EditorView, y: number, from: number): Drop | null | undefi
     else {
       const at = (y - row.top) / (bottom - row.top)
       const zone = at < 0.3 ? 'before' : at > 0.7 && !nested ? 'after' : 'inside'
-      found = { pos, zone, top: zone === 'before' ? row.top : bottom, left: row.left }
+      const parent = zone === 'inside' ? li : li.parentElement?.closest('li')
+      found = {
+        pos,
+        zone,
+        top: zone === 'before' ? row.top : zone === 'inside' && !nested ? null : bottom,
+        left: row.left,
+        into: parent ? rowOf(parent) : null,
+      }
     }
     return false
   })
@@ -235,9 +258,12 @@ function dropLine(view: EditorView, from: number, { pos, zone }: Drop) {
   view.dispatch(tr)
 }
 
+const held = new PluginKey<number | null>('heldLine')
+
 // Every list line has a grip in the margin, shown all the time on a touch screen and for the line under the pointer
-// otherwise. Dragging it moves the line with what is nested under it, with a mark where it will land, and a tap asks
-// which note to move it to.
+// otherwise. Dragging it moves the line with what is nested under it, and a tap asks which note to move it to. A drag
+// looks like one in the tree: the line rides as a box with its text, its place stays dimmed, the line it goes into is
+// outlined, and a mark shows where it will land.
 export const LineGrips = (note: string) =>
   Extension.create({
     name: 'lineGrips',
@@ -246,13 +272,27 @@ export const LineGrips = (note: string) =>
       const mark = document.createElement('div')
       mark.className = 'line-drop'
       mark.hidden = true
+      const into = document.createElement('div')
+      into.className = 'line-into'
+      into.hidden = true
+      // The same box as a note dragged in the tree.
+      const ghost = document.createElement('div')
+      ghost.className = 'line-ghost pointer-events-none fixed z-50 truncate border-2 border-border bg-surface px-3 py-2 font-medium'
+      ghost.hidden = true
+      let follow: ((e: DragEvent) => void) | null = null
       const show = (drop: Drop | null | undefined) => {
-        mark.hidden = !drop
+        mark.hidden = drop?.top == null
+        into.hidden = !drop?.into
         if (!drop) return
         const box = mark.parentElement!.getBoundingClientRect()
-        mark.style.top = `${drop.top - box.top + mark.parentElement!.scrollTop}px`
+        const top = (y: number) => `${y - box.top + mark.parentElement!.scrollTop}px`
+        if (drop.top != null) mark.style.top = top(drop.top)
         mark.style.left = `${drop.left - box.left}px`
         mark.toggleAttribute('data-inside', drop.zone === 'inside')
+        if (!drop.into) return
+        into.style.top = top(drop.into.top)
+        into.style.left = `${drop.into.left - box.left}px`
+        into.style.height = `${drop.into.bottom - drop.into.top}px`
       }
       const target = (view: EditorView, e: DragEvent) => {
         const from = dragged?.line()
@@ -276,21 +316,55 @@ export const LineGrips = (note: string) =>
         el.addEventListener('dragstart', (e) => {
           const at = line()
           if (at == null) return
-          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at)))
-          e.dataTransfer?.setDragImage(el.closest('li')!, 0, 0)
+          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at)).setMeta(held, at))
           dragged = { line, moveTo: (to) => void moveLine(editor, line, note, to) }
+          const row = el.closest('li')!.getBoundingClientRect()
+          ghost.textContent = view.state.doc.nodeAt(at)!.firstChild!.textContent
+          ghost.style.width = `${row.width}px`
+          ghost.hidden = false
+          // A finger's drag is ours, so the box follows it a row above the finger, keeping the line it would land
+          // on in sight. A pointer's is the browser's, which takes a picture of the box.
+          const x = e.clientX - row.left
+          const y = e.clientY - row.top + (e.isTrusted ? 0 : 48)
+          follow = (move) => {
+            ghost.style.left = `${move.clientX - x}px`
+            ghost.style.top = `${move.clientY - y}px`
+          }
+          follow(e)
+          if (!e.isTrusted) return document.addEventListener('dragover', follow)
+          e.dataTransfer?.setDragImage(ghost, x, y)
+          requestAnimationFrame(() => (ghost.hidden = true))
         })
         el.addEventListener('dragend', () => {
           dragged = null
           show(null)
+          if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(held, null))
+          ghost.hidden = true
+          if (follow) document.removeEventListener('dragover', follow)
         })
         return el
       }
       return [
         new Plugin({
+          key: held,
+          // Where the line being dragged is, so it stays dimmed in place.
+          state: {
+            init: () => null as number | null,
+            apply: (tr, at: number | null) => {
+              const meta = tr.getMeta(held) as number | null | undefined
+              return meta !== undefined ? meta : at == null ? null : tr.mapping.map(at)
+            },
+          },
           view: (view) => {
-            view.dom.parentElement!.append(mark)
-            return { destroy: () => mark.remove() }
+            view.dom.parentElement!.append(mark, into)
+            document.body.append(ghost)
+            return {
+              destroy: () => {
+                mark.remove()
+                into.remove()
+                ghost.remove()
+              },
+            }
           },
           props: {
             decorations: (state) => {
@@ -307,6 +381,9 @@ export const LineGrips = (note: string) =>
                   }),
                 )
               })
+              const at = held.getState(state)
+              const line = at == null ? null : state.doc.nodeAt(at)
+              if (line) grips.push(Decoration.node(at!, at! + line.nodeSize, { class: 'line-held' }))
               return DecorationSet.create(state.doc, grips)
             },
             // Off every list line, the editor places the line as it would anything else.

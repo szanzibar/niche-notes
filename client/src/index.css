@@ -108,8 +108,11 @@ body {
 .line-drop { position: absolute; right: 0; height: 3px; margin-top: -2px; background: var(--accent-ink); pointer-events: none; z-index: 10; }
 .line-drop::before { content: ''; position: absolute; left: 0; top: -4px; width: 11px; height: 11px; background: var(--accent-ink); }
 .line-drop[data-inside] { margin-left: 1.75rem; }
+.line-into { position: absolute; right: 0; outline: 2px solid var(--accent-ink); outline-offset: -2px; pointer-events: none; z-index: 10; }
+.editor-body li.line-held { opacity: 0.4; }
+.editor-body:has(.line-held) ::selection { background: transparent; }
 /* The editor's own drop line knows only above and below, so it gives way to this one. */
-:has(> .line-drop:not([hidden])) > :is(.prosemirror-dropcursor-block, .prosemirror-dropcursor-inline) { display: none; }
+:is(:has(> .line-drop:not([hidden])), :has(> .line-into:not([hidden]))) > :is(.prosemirror-dropcursor-block, .prosemirror-dropcursor-inline) { display: none; }
 /* A finger needs a wider grip, reaching left into the margin. */
 @media (pointer: coarse) {
   .editor-body { padding-left: 2.5rem; }
