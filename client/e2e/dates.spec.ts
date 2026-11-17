@@ -277,7 +277,7 @@ test('typed words turn into the date when the note closes or the app goes to the
   await expect(line(page, 'feed cat')).toHaveAttribute('data-due', inDays(0))
 })
 
-test('the tree lists dated lines by when they are due, under their notes, and a tap opens the note at the line', async ({
+test('the tree lists dated lines by when they are due, under their notes, and a tap opens the note or its line', async ({
   browser,
 }) => {
   const name = `alice-${uid()}`
@@ -315,7 +315,7 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await expect(page.getByRole('button', { expanded: true })).toHaveText(['▼Past due1', '▼Today1', '▼Tomorrow1', '▼Later1'])
   await expect(section('Past due')).toContainText('Garden')
   await expect(section('Past due')).toContainText('rake leaves')
-  await expect(section('Today').getByRole('button')).toHaveText('pay rentToday')
+  await expect(section('Today').getByRole('button')).toHaveText(['Chores', 'pay rentToday'])
   await expect(section('Tomorrow')).toContainText('book dentist')
   await expect(section('Later')).toContainText('Garden')
   await expect(section('Later')).toContainText('plant bulbs')
@@ -330,7 +330,7 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await expect(other.getByRole('list', { name: 'Later', exact: true })).toHaveCount(0)
   await expect(other.getByRole('list', { name: 'Today', exact: true })).toContainText('pay rent')
 
-  await section('Today').getByRole('button').click()
+  await section('Today').getByRole('button', { name: /^pay rent/ }).click()
   await expect(page.getByPlaceholder('Title')).toHaveValue('Chores')
   await expect(page.locator('.editor-body')).toBeFocused()
   await page.keyboard.type('!')
@@ -341,6 +341,8 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await expect(due).toHaveText('1')
   await expect(otherDue).toHaveText('1')
   await expect(other.getByRole('list', { name: 'Today', exact: true })).toHaveCount(0)
+  await section('Past due').getByRole('button', { name: 'Garden' }).click()
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Garden')
 
   // A note in the trash has nothing due.
   await due.click()

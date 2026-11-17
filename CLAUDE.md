@@ -72,7 +72,10 @@ Neo-brutalist: bold and direct, not the rounded gray card look.
 - Space Grotesk for type.
 - Icons over words. A button shows an icon, with its name as `aria-label` and `title` (`IconButton`). Words only where no icon reads clearly, such as Restore or Delete forever. A control has no box around it: a word button is underlined (`Button`), and among choices the chosen one is filled with the accent.
 - No explanations on screen. A control says what it does, and a section's details sit behind an info icon beside its name.
-- The accent marks what is on or chosen: a pinned or shared note, an active tool, the selection, a highlight.
+- The accent marks what is on or chosen: a pinned or shared note, an active tool, the selection, a highlight. It never decorates, so a section gets no colored bar.
+- A note looks the same wherever it is listed (`NoteTitle`): its color stripe, title, pin, filled share icon and owner. The tree indents it under its parent, and search adds the matched text under it.
+- A section is a label of small grey capitals under a 2px rule, as Recent, Trash and the due list's days are. One that folds adds a chevron and its count.
+- Before styling something new, reuse the look of the nearest thing of its kind: a listed note, a section, a choice, a drop line.
 - No gradients, glass, transparency or skeleton loaders.
 - Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `bg-tint`, `text-ink`, `text-ink-muted`, `bg-accent`, `text-on-accent`, `text-accent-ink`, `border-border`).
 - Radix UI headless primitives, styled by hand. Not shadcn/ui.

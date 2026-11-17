@@ -375,15 +375,14 @@ export function Tree({ selected }: { selected?: string }) {
                     <button
                       type="button"
                       aria-current={active ? 'page' : undefined}
-                      className={`flex w-full flex-col px-4 py-2 text-left ${active ? 'bg-accent text-on-accent' : i === cursor ? 'bg-bg' : 'hover:bg-bg'} ${i === cursor ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
+                      className={`relative flex w-full flex-col px-4 py-2 text-left ${active ? 'bg-accent text-on-accent' : i === cursor ? 'bg-bg' : 'hover:bg-bg'} ${i === cursor ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
                       onClick={() => {
                         setCursor(i)
                         openNote(hit.id)
                       }}
                     >
                       <span className="flex w-full items-baseline gap-2">
-                        <span className="truncate font-medium">{titleOf(hit.id)}</span>
-                        {!isMine(hit.id) && <span className={`shrink-0 text-xs ${muted}`}>{ownerName(hit.id)}</span>}
+                        <NoteTitle id={hit.id} active={active} />
                         {inTrash(hit.id) && <span className={`shrink-0 text-xs ${muted}`}>trash</span>}
                       </span>
                       {hit.snippet && <span className={`w-full truncate text-xs ${muted}`}>{hit.snippet}</span>}
@@ -400,12 +399,11 @@ export function Tree({ selected }: { selected?: string }) {
             [...sections].map(
               ([name, notes]) =>
                 notes.size > 0 && (
-                  // Bars overlap by their border, so two in a row show one line between them.
-                  <section key={name} className="-mt-0.5">
+                  <section key={name} className="border-t-2 border-border first:border-t-0">
                     <button
                       type="button"
                       aria-expanded={!dueCollapsed.includes(name)}
-                      className="flex w-full items-center gap-2 border-y-2 border-border bg-accent px-4 py-2 text-left font-bold text-on-accent"
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-wide text-ink-muted"
                       onClick={() =>
                         prefs.set(
                           'dueCollapsed',
@@ -413,25 +411,29 @@ export function Tree({ selected }: { selected?: string }) {
                         )
                       }
                     >
-                      <span aria-hidden className="w-4 text-xs">{dueCollapsed.includes(name) ? '▶' : '▼'}</span>
+                      <span aria-hidden>{dueCollapsed.includes(name) ? '▶' : '▼'}</span>
                       {name}
-                      <span className="text-sm text-on-accent/80">{[...notes.values()].flat().length}</span>
+                      <span>{[...notes.values()].flat().length}</span>
                     </button>
                     {!dueCollapsed.includes(name) && (
                       <ul aria-label={name} className="pb-2">
                         {[...notes].map(([id, lines]) => (
                           <li key={id}>
-                            <p className="truncate px-4 pt-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
-                              {titleOf(id)}
-                            </p>
+                            <button
+                              type="button"
+                              className="relative flex w-full items-baseline gap-2 px-4 py-3 text-left hover:bg-bg"
+                              onClick={() => showNote(id)}
+                            >
+                              <NoteTitle id={id} />
+                            </button>
                             {lines.map((line, i) => (
                               <button
                                 key={i}
                                 type="button"
-                                className="flex w-full items-baseline gap-2 px-4 py-2 text-left hover:bg-bg"
+                                className="flex w-full items-baseline gap-2 py-2 pr-4 pl-8 text-left hover:bg-bg"
                                 onClick={() => showNote(id, line.text)}
                               >
-                                <span className="min-w-0 flex-1 truncate font-medium">{line.text}</span>
+                                <span className="min-w-0 flex-1 truncate">{line.text}</span>
                                 <span
                                   className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}
                                 >
@@ -464,11 +466,10 @@ export function Tree({ selected }: { selected?: string }) {
               <li key={id}>
                 <button
                   type="button"
-                  className="flex w-full min-w-0 items-baseline gap-2 py-3 pr-3 pl-8 text-left text-sm hover:bg-bg pointer-coarse:pl-15"
+                  className="relative flex w-full min-w-0 items-baseline gap-2 px-4 py-3 text-left hover:bg-bg"
                   onClick={() => openNote(id)}
                 >
-                  <span className="truncate font-medium">{titleOf(id)}</span>
-                  {!isMine(id) && <span className="shrink-0 text-xs text-ink-muted">{ownerName(id)}</span>}
+                  <NoteTitle id={id} />
                 </button>
               </li>
             ))}
@@ -528,7 +529,7 @@ export function Tree({ selected }: { selected?: string }) {
   )
 }
 
-// A trashed note reads like a row, its title in line with theirs, with Restore and the final action where the + would be.
+// A trashed note reads like any listed note, with Restore and the final action at its end.
 function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const navigate = useNavigate()
   const showNote = useShowNote()
@@ -536,7 +537,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
   const active = selected === id
   return (
     <div
-      className={`flex items-center gap-3 pr-3 pl-8 text-sm pointer-coarse:pl-15 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'}`}
+      className={`relative flex items-center gap-3 px-4 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'}`}
     >
       <button
         type="button"
@@ -544,17 +545,14 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
         className="flex min-w-0 flex-1 items-baseline gap-2 py-3 text-left"
         onClick={() => showNote(id)}
       >
-        <span className="truncate font-medium">{titleOf(id)}</span>
-        {!isMine(id) && (
-          <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{ownerName(id)}</span>
-        )}
+        <NoteTitle id={id} active={active} />
       </button>
-      <button type="button" className="shrink-0 underline" onClick={() => restoreNote(id)}>
+      <button type="button" className="shrink-0 text-sm underline" onClick={() => restoreNote(id)}>
         Restore
       </button>
       <button
         type="button"
-        className="shrink-0 underline disabled:opacity-40"
+        className="shrink-0 text-sm underline disabled:opacity-40"
         disabled={!s.online}
         onClick={() => {
           void purgeNote(id)
@@ -564,6 +562,29 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
         {isMine(id) ? 'Delete forever' : 'Leave for good'}
       </button>
     </div>
+  )
+}
+
+// A note looks the same wherever it is listed: its color beside it, moving in with its nesting, then its title, pin,
+// share and owner. The row it sits in is positioned, for the color.
+function NoteTitle({ id, depth = 0, active = false }: { id: string; depth?: number; active?: boolean }) {
+  const color = noteTheme(id)?.color
+  return (
+    <>
+      {color && (
+        <span className="pointer-events-none absolute inset-y-0 w-1.5" style={{ left: 4 + depth * INDENT, background: color }} />
+      )}
+      <span className="truncate font-medium">{titleOf(id)}</span>
+      {isPinned(id) && <PinIcon filled className={`h-3.5 w-3.5 shrink-0 self-center ${active ? '' : 'text-accent-ink'}`} />}
+      {(!isMine(id) || shareCount(id) > 0) && (
+        <span role="img" aria-label="Shared" title="Shared" className={`shrink-0 self-center ${active ? '' : 'text-accent-ink'}`}>
+          <UsersIcon filled className="h-3.5 w-3.5" />
+        </span>
+      )}
+      {!isMine(id) && (
+        <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{ownerName(id)}</span>
+      )}
+    </>
   )
 }
 
@@ -606,7 +627,6 @@ function Row({
   const open = !isCollapsed(id)
   // While notes are picked, the fill marks them instead of the open note.
   const active = picked.size > 0 ? picked.has(id) : selected === id
-  const color = noteTheme(id)?.color
   const line = mark?.line?.row === id ? mark.line : null
   const into = mark?.into === id
 
@@ -634,13 +654,6 @@ function Row({
             data-drop-line
             className={`pointer-events-none absolute right-0 h-[3px] before:absolute before:-top-1 before:left-0 before:h-[11px] before:w-[11px] before:content-[''] ${line.edge === 'top' ? 'top-0' : 'bottom-0'} ${active ? 'bg-ink before:bg-ink' : 'bg-accent-ink before:bg-accent-ink'}`}
             style={{ left: 4 + line.depth * INDENT }}
-          />
-        )}
-        {/* The note's color sits beside its grip and moves in with its nesting. */}
-        {color && (
-          <span
-            className="pointer-events-none absolute inset-y-0 w-1.5"
-            style={{ left: 4 + depth * INDENT, background: color }}
           />
         )}
         <span
@@ -673,18 +686,7 @@ function Row({
           className="flex min-w-0 flex-1 touch-manipulation items-baseline gap-2 py-3 text-left"
           onClick={(e) => onPick(id, e)}
         >
-          <span className="truncate font-medium">{titleOf(id)}</span>
-          {isPinned(id) && (
-            <PinIcon filled className={`h-3.5 w-3.5 shrink-0 self-center ${active ? '' : 'text-accent-ink'}`} />
-          )}
-          {(!isMine(id) || shareCount(id) > 0) && (
-            <span role="img" aria-label="Shared" title="Shared" className={`shrink-0 self-center ${active ? '' : 'text-accent-ink'}`}>
-              <UsersIcon filled className="h-3.5 w-3.5" />
-            </span>
-          )}
-          {!isMine(id) && (
-            <span className={`shrink-0 text-xs ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}>{ownerName(id)}</span>
-          )}
+          <NoteTitle id={id} depth={depth} active={active} />
         </button>
         {!store.me!.guest && (
           <button
