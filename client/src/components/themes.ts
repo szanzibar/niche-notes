@@ -44,7 +44,7 @@ export function appTheme(open: string | undefined): Theme {
   const shown =
     open ??
     (confetti()
-      ? [localStorage.getItem('lastNote'), children(null)[0]].find((id) => id && nodes().has(id) && !inTrash(id))
+      ? [JSON.parse(localStorage.getItem('recent') ?? '[]')[0], children(null)[0]].find((id) => id && nodes().has(id) && !inTrash(id))
       : undefined)
   return (shown && noteTheme(shown)) || byColor(settings().get('accent')) || THEMES[0]
 }

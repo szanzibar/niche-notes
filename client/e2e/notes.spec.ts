@@ -105,6 +105,18 @@ test('a note opened while another is open takes its place, so back returns to th
   await expect(page.getByText('Pick a note, or make a new one.')).toBeVisible()
 })
 
+test('Recent leaves out the open note, so its top row goes back to the note before', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Groceries')
+  await newNote(page, 'Chores')
+  await page.getByRole('button', { name: 'Recent', exact: true }).click()
+  const recent = page.getByRole('list', { name: 'Recent' }).getByRole('button')
+  await expect(recent).toHaveText(['Groceries'])
+  await recent.first().click()
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Groceries')
+  await expect(recent).toHaveText(['Chores'])
+})
+
 test('deleting a note with notes under it asks whether they go too, and notes deleted together come back together', async ({
   browser,
 }) => {

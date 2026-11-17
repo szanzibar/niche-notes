@@ -88,8 +88,11 @@ function Shell() {
   useY(nodes())
   const theme = prefs.get('theme') as string | undefined
   const { color, text } = appTheme(noteId)
+  // The notes opened on this device, the last one first, for the tree's Recent list.
   useEffect(() => {
-    if (noteId) localStorage.setItem('lastNote', noteId)
+    if (!noteId) return
+    const recent = JSON.parse(localStorage.getItem('recent') ?? '[]') as string[]
+    localStorage.setItem('recent', JSON.stringify([noteId, ...recent.filter((id) => id !== noteId)].slice(0, 50)))
   }, [noteId])
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', color)

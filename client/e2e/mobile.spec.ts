@@ -205,3 +205,26 @@ test('on a phone, back from a search result marks that result, not the first one
     await expect(page.getByRole('option', { selected: true })).toContainText(title)
   }
 })
+
+test('on a phone, Recent under the list goes back to a note opened before, the last one first', async ({ browser }) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  for (const title of ['Groceries', 'Chores']) {
+    await page.getByRole('button', { name: 'New note', exact: true }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(title)
+    await page.getByRole('button', { name: 'Back' }).click()
+  }
+  const recent = page.getByRole('list', { name: 'Recent' }).getByRole('button')
+  await expect(recent).toHaveCount(0)
+  await page.getByRole('button', { name: 'Recent', exact: true }).tap()
+  await expect(recent).toHaveText(['Chores', 'Groceries'])
+
+  await recent.last().tap()
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Groceries')
+  await page.getByRole('button', { name: 'Back' }).click()
+  await expect(recent).toHaveText(['Groceries', 'Chores'])
+
+  // The list stays open on this device.
+  await page.reload()
+  await expect(recent).toHaveText(['Groceries', 'Chores'])
+})

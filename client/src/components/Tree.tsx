@@ -44,7 +44,7 @@ import {
 } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
-import { CalendarIcon, CheckedIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
+import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon } from './icons'
 import { draggedLine } from './lists'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -144,6 +144,11 @@ export function Tree({ selected }: { selected?: string }) {
   const roots = children(null)
   const trash = trashed()
   const [trashOpen, setTrashOpen] = useState(false)
+  // The notes last opened on this device, without the open one. Whether the list shows stays with the device too.
+  const recent = (JSON.parse(localStorage.getItem('recent') ?? '[]') as string[]).filter(
+    (id) => id !== selected && nodes().has(id) && !inTrash(id),
+  )
+  const [recentOpen, setRecentOpen] = useState(localStorage.getItem('recentOpen') === 'true')
   const [query, setQuery] = useState('')
   // The row arrow keys and Enter act on. Opening a result moves it there too, so the arrows go on from the open note.
   const [cursor, setCursor] = useState(0)
@@ -456,6 +461,25 @@ export function Tree({ selected }: { selected?: string }) {
           </>
         )}
       </nav>
+      {recentOpen && recent.length > 0 && (
+        <section className="max-h-64 shrink-0 overflow-y-auto border-t-2 border-border">
+          <p className="px-4 pt-2 text-xs font-bold uppercase tracking-wide text-ink-muted">Recent</p>
+          <ul aria-label="Recent">
+            {recent.map((id) => (
+              <li key={id}>
+                <button
+                  type="button"
+                  className="flex w-full min-w-0 items-baseline gap-2 py-3 pr-3 pl-8 text-left text-sm hover:bg-bg pointer-coarse:pl-15"
+                  onClick={() => openNote(id)}
+                >
+                  <span className="truncate font-medium">{titleOf(id)}</span>
+                  {!isMine(id) && <span className="shrink-0 text-xs text-ink-muted">{ownerName(id)}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {trashOpen && trash.length > 0 && (
         <section className="max-h-64 shrink-0 overflow-y-auto border-t-2 border-border">
           <p className="px-4 pt-2 text-xs font-bold uppercase tracking-wide text-ink-muted">Trash</p>
@@ -466,6 +490,19 @@ export function Tree({ selected }: { selected?: string }) {
       )}
       <footer className="flex items-center gap-1 border-t-2 border-border py-1 pl-4 pr-2 text-sm">
         <span className="flex-1 truncate">{s.me!.name}</span>
+        {recent.length > 0 && (
+          <IconButton
+            label="Recent"
+            aria-expanded={recentOpen}
+            className={recentOpen ? 'text-accent-ink' : ''}
+            onClick={() => {
+              localStorage.setItem('recentOpen', String(!recentOpen))
+              setRecentOpen(!recentOpen)
+            }}
+          >
+            <ClockIcon />
+          </IconButton>
+        )}
         {trash.length > 0 && (
           <IconButton
             label={`Trash (${trash.length})`}

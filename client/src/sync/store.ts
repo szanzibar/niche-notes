@@ -357,6 +357,7 @@ async function pullBatch(ids: string[]) {
 export async function wipeLocal() {
   await db.delete()
   localStorage.removeItem('session')
+  localStorage.removeItem('recent')
 }
 
 export function openDoc(id: string): Promise<Y.Doc> {
