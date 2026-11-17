@@ -1,12 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { alertPermission, enableAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
 import { useY } from '../sync/hooks'
 import { store } from '../sync/store'
 import { settings } from '../sync/tree'
-import { importAmplenote } from './amplenote'
 import { Button, IconButton } from './Button'
 import { InfoIcon, SettingsIcon } from './icons'
 import { THEMES } from './themes'
@@ -47,8 +46,6 @@ export function SettingsDialog() {
   // The Google account whose calendar holds the dated lines, or null before Settings hears from the server.
   const [google, setGoogle] = useState<{ email: string | null } | null>(null)
   const [alerts, setAlerts] = useState(alertPermission)
-  const zip = useRef<HTMLInputElement>(null)
-  const [importMessage, setImportMessage] = useState<string | null>(null)
   const open = (opened: boolean) => {
     if (!opened) return
     setAlerts(alertPermission())
@@ -150,7 +147,7 @@ export function SettingsDialog() {
               {alerts === 'denied' && <p className="text-sm text-ink-muted">Blocked on this device.</p>}
             </>
           )}
-          {/* A guest has one note, so no calendar of their own and nothing to import into. */}
+          {/* A guest has one note, so no calendar of their own. */}
           {!store.me!.guest && (
             <>
               <div className="mb-2 mt-5 flex items-center">
@@ -178,26 +175,6 @@ export function SettingsDialog() {
                   Connect Google Calendar
                 </Button>
               )}
-              <p className="mb-2 mt-5 font-medium">Import</p>
-              <input
-                ref={zip}
-                type="file"
-                accept=".zip"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  setImportMessage('Importing…')
-                  importAmplenote(file).then(
-                    (count) => setImportMessage(`Imported ${count} notes into Amplenote import.`),
-                    () => setImportMessage("That file isn't an Amplenote export."),
-                  )
-                }}
-              />
-              <Button disabled={importMessage === 'Importing…'} onClick={() => zip.current?.click()}>
-                Import from Amplenote
-              </Button>
-              {importMessage && <p className="mt-2 text-sm text-ink-muted">{importMessage}</p>}
             </>
           )}
           <Dialog.Close asChild>
