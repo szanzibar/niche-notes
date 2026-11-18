@@ -623,13 +623,13 @@ export const TaskItem = TipTapTaskItem.extend({
         props: {
           handleKeyDown: (view, e) => {
             const words = typedWords.getState(view.state)
-            if (e.key !== 'Escape' || !words || words.alone) return false
+            if (e.key !== 'Escape' || !words) return false
             view.dispatch(view.state.tr.setMeta(typedWords, 'keep'))
             return true
           },
           decorations: (state) => {
             const words = typedWords.getState(state)
-            if (!words || words.alone) return null
+            if (!words) return null
             const $from = state.doc.resolve(words.from)
             const { due, repeat } = withTyped($from.node(-1).attrs, words)
             return DecorationSet.create(state.doc, [

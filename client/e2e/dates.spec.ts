@@ -209,11 +209,12 @@ test('words typed as a date turn into the date of their line once it is left', a
   await page.keyboard.press('Enter')
   await expect(line(page, 'buy coffee')).toHaveAttribute('data-due', `${inDays(1)}T17:00`)
 
-  // A date with nothing beside it is a line about that day, not a task for it.
-  await page.keyboard.type('Friday')
-  await expect(typed).toHaveCount(0)
+  // Typed first, the words stay marked while the line is nothing but a date, as the rest of it may follow. Left
+  // that way, it is a line about that day, not a task for it.
+  await page.keyboard.type('Friday at 7')
+  await expect(typed).toHaveText('Friday at 7')
   await page.keyboard.press('Enter')
-  await expect(line(page, 'Friday')).not.toHaveAttribute('data-due')
+  await expect(line(page, 'Friday at 7')).not.toHaveAttribute('data-due')
 })
 
 test('the chip or Escape keeps typed words as words, and Undo brings them back', async ({ browser }) => {
