@@ -55,6 +55,7 @@ defmodule NicheNotes.Reminders do
         at = due_at(date, line.time, subscription.time_zone),
         DateTime.after?(at, from) and not DateTime.after?(at, now) do
       text = String.slice(line.text, 0, 200)
+      next = line.repeat && next(line.repeat, line.date, date)
 
       # Each day gets its own tag, since one that matches yesterday's alert replaces it without a sound.
       Push.send(subscription, %{
@@ -64,7 +65,9 @@ defmodule NicheNotes.Reminders do
         tag: "#{id} #{date} #{line.time} #{text}",
         due: line.due,
         text: text,
-        repeat: line.repeat
+        repeat: line.repeat,
+        # Where Done moves a repeating line, at its time, for an app that can't read the rule itself.
+        next: next && String.replace(line.due, ~r/^[\d-]+/, Date.to_iso8601(next))
       })
     end
 
@@ -95,6 +98,17 @@ defmodule NicheNotes.Reminders do
   end
 
   @days ~w(MO TU WE TH FR SA SU)
+
+  # The rule's first day after `from`, or after `start` when that is later, as the app's `nextDue` in dates.ts
+  # finds it. Five years without one means the rule never comes round.
+  @doc false
+  def next(rule, start, from) do
+    Enum.max([start, from], Date)
+    |> Stream.iterate(&Date.add(&1, 1))
+    |> Stream.drop(1)
+    |> Stream.take(5 * 366)
+    |> Enum.find(&occurs?(rule, start, &1))
+  end
 
   # Whether `date` is one of the rule's days, counting intervals from `start`. The app's `occurs` in
   # dates.ts says the same, and the tests hold both to the same cases.

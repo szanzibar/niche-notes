@@ -118,6 +118,9 @@ defmodule NicheNotes.RemindersTest do
       Plug.Conn.send_resp(conn, 201, "")
     end)
 
+    # A desktop app, whose alerts arrive as they are, in the clear.
+    :ok = Push.listen(me.id, "Europe/Amsterdam")
+
     # Monday at 9:00 in Amsterdam, 8:00 UTC, both lines come due and nobody ticks them.
     state =
       Reminders.pass(
@@ -128,6 +131,8 @@ defmodule NicheNotes.RemindersTest do
     assert_received :push
     assert_received :push
     refute_received :push
+    assert_received {:alert, %{text: "Vitamins", next: "2026-11-17T09:00"}}
+    assert_received {:alert, %{text: "Bins", next: "2026-11-23T09:00"}}
 
     # Tuesday only the daily line comes round again.
     Reminders.pass(%{state | at: ~U[2026-11-17 07:00:00Z]}, ~U[2026-11-17 08:30:00Z])
@@ -138,14 +143,7 @@ defmodule NicheNotes.RemindersTest do
   test "the server reads repeat rules the way the app does" do
     # The app's own cases in dates.spec.ts, from Monday 16 November 2026: the rule's first day after today, or
     # after the line's date when that is later.
-    next = fn due, rule, today ->
-      start = Date.from_iso8601!(due)
-
-      Enum.max([start, today], Date)
-      |> Date.add(1)
-      |> Stream.iterate(&Date.add(&1, 1))
-      |> Enum.find(&Reminders.occurs?(rule, start, &1))
-    end
+    next = fn due, rule, today -> Reminders.next(rule, Date.from_iso8601!(due), today) end
 
     today = ~D[2026-11-16]
     assert next.("2026-11-16", "FREQ=WEEKLY;BYDAY=MO,TH", today) == ~D[2026-11-19]
