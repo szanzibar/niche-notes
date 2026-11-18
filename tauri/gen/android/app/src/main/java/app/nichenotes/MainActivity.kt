@@ -55,11 +55,27 @@ class MainActivity : TauriActivity() {
       if (view?.url?.contains("/n/") == true) {
         view.requestFocus()
         // The cursor lands in the note a moment after the note's address.
-        view.postDelayed({ getSystemService(InputMethodManager::class.java).showSoftInput(view, 0) }, 300)
+        view.postDelayed({
+          getSystemService(InputMethodManager::class.java).showSoftInput(view, 0)
+          lowerKeyboardOnLeaving(view)
+        }, 300)
       } else if (tries > 0) {
         raiseKeyboard(link, tries - 1)
       }
     }, 100)
+  }
+
+  // The page lowers only a keyboard it raised itself, so the one raised here comes down once nothing on the page
+  // takes text, as when Back in the note's header goes to the list.
+  private fun lowerKeyboardOnLeaving(view: WebView) {
+    view.postDelayed({
+      val up = ViewCompat.getRootWindowInsets(view)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+      if (up && !view.onCheckIsTextEditor()) {
+        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(view.windowToken, 0)
+      } else if (up) {
+        lowerKeyboardOnLeaving(view)
+      }
+    }, 250)
   }
 
   // Leaving the app refreshes every widget, so it shows what was just written.
