@@ -7,8 +7,9 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 # A config change needs a Phoenix restart, and a stale Vite would push the new one to another port.
 lsof -ti :4100 -ti :5173 | xargs kill 2>/dev/null || true
 
-# Connect Google Calendar needs the Google client from the repo's .env. The rest of that file is prod's.
-set -a; source <(grep '^GOOGLE_' "$ROOT/.env" 2>/dev/null); set +a
+# Connect Google Calendar needs the Google client from the repo's .env, and the Android app's alerts the Firebase
+# account. The rest of that file is prod's.
+set -a; source <(grep -E '^(GOOGLE|FIREBASE)_' "$ROOT/.env" 2>/dev/null); set +a
 
 # +Bi has Phoenix ignore Ctrl-C and stop on the kill below instead, which closes the database. One it did not
 # close looks like a restored backup, and every device then sends all its notes again.

@@ -84,4 +84,70 @@ defmodule NicheNotes.PushTest do
     Push.send(device, %{title: "Pay rent"})
     assert Push.subscriptions([me.id]) == []
   end
+
+  test "the Android app's alerts go to Firebase as the service account, and a token Firebase forgot is dropped" do
+    me = user!("me")
+    assert {:error, _} = Push.subscribe(me.id, %{"fcm" => ""}, "America/Denver")
+    {:ok, device} = Push.subscribe(me.id, %{"fcm" => "phone"}, "America/Denver")
+
+    key = :public_key.generate_key({:rsa, 2048, 65537})
+
+    account = %{
+      "project_id" => "niche",
+      "client_email" => "alerts@niche.iam.gserviceaccount.com",
+      "token_uri" => "https://oauth2.googleapis.com/token",
+      "private_key" =>
+        :public_key.pem_encode([:public_key.pem_entry_encode(:PrivateKeyInfo, key)])
+    }
+
+    Application.put_env(
+      :niche_notes,
+      :firebase_service_account,
+      account |> Jason.encode!() |> Base.encode64()
+    )
+
+    on_exit(fn -> Application.put_env(:niche_notes, :firebase_service_account, nil) end)
+    test = self()
+
+    Req.Test.stub(Push, fn
+      %{host: "oauth2.googleapis.com"} = conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test, {:grant, URI.decode_query(body)})
+        Req.Test.json(conn, %{"access_token" => "an hour"})
+
+      conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test, {:firebase, conn, Jason.decode!(body)})
+        Req.Test.json(conn, %{})
+    end)
+
+    assert :ok = Push.send(device, %{title: "Pay rent", note: "n1", repeat: nil})
+
+    assert_received {:grant, %{"assertion" => jwt}}
+    [header, claims, signature] = String.split(jwt, ".")
+    public = {:RSAPublicKey, elem(key, 2), elem(key, 3)}
+    assert :public_key.verify(header <> "." <> claims, :sha256, decode(signature), public)
+
+    assert %{
+             "iss" => "alerts@niche.iam.gserviceaccount.com",
+             "aud" => "https://oauth2.googleapis.com/token"
+           } =
+             Jason.decode!(decode(claims))
+
+    assert_received {:firebase, conn, %{"message" => %{"token" => "phone", "data" => data}}}
+    assert conn.request_path == "/v1/projects/niche/messages:send"
+    assert get_req_header(conn, "authorization") == ["Bearer an hour"]
+    assert data == %{"title" => "Pay rent", "note" => "n1"}
+
+    Req.Test.stub(Push, fn
+      %{host: "oauth2.googleapis.com"} = conn ->
+        Req.Test.json(conn, %{"access_token" => "an hour"})
+
+      conn ->
+        send_resp(conn, 404, "")
+    end)
+
+    Push.send(device, %{title: "Pay rent"})
+    assert Push.subscriptions([me.id]) == []
+  end
 end

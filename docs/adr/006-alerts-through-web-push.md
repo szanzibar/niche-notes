@@ -13,3 +13,7 @@ Calendars first subscribed to an iCalendar feed. ADR 007 replaced it with events
 The desktop app's webviews have no Web Push, and Firebase has no desktop client. So the app joins the `alerts:<user id>` channel with its time zone and counts as one more subscription while it stays connected: every alert the server sends reaches it as it is sent, a due line and a shared note alike. The app holds the socket itself, in Rust, because a hidden webview is suspended after about five minutes and Tauri can prevent that only on macOS. It signs in with the window's session cookie, so there is no second credential.
 
 An alert sent while the computer is off or asleep goes nowhere, since the phone gets it too and nobody wants stale alerts on coming back. A click on a desktop alert opens the note at its line. It has no Done or Snooze yet.
+
+## Amendment 2026-11-18: the Android app on Tauri gets its alerts through Firebase
+
+A webview of our own has no Web Push, so the Android app on Tauri subscribes with its Firebase token, and the server sends its alerts through Firebase Cloud Messaging as the service account in `FIREBASE_SERVICE_ACCOUNT`. The server sends only data and the app draws each alert itself, so every alert shows on its own and a tap opens the note at its line. It has no Done or Snooze yet. The TWA keeps Web Push.

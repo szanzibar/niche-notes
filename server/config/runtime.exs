@@ -4,6 +4,9 @@ import Config
 port = System.get_env("PORT", if(config_env() == :prod, do: "4000", else: "4100"))
 config :niche_notes, NicheNotesWeb.Endpoint, http: [port: String.to_integer(port)]
 
+# The Android app's alerts go through Firebase as this service account, its JSON key in base64.
+config :niche_notes, :firebase_service_account, System.get_env("FIREBASE_SERVICE_ACCOUNT")
+
 if config_env() == :prod do
   host = System.fetch_env!("PHX_HOST")
 

@@ -1,10 +1,13 @@
 defmodule NicheNotes.Push do
   @moduledoc """
   Web Push to every device where someone allowed alerts. On Android, Chrome hands each push to our app, which
-  shows it as its own, so no Firebase project is involved.
+  shows it as its own.
 
   The signing key comes from SECRET_KEY_BASE, so there is nothing to configure. Changing that secret signs
   everyone out anyway, and each device subscribes again on its next launch.
+
+  The Android app on Tauri has no Web Push, so its alerts go through Firebase, as the service account in
+  FIREBASE_SERVICE_ACCOUNT.
 
   A desktop app has no Web Push, so it listens on the socket and gets each alert as it is sent. One sent
   while the computer is off goes nowhere, because the phone has it too and nobody wants stale alerts on
@@ -16,26 +19,11 @@ defmodule NicheNotes.Push do
   alias NicheNotes.Push.Subscription
 
   # Each launch sends the device's subscription again, so its time zone stays current.
-  def subscribe(
-        user_id,
-        %{
-          "endpoint" => "https://" <> _ = endpoint,
-          "keys" => %{"p256dh" => p256dh, "auth" => auth}
-        },
-        time_zone
-      )
-      when is_binary(p256dh) and is_binary(auth) and is_binary(time_zone) do
+  def subscribe(user_id, subscription, time_zone) when is_binary(time_zone) do
     with {:ok, _} <- DateTime.now(time_zone),
-         {:ok, <<4, _::binary-64>>} <- Base.url_decode64(p256dh, padding: false),
-         {:ok, <<_::binary-16>>} <- Base.url_decode64(auth, padding: false) do
+         {:ok, %Subscription{} = subscription} <- parse(subscription) do
       Repo.insert(
-        %Subscription{
-          endpoint: endpoint,
-          user_id: user_id,
-          p256dh: p256dh,
-          auth: auth,
-          time_zone: time_zone
-        },
+        %{subscription | user_id: user_id, time_zone: time_zone},
         on_conflict: {:replace, [:user_id, :p256dh, :auth, :time_zone, :updated_at]},
         conflict_target: :endpoint
       )
@@ -45,6 +33,24 @@ defmodule NicheNotes.Push do
   end
 
   def subscribe(_user_id, _subscription, _time_zone), do: {:error, :subscription}
+
+  defp parse(%{
+         "endpoint" => "https://" <> _ = endpoint,
+         "keys" => %{"p256dh" => p256dh, "auth" => auth}
+       })
+       when is_binary(p256dh) and is_binary(auth) do
+    with {:ok, <<4, _::binary-64>>} <- Base.url_decode64(p256dh, padding: false),
+         {:ok, <<_::binary-16>>} <- Base.url_decode64(auth, padding: false) do
+      {:ok, %Subscription{endpoint: endpoint, p256dh: p256dh, auth: auth}}
+    end
+  end
+
+  # The Android app's Firebase token. Firebase encrypts on its own, so the token has no keys, and the columns
+  # SQLite keeps required stay empty.
+  defp parse(%{"fcm" => token}) when is_binary(token) and token != "",
+    do: {:ok, %Subscription{endpoint: "fcm:" <> token, p256dh: "", auth: ""}}
+
+  defp parse(_subscription), do: :error
 
   # The calling process is one more device of this person's for as long as it lives, and gets each alert as
   # `{:alert, message}`.
@@ -71,18 +77,7 @@ defmodule NicheNotes.Push do
   # Kept for a day, so a phone that was off still gets it when it comes back. A device that unsubscribed
   # is forgotten.
   def send(%Subscription{} = subscription, message) do
-    body = encrypt(Jason.encode!(message), decode(subscription.p256dh), decode(subscription.auth))
-
-    headers = [
-      {"authorization", vapid(subscription.endpoint)},
-      {"content-encoding", "aes128gcm"},
-      {"ttl", "86400"},
-      {"urgency", "high"}
-    ]
-
-    request = [body: body, headers: headers] ++ Application.get_env(:niche_notes, :push_req, [])
-
-    case Req.post(subscription.endpoint, request) do
+    case post(subscription, message) do
       {:ok, %{status: status}} when status in 200..299 ->
         :ok
 
@@ -93,6 +88,54 @@ defmodule NicheNotes.Push do
       failed ->
         Logger.warning("push to #{subscription.endpoint} failed: #{inspect(failed)}")
     end
+  end
+
+  # The app shows the alert itself, so Firebase gets only data, which it takes as strings.
+  defp post(%Subscription{endpoint: "fcm:" <> token}, message) do
+    account =
+      Application.fetch_env!(:niche_notes, :firebase_service_account)
+      |> Base.decode64!()
+      |> Jason.decode!()
+
+    data = for {key, value} <- message, value != nil, into: %{}, do: {key, to_string(value)}
+
+    grant = [
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: assertion(account)
+    ]
+
+    # A new access token for each alert, which a family's few a day can afford.
+    with {:ok, %{status: 200, body: %{"access_token" => access}}} <-
+           Req.post(
+             account["token_uri"],
+             [form: grant] ++ Application.get_env(:niche_notes, :push_req, [])
+           ) do
+      Req.post(
+        "https://fcm.googleapis.com/v1/projects/#{account["project_id"]}/messages:send",
+        [
+          auth: {:bearer, access},
+          json: %{
+            message: %{token: token, data: data, android: %{priority: "high", ttl: "86400s"}}
+          }
+        ] ++ Application.get_env(:niche_notes, :push_req, [])
+      )
+    end
+  end
+
+  defp post(subscription, message) do
+    body = encrypt(Jason.encode!(message), decode(subscription.p256dh), decode(subscription.auth))
+
+    headers = [
+      {"authorization", vapid(subscription.endpoint)},
+      {"content-encoding", "aes128gcm"},
+      {"ttl", "86400"},
+      {"urgency", "high"}
+    ]
+
+    Req.post(
+      subscription.endpoint,
+      [body: body, headers: headers] ++ Application.get_env(:niche_notes, :push_req, [])
+    )
   end
 
   @doc false
@@ -134,6 +177,23 @@ defmodule NicheNotes.Push do
     der = :crypto.sign(:ecdsa, :sha256, input, [private, :prime256v1])
     {:"ECDSA-Sig-Value", r, s} = :public_key.der_decode(:"ECDSA-Sig-Value", der)
     "vapid t=#{input}.#{encode(<<r::256, s::256>>)}, k=#{encode(public)}"
+  end
+
+  # RFC 7523: Google trades a claim signed with the service account's key for an hour's access.
+  defp assertion(%{"client_email" => email, "private_key" => pem, "token_uri" => audience}) do
+    now = System.system_time(:second)
+
+    claims = %{
+      iss: email,
+      scope: "https://www.googleapis.com/auth/firebase.messaging",
+      aud: audience,
+      iat: now,
+      exp: now + 3600
+    }
+
+    input = encode(~s({"alg":"RS256","typ":"JWT"})) <> "." <> encode(Jason.encode!(claims))
+    [key] = :public_key.pem_decode(pem)
+    input <> "." <> encode(:public_key.sign(input, :sha256, :public_key.pem_entry_decode(key)))
   end
 
   defp keys do
