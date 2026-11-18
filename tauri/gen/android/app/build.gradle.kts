@@ -24,7 +24,8 @@ android {
         minSdk = 31
         // The server the widgets read, the same one the Rust side opens.
         resValue("string", "site", System.getenv("PHX_HOST")?.let { "https://$it" } ?: "http://localhost:5173")
-        targetSdk = 37
+        // 37 needs a permission prompt to reach the server on a home network whose DNS points at it.
+        targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }

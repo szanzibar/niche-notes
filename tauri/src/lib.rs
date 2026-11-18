@@ -10,11 +10,25 @@ mod desktop;
 
 use std::sync::Mutex;
 use tauri::webview::NewWindowResponse;
+#[cfg(mobile)]
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 
 const ORIGIN: &str = env!("ORIGIN");
+
+/// Whether the window's first page has started loading, and the link waiting for it. Android starts that page only
+/// once the window is on screen, after it has handed over the link the app was opened with, so that link waits.
+#[cfg(mobile)]
+static FIRST_PAGE: Mutex<(bool, Option<Url>)> = Mutex::new((false, None));
+
+/// In place of the page on screen, so Back goes from the link's note to the list and then leaves, as after a tap.
+#[cfg(mobile)]
+fn replace_page(window: &tauri::WebviewWindow, url: Url) {
+    let url = serde_json::to_string(url.as_str()).unwrap();
+    let _ = window.eval(format!("location.replace({url})"));
+}
 
 fn page(path: &str) -> Url {
     Url::parse(ORIGIN).unwrap().join(path).unwrap()
@@ -35,6 +49,12 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
 
         if let Some(window) = app.get_webview_window("main") {
             if let Some(url) = url {
+                #[cfg(mobile)]
+                match &mut *FIRST_PAGE.lock().unwrap() {
+                    (false, waiting) => *waiting = Some(url),
+                    (true, _) => replace_page(&window, url),
+                }
+                #[cfg(desktop)]
                 let _ = window.navigate(url);
             }
             #[cfg(desktop)]
@@ -69,6 +89,17 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
                 });
         #[cfg(desktop)]
         let window = desktop::window(app, window);
+        #[cfg(mobile)]
+        let window = window.on_page_load(|window, loaded| {
+            if loaded.event() == PageLoadEvent::Started {
+                if let (started @ false, waiting) = &mut *FIRST_PAGE.lock().unwrap() {
+                    *started = true;
+                    if let Some(url) = waiting.take() {
+                        replace_page(&window, url);
+                    }
+                }
+            }
+        });
         let _ = window.build();
     });
 }

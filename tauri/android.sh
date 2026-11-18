@@ -13,7 +13,7 @@ config="{\"version\":\"$count.0.0\",\"bundle\":{\"android\":{\"versionCode\":$co
 export DOCKER_CONTEXT=desktop-linux
 docker build -q --platform linux/amd64 -t nichenotes-tauri-android -f android.Dockerfile . >/dev/null
 docker run --rm --platform linux/amd64 -v "$PWD:/project" -w /project -e PHX_HOST="$PHX_HOST" \
-  -v nichenotes-cargo-registry:/root/.cargo/registry -v nichenotes-gradle:/root/.gradle \
+  -v nichenotes-cargo-registry:/root/.cargo/registry -v nichenotes-gradle:/root/.gradle -v nichenotes-android-keys:/root/.android \
   -v nichenotes-tauri-android-target:/target -e CARGO_TARGET_DIR=/target \
   nichenotes-tauri-android cargo tauri android build --ci --apk --target aarch64 \
   --config tauri.release.conf.json --config "$config" "$@"
