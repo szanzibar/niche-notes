@@ -56,22 +56,23 @@ class MainActivity : TauriActivity() {
   }
 
   // A note a widget opens wants the keyboard, which the page can't raise without a touch. The app can, once the
-  // page shows the note and has put the cursor in it.
-  private fun raiseKeyboard(link: Uri?, tries: Int = 50) {
+  // page shows the note and has put the cursor in it. A running app takes a moment to swap the old page for the note.
+  private fun raiseKeyboard(link: Uri?, wait: Long = 400, tries: Int = 50) {
     if (link?.getQueryParameter("n") == null) return
     window.decorView.postDelayed({
       val view = webView
-      if (view?.url?.contains("/n/") == true) {
-        view.requestFocus()
-        // The cursor lands in the note a moment after the note's address.
-        view.postDelayed({
-          getSystemService(InputMethodManager::class.java).showSoftInput(view, 0)
-          lowerKeyboardOnLeaving(view)
-        }, 300)
+      view?.requestFocus()
+      if (view?.url?.contains("/n/") == true && view.onCheckIsTextEditor()) {
+        val keyboard = getSystemService(InputMethodManager::class.java)
+        // Android tied the keyboard to the page as it was when the app came forward, before the cursor was in the
+        // note, and a keyboard without the note's text corrects nothing and shows no cursor.
+        keyboard.restartInput(view)
+        keyboard.showSoftInput(view, 0)
+        lowerKeyboardOnLeaving(view)
       } else if (tries > 0) {
-        raiseKeyboard(link, tries - 1)
+        raiseKeyboard(link, 100, tries - 1)
       }
-    }, 100)
+    }, wait)
   }
 
   // The page lowers only a keyboard it raised itself, so the one raised here comes down once nothing on the page
