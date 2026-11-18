@@ -8,6 +8,7 @@
 
 mod alerts;
 
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -34,46 +35,55 @@ fn page(path: &str) -> Url {
 /// Brings the window forward, on `url` when there is one. Closing the window ended its webview, so this
 /// makes a new one when needed.
 pub fn show_window(app: &AppHandle, url: Option<Url>) {
-    #[cfg(target_os = "macos")]
-    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    // Building the window inside the single-instance callback hangs on Windows, so this runs on its own
+    // thread. A link launch calls it twice, so one at a time.
+    static ONE: Mutex<()> = Mutex::new(());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let _one = ONE.lock().unwrap();
+        let app = &app;
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
-    if let Some(window) = app.get_webview_window("main") {
-        if let Some(url) = url {
-            let _ = window.navigate(url);
+        if let Some(window) = app.get_webview_window("main") {
+            if let Some(url) = url {
+                let _ = window.navigate(url);
+            }
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+            return;
         }
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-        return;
-    }
 
-    let home = page("/").origin();
-    let (browser, new_window_browser) = (app.clone(), app.clone());
-    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.unwrap_or(page("/"))))
-        .title(&app.package_info().name)
-        .inner_size(1100.0, 800.0)
-        // Windows' webview has this interface with no push service behind it, and Settings offers alerts by it.
-        .initialization_script("delete window.PushManager")
-        // Another site opens in the default browser, where a passkey works.
-        .on_navigation(move |to| {
-            let ours = to.origin() == home || !to.scheme().starts_with("http");
-            if !ours {
-                let _ = browser.opener().open_url(to.as_str(), None::<&str>);
-            }
-            ours
-        })
-        .on_new_window(move |to, _| {
-            let _ = new_window_browser
-                .opener()
-                .open_url(to.as_str(), None::<&str>);
-            NewWindowResponse::Deny
-        })
-        // Signing in and out both load a page.
-        .on_page_load(|window, loaded| {
-            if loaded.event() == PageLoadEvent::Finished {
-                alerts::read_session(window.app_handle());
-            }
-        })
-        .build();
+        let home = page("/").origin();
+        let (browser, new_window_browser) = (app.clone(), app.clone());
+        let _ =
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.unwrap_or(page("/"))))
+                .title(&app.package_info().name)
+                .inner_size(1100.0, 800.0)
+                // Windows' webview has this interface with no push service behind it, and Settings offers alerts by it.
+                .initialization_script("delete window.PushManager")
+                // Another site opens in the default browser, where a passkey works.
+                .on_navigation(move |to| {
+                    let ours = to.origin() == home || !to.scheme().starts_with("http");
+                    if !ours {
+                        let _ = browser.opener().open_url(to.as_str(), None::<&str>);
+                    }
+                    ours
+                })
+                .on_new_window(move |to, _| {
+                    let _ = new_window_browser
+                        .opener()
+                        .open_url(to.as_str(), None::<&str>);
+                    NewWindowResponse::Deny
+                })
+                // Signing in and out both load a page.
+                .on_page_load(|window, loaded| {
+                    if loaded.event() == PageLoadEvent::Finished {
+                        alerts::read_session(window.app_handle());
+                    }
+                })
+                .build();
+    });
 }
 
 /// Installs a newer release while no window is open, so the app never restarts under someone typing: when it

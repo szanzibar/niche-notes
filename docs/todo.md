@@ -115,6 +115,7 @@ Left for Steven, who has the passkey, the eyes and the Windows machine:
 - [ ] A click on an alert's banner opens the window on that line. Without the click reaching the app it only opens the window
 - [ ] Typing with autocorrect, dragging a tree row and dragging a list line, also onto a note in the tree, all work in the window
 - [ ] On Windows: the app installs and signs in, Settings shows no Alerts, an alert shows from the tray, and an update leaves the app in the tray instead of opening its window
+- [ ] On Windows: opening the app again after its window closed shows the window. It hung there on 2026-11-18, since building the window inside the single-instance callback deadlocks with window-state, and now the window is built on its own thread. After the login the window stayed blank, which that fix may not cover
 
 Releases:
 
