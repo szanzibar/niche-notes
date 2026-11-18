@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Behind the status and navigation bars. -->
+    <color name="bar">#FAFAF8</color>
+    <!-- The app's default theme, until a widget hears its note's. -->
+    <color name="accent">#FF4F3B</color>
+    <color name="on_accent">#FFFFFF</color>
+    <color name="widget_surface">#FFFFFF</color>
+    <color name="widget_ink">#111111</color>
+</resources>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text is in the phone's own font, since a home screen draws widgets without access to fonts an app bundles.
+     NoteWidget sets the text sizes. The header wears the note's color, like the note's header in the app. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/accent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="8dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="4dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/on_accent"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/refresh"
+            android:layout_width="40dp"
+            android:layout_height="32dp"
+            android:contentDescription="@string/widget_refresh"
+            android:padding="6dp"
+            android:src="@drawable/widget_refresh"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@color/widget_ink" />
+
+    <ListView
+        android:id="@+id/lines"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:divider="@null"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="6dp" />
+</LinearLayout>

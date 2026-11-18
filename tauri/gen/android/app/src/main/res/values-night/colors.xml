@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bar">#141414</color>
+    <color name="widget_surface">#1E1E1E</color>
+    <color name="widget_ink">#F2F2EE</color>
+</resources>

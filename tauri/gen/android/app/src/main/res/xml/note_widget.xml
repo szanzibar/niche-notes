@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Updates every 30 minutes, the shortest period Android allows. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="app.nichenotes.WidgetActivity"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/widget"
+    android:minWidth="110dp"
+    android:minHeight="180dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="50dp"
+    android:previewLayout="@layout/widget"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="3"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable" />
