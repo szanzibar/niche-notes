@@ -256,10 +256,16 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     })
     if (end != null) {
       editor.commands.focus(end, { scrollIntoView: false })
-      // In the middle, where a phone's keyboard coming up leaves it in view.
       const { node } = editor.view.domAtPos(end)
-      ;(node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' })
-      return
+      const center = () => (node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' })
+      center()
+      // A widget's keyboard comes up a moment later and shortens the page from the bottom, so the line centers again.
+      addEventListener('resize', center)
+      const settled = setTimeout(() => removeEventListener('resize', center), 1000)
+      return () => {
+        clearTimeout(settled)
+        removeEventListener('resize', center)
+      }
     }
     if (!titleRef.current?.value) {
       titleRef.current?.focus()

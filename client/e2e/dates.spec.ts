@@ -303,7 +303,7 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await page.getByLabel('Day', { exact: true }).fill(inDays(-2))
   await page.keyboard.press('Escape')
   await page.locator('.editor-body p').getByText('rake leaves', { exact: true }).click()
-  await page.keyboard.press('End')
+  await page.keyboard.press(lineEnd)
   await page.keyboard.press('Enter')
   await page.keyboard.type('plant bulbs')
   await tool(page, 'Date').click()
@@ -381,7 +381,7 @@ test('a launch without the server lists the dates another device gave a note ope
   await expect(launch.getByRole('button', { name: /^Due \(/ })).toHaveText('2')
 })
 
-test('a note opened at a line far down shows that line in the middle, where the keyboard leaves it in view', async ({
+test('a note opened at a line far down shows that line in the middle, and again once a keyboard shortens the page', async ({
   browser,
 }) => {
   const page = await signIn(browser, `alice-${uid()}`)
@@ -403,8 +403,13 @@ test('a note opened at a line far down shows that line in the middle, where the 
       const view = line.closest('.overflow-y-auto')!.getBoundingClientRect()
       return Math.round(((lineBox.top + lineBox.height / 2 - view.top) / view.height) * 10) / 10
     })
-  await expect.poll(middle).toBeGreaterThanOrEqual(0.4)
-  expect(await middle()).toBeLessThanOrEqual(0.6)
+  await expect.poll(middle).toBeLessThanOrEqual(0.6)
+  expect(await middle()).toBeGreaterThanOrEqual(0.4)
+
+  // The keyboard a widget raises comes up just after the note opens.
+  await page.setViewportSize({ width: 1280, height: 360 })
+  await expect.poll(middle).toBeLessThanOrEqual(0.6)
+  expect(await middle()).toBeGreaterThanOrEqual(0.4)
 })
 
 test('typed words read as the dates they say', () => {
