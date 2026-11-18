@@ -132,9 +132,9 @@ pub fn run() {
                         continue;
                     }
                     // Pocket ID's or Google's answer to a login the window started, handed on by the browser
-                    // that got it.
-                    let callback =
-                        format!("{}{}", link.host_str().unwrap_or_default(), link.path());
+                    // that got it. Windows hands `nichenotes://callback?…` over as `nichenotes://callback/?…`.
+                    let path = link.path().trim_end_matches('/');
+                    let callback = format!("{}{path}", link.host_str().unwrap_or_default());
                     if ["callback", "google/callback"].contains(&callback.as_str()) {
                         let query = link.query().unwrap_or_default();
                         show_window(
