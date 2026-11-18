@@ -1,9 +1,12 @@
 package app.nichenotes
 
+import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.InputMethodManager
@@ -12,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : TauriActivity() {
   companion object {
@@ -38,6 +42,11 @@ class MainActivity : TauriActivity() {
       val covered = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
       view.updatePadding(covered.left, covered.top, covered.right, covered.bottom)
       WindowInsetsCompat.CONSUMED
+    }
+    // Android stops asking once the person has said no twice.
+    val alerts = Manifest.permission.POST_NOTIFICATIONS
+    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(alerts) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(arrayOf(alerts), 0)
     }
   }
 
@@ -78,9 +87,11 @@ class MainActivity : TauriActivity() {
     }, 250)
   }
 
-  // Leaving the app refreshes every widget, so it shows what was just written.
+  // Leaving the app refreshes every widget, so it shows what was just written. It also tells the server where to
+  // send alerts, since by then the page has signed in, and the time zone may have changed.
   override fun onStop() {
     super.onStop()
+    FirebaseMessaging.getInstance().token.addOnSuccessListener { Alerts.register(applicationContext, it) }
     val manager = AppWidgetManager.getInstance(this)
     val widgets = listOf(NoteWidget::class.java, TreeWidget::class.java)
       .flatMap { manager.getAppWidgetIds(ComponentName(this, it)).toList() }

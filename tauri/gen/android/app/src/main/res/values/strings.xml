@@ -8,4 +8,5 @@
     <string name="tree_widget_pick">Tap to show your notes</string>
     <string name="tree_widget_description">All your notes on your home screen, as your tree shows them</string>
     <string name="widget_refresh">Refresh</string>
+    <string name="alerts">Alerts</string>
 </resources>

@@ -1,4 +1,6 @@
 target/
 gen/schemas/
+# Firebase's settings for the Android app. Its API key would set off GitHub's secret scanning.
+gen/android/app/google-services.json
 # Signs every update. Lose it and installed apps stop updating.
 updater.key

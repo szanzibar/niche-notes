@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds the Android app inside the toolchain image, so nothing Android gets installed on the machine, with the
 # commit count as its version like the TWA's APK. Pass --debug for a debug build.
+# Alerts need Firebase's google-services.json for the app, from the Firebase console, in gen/android/app.
 # Output: gen/android/app/build/outputs/apk
 set -eu
 cd "$(dirname "$0")"
