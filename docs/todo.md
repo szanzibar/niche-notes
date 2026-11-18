@@ -134,11 +134,11 @@ WebKit, since the Mac app runs on Safari's engine (2026-11-17):
 
 Then Android, a day on Steven's phone with the same Tauri project. It needs a Firebase project from Steven. Android moves to Tauri if all five hold, and stays the TWA otherwise:
 
-- [ ] The bottom toolbar sits above the keyboard
-- [ ] Back goes from a note to the tree, then leaves the app
-- [ ] Login goes through Chrome and comes back
+- [x] The bottom toolbar sits above the keyboard
+- [x] Back goes from a note to the tree, then leaves the app
+- [x] Login goes through the default browser and comes back
 - [ ] Our widget Java works dropped into the project as it is
-- [ ] A Firebase alert arrives with the app closed
+- [x] A Firebase alert arrives with the app closed, and three at once show as three (2026-11-18)
 
 - Later: Done and Snooze on a desktop alert, a global shortcut for a new note, a Linux build, and background sync on Android, which a webview of our own makes possible
 
