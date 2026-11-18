@@ -72,6 +72,19 @@ test('Sign out clears the screen when the login opens in another window, as the 
   await expect(page.getByPlaceholder('Search notes')).toHaveCount(0)
 })
 
+test('a signed-out launch starts one sign-in, however many of its requests the server turns away', async ({ browser }) => {
+  for (const page of [await (await browser.newContext()).newPage(), await signIn(browser, `alice-${uid()}`)]) {
+    // Signed out on the server while the device still holds the notes, the second page asks for more at once.
+    await page.context().clearCookies()
+    await page.route('**/auth/login', (route) => route.fulfill({ status: 204 }))
+    let logins = 0
+    page.on('request', (request) => void (request.url().includes('/auth/login') && logins++))
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    expect(logins).toBe(1)
+  }
+})
+
 test('a launch with an expired token still syncs once the server answers', async ({ browser }) => {
   const a = `alice-${uid()}`
   const page = await signIn(browser, a)

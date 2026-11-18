@@ -1,12 +1,17 @@
 import type { Share, User } from './types'
 
+// A page's requests fail together, and only one sign-in may start, since each one replaces the last one's state and
+// the app's sign-in that comes back from the browser then fails.
+let signingIn = false
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch('/api' + path, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
   if (res.status === 401) {
-    window.location.href = '/auth/login'
+    if (!signingIn) window.location.href = '/auth/login'
+    signingIn = true
     throw new Error('unauthenticated')
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
