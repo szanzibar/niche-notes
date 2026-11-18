@@ -245,7 +245,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
 
   // Opening a note means writing in it: an empty title first, otherwise where this device left the
   // cursor, or the end of the text. A link from a calendar event or a widget line names its line instead. A line
-  // that reaches this device only after the note opens isn't found, so the note opens as usual.
+  // edited since, or that reaches this device only after the note opens, isn't found, so the note opens as usual.
   useEffect(() => {
     if (!editor || deleted) return
     const line = new URLSearchParams(location.search).get('line')
@@ -254,29 +254,34 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       if (end == null && line && node.isTextblock && node.textContent === line) end = pos + node.nodeSize - 1
       return end == null
     })
-    if (end != null) {
-      editor.commands.focus(end, { scrollIntoView: false })
-      const { node } = editor.view.domAtPos(end)
-      const center = () => (node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' })
-      center()
-      // A widget's keyboard comes up a moment later and shortens the page from the bottom, so the line centers again.
-      addEventListener('resize', center)
-      const settled = setTimeout(() => removeEventListener('resize', center), 1000)
-      return () => {
-        clearTimeout(settled)
-        removeEventListener('resize', center)
-      }
-    }
-    if (!titleRef.current?.value) {
+    if (end == null && !titleRef.current?.value) {
       titleRef.current?.focus()
       return
     }
-    const { binding } = ySyncPluginKey.getState(editor.state)!
-    const saved = localStorage.getItem(`cursor:${id}`)
-    const pos = saved
-      ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
-      : null
-    editor.commands.focus(pos ?? 'end')
+    if (end == null) {
+      const { binding } = ySyncPluginKey.getState(editor.state)!
+      const saved = localStorage.getItem(`cursor:${id}`)
+      end = saved
+        ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
+        : null
+    }
+    editor.commands.setTextSelection(end ?? editor.state.doc.content.size)
+    // ProseMirror's own focus puts the cursor in the page at once. TipTap's leaves the browser's caret at the start on
+    // Android for a moment, and the cursor jumps there if anything on the page changes meanwhile.
+    editor.view.focus()
+    const center = () => {
+      const { node } = editor.view.domAtPos(editor.state.selection.head)
+      const element = node instanceof Element ? node : node.parentElement
+      element?.scrollIntoView({ block: 'center' })
+    }
+    center()
+    // A widget's keyboard comes up a moment later and shortens the page from the bottom, so the cursor centers again.
+    addEventListener('resize', center)
+    const settled = setTimeout(() => removeEventListener('resize', center), 1000)
+    return () => {
+      clearTimeout(settled)
+      removeEventListener('resize', center)
+    }
   }, [editor, deleted, id, doc, visit])
 
   // A phone raises the keyboard for a tap, not for a note a widget opened in the running app, so we ask for it.

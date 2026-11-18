@@ -144,3 +144,35 @@ test('a tap on a line in a widget opens the note at that line, over the list, an
   await page.goBack()
   await expect(page).toHaveURL(/\/$/)
 })
+
+test('a widget line edited since opens the note at its cursor, in the middle, and again once a keyboard shortens the page', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Long', 'line 1')
+  for (let i = 2; i <= 40; i++) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(`line ${i}`)
+  }
+  const id = page.url().split('/n/')[1]
+  const saved = () => page.evaluate((id) => localStorage.getItem(`cursor:${id}`), id)
+  const typed = await saved()
+  await page.locator('.editor-body p').getByText('line 30', { exact: true }).click()
+  await expect.poll(saved).not.toBe(typed)
+  await page.goto(`/?${new URLSearchParams({ n: id, line: 'line 30 as it read before' })}`)
+  await expect(page.locator('.editor-body')).toBeFocused()
+  // Where the cursor's line sits in the note's view, from 0 at its top to 1 at its bottom.
+  const cursor = () =>
+    page.evaluate(() => {
+      const line = getSelection()!.anchorNode!.parentElement!.closest('p')!.getBoundingClientRect()
+      const view = document.querySelector('.editor-body')!.closest('.overflow-y-auto')!.getBoundingClientRect()
+      return Math.round(((line.top + line.height / 2 - view.top) / view.height) * 10) / 10
+    })
+  await expect.poll(cursor).toBeLessThanOrEqual(0.6)
+  expect(await cursor()).toBeGreaterThanOrEqual(0.4)
+
+  // The keyboard a widget raises comes up just after the note opens.
+  await page.setViewportSize({ width: 1280, height: 360 })
+  await expect.poll(cursor).toBeLessThanOrEqual(0.6)
+  expect(await cursor()).toBeGreaterThanOrEqual(0.4)
+})
