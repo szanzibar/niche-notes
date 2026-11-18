@@ -74,10 +74,28 @@ defmodule NicheNotes.Push do
 
   def send(%{pid: pid}, message), do: Kernel.send(pid, {:alert, message})
 
-  # Kept for a day, so a phone that was off still gets it when it comes back. A device that unsubscribed
-  # is forgotten.
-  def send(%Subscription{} = subscription, message) do
-    case post(subscription, message) do
+  # Kept for a day, so a phone that was off still gets it when it comes back.
+  def send(%Subscription{} = subscription, message),
+    do: deliver(subscription, message, %{priority: "high", ttl: "86400s"})
+
+  # Only the Android app has widgets. At normal priority, since Firebase holds back an app whose high priority
+  # messages show nothing, and one waiting for a phone that is asleep replaces the one before.
+  def refresh_widgets(user_ids) do
+    for subscription <-
+          Repo.all(
+            from s in Subscription,
+              where: s.user_id in ^user_ids and like(s.endpoint, "fcm:%")
+          ),
+        do:
+          deliver(subscription, %{widgets: "refresh"}, %{
+            priority: "normal",
+            collapse_key: "widgets"
+          })
+  end
+
+  # A device that unsubscribed is forgotten.
+  defp deliver(subscription, message, android) do
+    case post(subscription, message, android) do
       {:ok, %{status: status}} when status in 200..299 ->
         :ok
 
@@ -91,7 +109,7 @@ defmodule NicheNotes.Push do
   end
 
   # The app shows the alert itself, so Firebase gets only data, which it takes as strings.
-  defp post(%Subscription{endpoint: "fcm:" <> token}, message) do
+  defp post(%Subscription{endpoint: "fcm:" <> token}, message, android) do
     account =
       Application.fetch_env!(:niche_notes, :firebase_service_account)
       |> Base.decode64!()
@@ -104,7 +122,7 @@ defmodule NicheNotes.Push do
       assertion: assertion(account)
     ]
 
-    # A new access token for each alert, which a family's few a day can afford.
+    # A new access token for each message, which a family's few hundred a day can afford.
     with {:ok, %{status: 200, body: %{"access_token" => access}}} <-
            Req.post(
              account["token_uri"],
@@ -115,14 +133,14 @@ defmodule NicheNotes.Push do
         [
           auth: {:bearer, access},
           json: %{
-            message: %{token: token, data: data, android: %{priority: "high", ttl: "86400s"}}
+            message: %{token: token, data: data, android: android}
           }
         ] ++ Application.get_env(:niche_notes, :push_req, [])
       )
     end
   end
 
-  defp post(subscription, message) do
+  defp post(subscription, message, _android) do
     body = encrypt(Jason.encode!(message), decode(subscription.p256dh), decode(subscription.auth))
 
     headers = [

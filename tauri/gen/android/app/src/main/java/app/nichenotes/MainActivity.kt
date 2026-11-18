@@ -1,8 +1,6 @@
 package app.nichenotes
 
 import android.Manifest
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -130,13 +128,7 @@ class MainActivity : TauriActivity() {
   override fun onStop() {
     super.onStop()
     FirebaseMessaging.getInstance().token.addOnSuccessListener { Alerts.register(applicationContext, it) }
-    val manager = AppWidgetManager.getInstance(this)
-    val widgets = listOf(NoteWidget::class.java, TreeWidget::class.java)
-      .flatMap { manager.getAppWidgetIds(ComponentName(this, it)).toList() }
-    sendBroadcast(
-      Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE, null, this, NoteWidget::class.java)
-        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgets.toIntArray())
-    )
+    NoteWidget.refreshAll(this)
   }
 
   private fun withLine(intent: Intent) = intent.apply {

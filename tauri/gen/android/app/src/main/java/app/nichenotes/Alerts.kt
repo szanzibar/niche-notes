@@ -20,12 +20,13 @@ import java.util.TimeZone
 import org.json.JSONObject
 
 // The server's alerts come through Firebase, since the app's webview has no Web Push. Each shows on its own, and a
-// tap opens the note at its line.
+// tap opens the note at its line. A note changed elsewhere comes through here too, for the widgets.
 class Alerts : FirebaseMessagingService() {
   override fun onNewToken(token: String) = register(this, token)
 
   override fun onMessageReceived(message: RemoteMessage) {
     val alert = message.data
+    if (alert.containsKey("widgets")) return NoteWidget.refreshAll(this)
     val manager = getSystemService(NotificationManager::class.java)
     manager.createNotificationChannel(
       NotificationChannel(CHANNEL, getString(R.string.alerts), NotificationManager.IMPORTANCE_HIGH)

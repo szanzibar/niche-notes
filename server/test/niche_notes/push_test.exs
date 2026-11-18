@@ -1,9 +1,9 @@
 defmodule NicheNotes.PushTest do
   use NicheNotes.DataCase
 
-  import NicheNotesWeb.ChannelCase, only: [user!: 1]
+  import NicheNotesWeb.ChannelCase, only: [user!: 1, edit!: 2]
   import Plug.Conn, only: [get_req_header: 2, send_resp: 3]
-  alias NicheNotes.Push
+  alias NicheNotes.{Docs, Push, Widgets}
 
   defp decode(text), do: Base.url_decode64!(text, padding: false)
   defp encode(bytes), do: Base.url_encode64(bytes, padding: false)
@@ -85,11 +85,8 @@ defmodule NicheNotes.PushTest do
     assert Push.subscriptions([me.id]) == []
   end
 
-  test "the Android app's alerts go to Firebase as the service account, and a token Firebase forgot is dropped" do
-    me = user!("me")
-    assert {:error, _} = Push.subscribe(me.id, %{"fcm" => ""}, "America/Denver")
-    {:ok, device} = Push.subscribe(me.id, %{"fcm" => "phone"}, "America/Denver")
-
+  # Firebase as a service account whose key is returned, with each message sent to this test.
+  defp firebase! do
     key = :public_key.generate_key({:rsa, 2048, 65537})
 
     account = %{
@@ -121,6 +118,16 @@ defmodule NicheNotes.PushTest do
         Req.Test.json(conn, %{})
     end)
 
+    key
+  end
+
+  test "the Android app's alerts go to Firebase as the service account, and a token Firebase forgot is dropped" do
+    me = user!("me")
+    assert {:error, _} = Push.subscribe(me.id, %{"fcm" => ""}, "America/Denver")
+    {:ok, device} = Push.subscribe(me.id, %{"fcm" => "phone"}, "America/Denver")
+
+    key = firebase!()
+
     assert :ok = Push.send(device, %{title: "Pay rent", note: "n1", repeat: nil})
 
     assert_received {:grant, %{"assertion" => jwt}}
@@ -149,5 +156,42 @@ defmodule NicheNotes.PushTest do
 
     Push.send(device, %{title: "Pay rent"})
     assert Push.subscriptions([me.id]) == []
+  end
+
+  test "a changed note has the Android app of everyone on it redraw its widgets, once a minute" do
+    me = user!("me")
+    other = user!("other")
+    stranger = user!("stranger")
+    note = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(note, me.id)
+    {:ok, _} = Docs.share(note, me.id, other.id)
+
+    for {user, token} <- [{me, "mine"}, {other, "theirs"}, {stranger, "a stranger's"}],
+        do: {:ok, _} = Push.subscribe(user.id, %{"fcm" => token}, "Europe/Amsterdam")
+
+    firebase!()
+    {_, seen} = Docs.changed_since(0)
+    assert Widgets.pass(seen) == seen
+    refute_received {:firebase, _, _}
+
+    for title <- ["Groc", "Groceries"],
+        do: edit!(note, &Yex.Map.set(Yex.Doc.get_map(&1, "meta"), "title", title))
+
+    seen = Widgets.pass(seen)
+
+    for token <- ["mine", "theirs"] do
+      assert_received {:firebase, _,
+                       %{
+                         "message" => %{
+                           "token" => ^token,
+                           "data" => %{"widgets" => "refresh"},
+                           "android" => %{"priority" => "normal", "collapse_key" => "widgets"}
+                         }
+                       }}
+    end
+
+    refute_received {:firebase, _, _}
+    Widgets.pass(seen)
+    refute_received {:firebase, _, _}
   end
 end
