@@ -113,7 +113,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="intent" android:host="widget" />
             </intent-filter>
-        <!-- Closed as `</activity >`, since the deep-link plugin writes its links before every `</activity>`. -->
+        <!-- Closed with a space before the bracket, since the deep-link plugin writes its links before every line that closes an activity. -->
         </activity >
     </application>
 </manifest>
