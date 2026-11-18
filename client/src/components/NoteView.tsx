@@ -255,7 +255,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       return end == null
     })
     if (end != null) {
-      editor.commands.focus(end)
+      editor.commands.focus(end, { scrollIntoView: false })
+      // In the middle, where a phone's keyboard coming up leaves it in view.
+      const { node } = editor.view.domAtPos(end)
+      ;(node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' })
       return
     }
     if (!titleRef.current?.value) {

@@ -380,6 +380,32 @@ test('a launch without the server lists the dates another device gave a note ope
   await expect(launch.getByRole('button', { name: /^Due \(/ })).toHaveText('2')
 })
 
+test('a note opened at a line far down shows that line in the middle, where the keyboard leaves it in view', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Long', 'line 1')
+  await tool(page, 'Checklist').click()
+  for (let i = 2; i <= 40; i++) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(i === 30 ? 'pay rent today' : `line ${i}`)
+  }
+  await page.locator('.editor-body p').getByText('line 1', { exact: true }).click()
+  await page.evaluate(() => document.querySelector('.editor-body')!.closest('.overflow-y-auto')!.scrollTo(0, 0))
+  await page.getByRole('button', { name: /^Due \(/ }).click()
+  await page.getByRole('list', { name: 'Today', exact: true }).getByRole('button', { name: /^pay rent/ }).click()
+  await expect(page.locator('.editor-body')).toBeFocused()
+  const middle = () =>
+    page.evaluate(() => {
+      const line = [...document.querySelectorAll('.editor-body li')].find((li) => li.textContent?.startsWith('pay rent'))!
+      const lineBox = line.getBoundingClientRect()
+      const view = line.closest('.overflow-y-auto')!.getBoundingClientRect()
+      return Math.round(((lineBox.top + lineBox.height / 2 - view.top) / view.height) * 10) / 10
+    })
+  await expect.poll(middle).toBeGreaterThanOrEqual(0.4)
+  expect(await middle()).toBeLessThanOrEqual(0.6)
+})
+
 test('typed words read as the dates they say', () => {
   // Monday 16 November 2026, two in the afternoon.
   const now = new Date(2026, 10, 16, 14)
