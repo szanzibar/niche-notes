@@ -37,6 +37,13 @@ fn page(path: &str) -> Url {
 /// Brings the window forward, on `url` when there is one. Closing the window ended its webview, so this
 /// makes a new one when needed.
 pub fn show_window(app: &AppHandle, url: Option<Url>) {
+    // On the caller's thread, which on Android is the one that starts the first page, so the two can't cross.
+    #[cfg(mobile)]
+    if let (Some(url), (false, waiting)) = (&url, &mut *FIRST_PAGE.lock().unwrap()) {
+        *waiting = Some(url.clone());
+        return;
+    }
+
     // Building the window inside the single-instance callback hangs on Windows, so this runs on its own
     // thread. A link launch calls it twice, so one at a time.
     static ONE: Mutex<()> = Mutex::new(());
@@ -50,10 +57,7 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
         if let Some(window) = app.get_webview_window("main") {
             if let Some(url) = url {
                 #[cfg(mobile)]
-                match &mut *FIRST_PAGE.lock().unwrap() {
-                    (false, waiting) => *waiting = Some(url),
-                    (true, _) => replace_page(&window, url),
-                }
+                replace_page(&window, url);
                 #[cfg(desktop)]
                 let _ = window.navigate(url);
             }
