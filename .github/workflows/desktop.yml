@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - "tauri/**"
+      - "!tauri/gen/android/**"
+      - "!tauri/android.*"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 

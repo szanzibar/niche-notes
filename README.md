@@ -70,14 +70,15 @@ the installed app.
 
 ## Apps
 
-- **Android.** A Trusted Web Activity: Chrome renders the server's app under the launcher icon, which is the
-  only way Pocket ID passkeys work in an Android app. `android/build.sh` builds the signed APK inside the Android
-  SDK Docker image, for the server in `.env`'s `PHX_HOST` and with `ANDROID_APP_ID` as its id. The server's `.env`
-  also needs `ANDROID_CERT_SHA256`, the signing key's fingerprint, so Chrome opens the site without an address
-  bar. A push to `main` that touches `android/` publishes the signed APK as a GitHub release, using the keystore
-  from two repository secrets and `PHX_HOST` and `ANDROID_APP_ID` from repository variables. Installed apps
-  download a newer release by themselves and offer it on their next launch. The first update asks to allow
-  installing unknown apps.
+- **Android.** The Tauri project's Android app: the site in its own window, with widgets, and alerts through
+  Firebase. Login opens Pocket ID in the default browser, as on the desktop. `tauri/android.sh` builds the APK
+  inside a Docker image with the Android SDK, for the server in `.env`'s `PHX_HOST` and with `ANDROID_APP_ID` as
+  its id. It needs Firebase's `google-services.json` in `tauri/gen/android/app`, and it is signed with
+  `tauri/gen/android/keystore.properties` when that is there. A push to `main` that touches `tauri/` publishes the
+  signed APK as a GitHub release, using the keystore and Firebase settings from three repository secrets and
+  `PHX_HOST` and `ANDROID_APP_ID` from repository variables. Installed apps download a newer release by themselves
+  and offer it on their next launch. The first update asks to allow installing unknown apps. The server's
+  `FIREBASE_SERVICE_ACCOUNT` sends its alerts.
 - **Desktop.** A Tauri app for macOS on Apple silicon and for Windows: the site in its own window, which stays in
   the tray for alerts, starts at login and updates itself. Install `niche-notes-mac.dmg` or
   `niche-notes-windows-setup.exe` from the repository's `desktop` release. Neither carries a paid certificate, so

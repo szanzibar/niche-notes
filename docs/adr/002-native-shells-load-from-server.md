@@ -27,3 +27,10 @@ The page never calls the shell. The shell acts on navigation and links only, so 
 Updates come from Tauri's updater, which checks Tauri's own key, so there is no Apple or Microsoft certificate. The Mac build is ad-hoc signed and the Windows installer unsigned. A Mac asks for Open Anyway in System Settings once, Windows shows SmartScreen once, and Smart App Control has to be off. The app updates only while its window is closed, so it never restarts under someone typing. Every build replaces the files of one `desktop` release, so the app finds its update at an address that never changes, and that release is never the latest one, where the Android app looks for its APK.
 
 On macOS 27.2 the app takes 95 MB with its window open. Two minutes after the window closes, WebKit's helpers have gone and the tray is left with 35 MB.
+
+## Amendment 2026-11-18: Android moves from the TWA to the Tauri app
+
+The Android app is now the Tauri project's, because a day on Steven's phone showed that it does all the TWA did, and three things the TWA can't. Its alerts come through Firebase and show one by one, a widget can open a note with the keyboard up and the cursor at its line, and the window is ours, so later work such as background sync is possible. The login goes through the default browser as on the desktop, so the passkey problem above no longer applies.
+
+It keeps the TWA's package name and signing key, so it installs over the TWA as an update and placed widgets keep their notes. Each phone signs in once more, since Chrome's cookie stays in Chrome. Chrome also keeps its Web Push subscription for the site, so each person blocks the site's notifications in Chrome once, or every alert shows twice. `/.well-known/assetlinks.json` stays until every phone has updated, since an old TWA without it shows an address bar.
+

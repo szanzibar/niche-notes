@@ -137,8 +137,15 @@ Then Android, a day on Steven's phone with the same Tauri project. It needs a Fi
 - [x] The bottom toolbar sits above the keyboard
 - [x] Back goes from a note to the tree, then leaves the app
 - [x] Login goes through the default browser and comes back
-- [ ] Our widget Java works dropped into the project as it is
+- [x] Our widget Java works dropped into the project as it is
 - [x] A Firebase alert arrives with the app closed, and three at once show as three (2026-11-18)
+
+All five held, so Android moved to Tauri (ADR 002 amendment, 2026-11-18):
+
+- [x] Done and Snooze on its alerts, with the next date of a repeating line from the server
+- [x] A widget's keyboard works on the note's text, from a closed app or a running one
+- [ ] The release APK installs over the TWA on Steven's phone, keeps the widgets, and updates itself from the next release
+- [ ] Once every phone has updated: remove `/.well-known/assetlinks.json` and `ANDROID_CERT_SHA256`
 
 - Later: Done and Snooze on a desktop alert, a global shortcut for a new note, a Linux build, and background sync on Android, which a webview of our own makes possible
 

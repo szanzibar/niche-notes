@@ -8,6 +8,13 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+// Signing comes from keystore.properties next to this project, which stays out of git. Without it the APK is unsigned.
+val keystore = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+// The real app has the TWA's id, so it installs over it and keeps its widgets. Any other build is a dev app beside it.
+val appId = System.getenv("ANDROID_APP_ID")?.ifEmpty { null }
+
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
@@ -20,7 +27,11 @@ android {
     namespace = "app.nichenotes"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "app.nichenotes"
+        applicationId = appId ?: "app.nichenotes"
+        resValue("string", "app_name", if (appId != null) "Niche Notes" else "Niche Notes Dev")
+        // The real app updates itself from its repository's releases.
+        val releases = System.getenv("GITHUB_REPOSITORY")?.takeIf { appId != null && it.isNotEmpty() }
+        buildConfigField("String", "RELEASES", releases?.let { "\"https://api.github.com/repos/$it/releases/latest\"" } ?: "null")
         // Android 12 gives widgets a scrolling list without a separate list service.
         minSdk = 31
         // The server the widgets read, the same one the Rust side opens.
@@ -29,6 +40,16 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        create("release") {
+            if (!keystore.isEmpty) {
+                storeFile = rootProject.file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -44,6 +65,7 @@ android {
             }
         }
         getByName("release") {
+            signingConfig = if (keystore.isEmpty) null else signingConfigs.getByName("release")
             optimization {
                enable = true
             }

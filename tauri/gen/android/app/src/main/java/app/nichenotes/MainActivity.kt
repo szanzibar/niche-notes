@@ -12,10 +12,14 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.google.firebase.messaging.FirebaseMessaging
+import java.io.File
+import java.net.URL
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
   companion object {
@@ -48,6 +52,39 @@ class MainActivity : TauriActivity() {
     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(alerts) != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(arrayOf(alerts), 0)
     }
+    update()
+  }
+
+  // Each start offers the update the one before downloaded, which Android asks about, and looks for a newer one. So
+  // the app never restarts under someone typing.
+  private fun update() {
+    val apk = File(cacheDir, "update.apk")
+    // Zero when nothing usable was downloaded.
+    val ready = if (apk.exists()) packageManager.getPackageArchiveInfo(apk.path, 0)?.longVersionCode ?: 0 else 0
+    val have = BuildConfig.VERSION_CODE.toLong()
+    // An update that is installed is gone, so a normal start has nothing to read.
+    if (ready <= have) apk.delete()
+    BuildConfig.RELEASES?.let { releases -> Thread { download(releases, apk, maxOf(ready, have)) }.start() }
+    if (ready <= have) return
+    startActivity(
+      Intent(Intent.ACTION_VIEW)
+        .setDataAndType(
+          FileProvider.getUriForFile(this, "$packageName.fileprovider", apk),
+          "application/vnd.android.package-archive",
+        )
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    )
+  }
+
+  // Offline or a bad reply leaves it to the next start.
+  private fun download(releases: String, apk: File, have: Long) = runCatching {
+    val release = JSONObject(URL(releases).readText())
+    // Tags read android-<versionCode>.
+    if (release.getString("tag_name").filter(Char::isDigit).toLong() <= have) return@runCatching
+    val part = File(apk.path + ".part")
+    val asset = release.getJSONArray("assets").getJSONObject(0).getString("browser_download_url")
+    URL(asset).openStream().use { input -> part.outputStream().use { input.copyTo(it) } }
+    part.renameTo(apk)
   }
 
   override fun onNewIntent(intent: Intent) {

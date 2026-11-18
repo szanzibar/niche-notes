@@ -17,9 +17,8 @@ Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, n
 
 - `server/`: Elixir and Phoenix with Ecto on SQLite. Phoenix Channels relay and persist Y.js updates. Assent handles OIDC login against Pocket ID, and the session is a cookie.
 - `client/`: React with TypeScript and Vite. TipTap for editing, Y.js for the document model and sync, Dexie for the local update log, Tailwind and Radix UI for the interface.
-- `android/`: a Trusted Web Activity, so Chrome renders the server's app under our icon; a WebView cannot log in with Pocket ID passkeys (ADR 002). Native code goes in `android/` only for what the web cannot do, such as widgets.
-- `tauri/`: the desktop app for macOS and Windows, a Tauri window on the server's app that stays in the tray. Its Rust holds only what the web cannot do there: the login hand-off from the default browser, alerts over the socket, since its webviews have no Web Push, and the self-update (ADR 002 and 006 amendments). The page never calls the shell. Only `tauri/build.sh` builds the real app. Every other build is `Niche Notes Dev` on the dev server with its own identifier, so it runs beside the installed app and never takes its links or touches what it stored. Browsers still install the PWA.
-- Deployment: a push to `main` publishes `ghcr.io/szanzibar/niche-notes:latest` from GitHub Actions, and the APK or the desktop app when `android/` or `tauri/` changed; the server runs it with `docker-compose.yml`, an `.env` and a `data/` directory for the SQLite file. Phoenix serves the built client from `server/priv/static`.
+- `tauri/`: the apps for Android, macOS and Windows, a Tauri window on the server's app. On a desktop it stays in the tray. Its Rust holds only what the web cannot do there: the login hand-off from the default browser, alerts over the socket, since its webviews have no Web Push, and the self-update (ADR 002 and 006 amendments). The Android app's Kotlin and Java in `tauri/gen/android` hold its widgets, its Firebase alerts, the keyboard a widget raises and its self-update. The page never calls the shell. Only `tauri/build.sh` builds the real app. Every other build is `Niche Notes Dev` on the dev server with its own identifier, so it runs beside the installed app and never takes its links or touches what it stored. Browsers still install the PWA.
+- Deployment: a push to `main` publishes `ghcr.io/szanzibar/niche-notes:latest` from GitHub Actions, and the APK and the desktop app when `tauri/` changed; the server runs it with `docker-compose.yml`, an `.env` and a `data/` directory for the SQLite file. Phoenix serves the built client from `server/priv/static`.
 
 ## Commands
 
@@ -54,8 +53,8 @@ server/lib/niche_notes_web/    router, controllers, channels, auth plug
 client/src/sync/               local store, channels, tree helpers, React hooks
 client/src/components/         tree, note editor, toolbar, dialogs
 client/src/lib/                API client and types
-android/                       Trusted Web Activity launcher, build.sh runs gradle in the Android SDK image
-tauri/                         desktop app: window, tray, login hand-off, alerts socket, self-update; build.sh builds it for PHX_HOST
+tauri/                         the apps: window, login hand-off, alerts, self-update; build.sh builds the desktop app, android.sh the APK
+tauri/gen/android/             the Android app's widgets, Firebase alerts and update check
 icon/                          vector app icon and the script that renders every size
 docs/                          spec, data model, ADRs, todo
 docker-compose.restore-test.yml  runs a backup as an offline copy beside the app (README)

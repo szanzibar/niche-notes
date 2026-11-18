@@ -4,3 +4,5 @@ gen/schemas/
 gen/android/app/google-services.json
 # Signs every update. Lose it and installed apps stop updating.
 updater.key
+# The release signing key and its passwords. Lose them and the next build is a different app to Android.
+gen/android/release.keystore
