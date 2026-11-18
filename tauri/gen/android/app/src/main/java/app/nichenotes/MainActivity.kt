@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.webkit.CookieManager
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.FileProvider
@@ -127,6 +128,9 @@ class MainActivity : TauriActivity() {
   // send alerts, since by then the page has signed in, and the time zone may have changed.
   override fun onStop() {
     super.onStop()
+    // The webview writes its cookies to disk only every 30 seconds, so a sign-in just before the app is swiped away
+    // would be lost.
+    CookieManager.getInstance().flush()
     FirebaseMessaging.getInstance().token.addOnSuccessListener { Alerts.register(applicationContext, it) }
     NoteWidget.refreshAll(this)
   }
