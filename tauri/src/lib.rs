@@ -1,7 +1,7 @@
 //! The app: one window on the server's web app. On a desktop a tray icon stays when the window closes.
 //!
 //! The page never calls this shell, so it stays the same web app in every browser. The shell acts on
-//! navigation and links only.
+//! navigation and links only, and tells the page its version.
 
 #[cfg(desktop)]
 mod alerts;
@@ -75,6 +75,11 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.unwrap_or(page("/"))))
                 // Windows' webview has this interface with no push service behind it, and Settings offers alerts by it.
                 .initialization_script("delete window.PushManager")
+                // The app's build, numbered by commit count, which Settings shows so an update is easy to spot.
+                .initialization_script(format!(
+                    "window.nicheNotesApp = {{ version: {} }}",
+                    app.package_info().version.major
+                ))
                 // Another site opens in the default browser, where a passkey works, and another app's link in that app.
                 .on_navigation(move |to| {
                     let ours = to.origin() == home || to.scheme() == "about";

@@ -28,6 +28,8 @@ const DENSITIES: [string, string | undefined][] = [
 ]
 
 export function SettingsDialog() {
+  // The Android and desktop apps say which build they are. A build without a number is a local one.
+  const app = (window as { nicheNotesApp?: { version: number } }).nicheNotesApp
   const prefs = settings()
   useY(prefs)
   const accent = (prefs.get('accent') as string | undefined) ?? THEMES[0].color
@@ -184,6 +186,11 @@ export function SettingsDialog() {
               )}
             </>
           )}
+          <p className="mb-2 mt-5 font-medium">Version</p>
+          <p className="text-sm text-ink-muted">
+            Server {import.meta.env.VITE_BUILD || 'dev'}
+            {app && ` · App ${app.version || 'dev'}`}
+          </p>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

@@ -136,6 +136,19 @@ test('Settings turns alerts off for this device and back on, and a launch in bet
   expect(await unsubscribed()).toBeNull()
 })
 
+test("Settings ends with the server's build, and the app's in the Android or desktop app", async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  // The test server is a local build, which has no number.
+  await expect(page.getByText('Server dev', { exact: true })).toBeVisible()
+
+  // What the apps' window tells the page.
+  await page.addInitScript(() => Object.assign(window, { nicheNotesApp: { version: 131 } }))
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByText('Server dev · App 131', { exact: true })).toBeVisible()
+})
+
 test('Settings connects Google Calendar through Google, then shows the account with Disconnect', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ body: 'Google' }))

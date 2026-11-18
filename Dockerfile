@@ -10,8 +10,10 @@ WORKDIR /app/client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci
 COPY client ./
+# The commit count, which Settings shows. The build has no .git to count from, so CI passes it.
+ARG BUILD
 # vite.config.ts writes the build to ../server/priv/static
-RUN npm run build
+RUN VITE_BUILD=$BUILD npm run build
 
 FROM ${BUILDER_IMAGE} AS builder
 RUN apt-get update \
