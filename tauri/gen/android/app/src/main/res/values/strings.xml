@@ -9,4 +9,6 @@
     <string name="tree_widget_description">All your notes on your home screen, as your tree shows them</string>
     <string name="widget_refresh">Refresh</string>
     <string name="alerts">Alerts</string>
+    <string name="done">Done</string>
+    <string name="snooze">Snooze 1 hour</string>
 </resources>

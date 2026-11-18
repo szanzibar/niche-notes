@@ -4,14 +4,18 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.webkit.CookieManager
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.TimeZone
 import org.json.JSONObject
 
@@ -29,41 +33,74 @@ class Alerts : FirebaseMessagingService() {
     val note = Uri.parse(getString(R.string.site)).buildUpon().path("/n/${alert["note"]}")
     alert["text"]?.let { note.appendQueryParameter("line", it) }
     val open = Intent(Intent.ACTION_VIEW, note.build(), this, MainActivity::class.java)
-    manager.notify(
-      alert["tag"],
-      0,
-      Notification.Builder(this, CHANNEL)
-        .setSmallIcon(R.drawable.ic_notification)
-        .setContentTitle(alert["title"])
-        .setContentText(alert["body"])
-        .setAutoCancel(true)
-        .setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE))
-        .build(),
-    )
+    val notification = Notification.Builder(this, CHANNEL)
+      .setSmallIcon(R.drawable.ic_notification)
+      .setContentTitle(alert["title"])
+      .setContentText(alert["body"])
+      .setAutoCancel(true)
+      .setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE))
+    // A dated line's alert, not a shared note's.
+    if (alert["due"] != null) {
+      val extras = Bundle().apply { alert.forEach { (key, value) -> putString(key, value) } }
+      for ((action, title) in listOf(DONE to R.string.done, SNOOZE to R.string.snooze)) {
+        val change = Intent(action, note.build(), this, AlertAction::class.java).putExtras(extras)
+        val pending =
+          PendingIntent.getBroadcast(this, 0, change, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        notification.addAction(Notification.Action.Builder(null, getString(title), pending).build())
+      }
+    }
+    manager.notify(alert["tag"], 0, notification.build())
   }
 
   companion object {
     private const val CHANNEL = "alerts"
+    const val DONE = "app.nichenotes.DONE"
+    const val SNOOZE = "app.nichenotes.SNOOZE"
 
-    // For whoever is signed in to the page, by its cookie. A send that fails waits for the next one.
     fun register(context: Context, token: String) {
-      val site = context.getString(R.string.site)
-      val cookie = CookieManager.getInstance().getCookie(site) ?: return
       val body = JSONObject()
         .put("subscription", JSONObject().put("fcm", token))
         .put("time_zone", TimeZone.getDefault().id)
-      Thread {
-        runCatching {
-          val http = URL("$site/api/push_subscriptions").openConnection() as HttpURLConnection
-          http.requestMethod = "PUT"
-          http.doOutput = true
-          http.setRequestProperty("Cookie", cookie)
-          http.setRequestProperty("Content-Type", "application/json")
-          http.outputStream.use { it.write(body.toString().toByteArray()) }
-          http.responseCode
-          http.disconnect()
-        }
-      }.start()
+      Thread { send(context, "PUT", "/api/push_subscriptions", body) }.start()
     }
+
+    // As whoever is signed in to the page, by its cookie. Zero when the server couldn't be reached.
+    fun send(context: Context, method: String, path: String, body: JSONObject): Int {
+      val site = context.getString(R.string.site)
+      val cookie = CookieManager.getInstance().getCookie(site) ?: return 0
+      return runCatching {
+        val http = URL(site + path).openConnection() as HttpURLConnection
+        http.requestMethod = method
+        http.doOutput = true
+        http.setRequestProperty("Cookie", cookie)
+        http.setRequestProperty("Content-Type", "application/json")
+        http.outputStream.use { it.write(body.toString().toByteArray()) }
+        http.responseCode.also { http.disconnect() }
+      }.getOrDefault(0)
+    }
+  }
+}
+
+// Done ticks the alert's line, or moves a repeating one to the next date the server sent, and Snooze moves it to an
+// hour from now. The server makes the change, since the app may be closed. One that fails leaves the alert, whose
+// tap opens the note.
+class AlertAction : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    val alert = intent.extras!!
+    val change = JSONObject().put("due", alert.getString("due")).put("text", alert.getString("text"))
+    val to =
+      if (intent.action == Alerts.SNOOZE) {
+        LocalDateTime.now().plusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
+      } else {
+        alert.getString("next")
+      }
+    if (to != null) change.put("move_to", to) else change.put("checked", true)
+    val finished = goAsync()
+    Thread {
+      if (Alerts.send(context, "PATCH", "/api/docs/${alert.getString("note")}/line", change) in 200..299) {
+        context.getSystemService(NotificationManager::class.java).cancel(alert.getString("tag"), 0)
+      }
+      finished.finish()
+    }.start()
   }
 }

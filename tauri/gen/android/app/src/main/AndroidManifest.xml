@@ -89,6 +89,8 @@
                 android:resource="@xml/tree_widget" />
         </receiver>
 
+        <receiver android:name=".AlertAction" android:exported="false" />
+
         <service android:name=".Alerts" android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
