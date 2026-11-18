@@ -167,7 +167,8 @@ async function run(me: User) {
   // Android can keep a dead connection looking open while the app is away, and the heartbeat takes up to a
   // minute to notice. Coming back asks the server at once and treats silence as a missed heartbeat.
   document.addEventListener('visibilitychange', () => {
-    // A launch reads search text from this copy, which open notes keep only in memory.
+    // A launch reads search text from this copy, which an open note writes once it has been still, and here in case
+    // the page stops sooner.
     if (document.visibilityState !== 'visible') {
       for (const id of docs.keys()) if (id !== me.id) void db.docs.upsert(id, textOf(id))
       return
@@ -391,6 +392,7 @@ async function load(id: string): Promise<Y.Doc> {
   copyMeta()
   meta.observe(copyMeta)
   // The tree draws the lines that are due, so it hears when an open note's change, once the note has been still.
+  // The device keeps that copy then too, since a phone can end the app without telling the page.
   let dated = JSON.stringify(textOf(id).dated)
   let still: number | undefined
   store.texts.delete(id)
@@ -445,6 +447,7 @@ async function load(id: string): Promise<Y.Doc> {
     store.texts.delete(id)
     clearTimeout(still)
     still = window.setTimeout(() => {
+      if (id !== store.me!.id) void db.docs.upsert(id, textOf(id))
       const now = JSON.stringify(textOf(id).dated)
       if (now !== dated) notify()
       dated = now

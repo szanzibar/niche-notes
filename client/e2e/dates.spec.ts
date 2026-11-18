@@ -352,6 +352,34 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await expect(otherDue).toHaveAccessibleName('Due (0)')
 })
 
+test('a launch without the server lists the dates another device gave a note open here', async ({ browser }) => {
+  const name = `alice-${uid()}`
+  const phone = await signIn(browser, name)
+  const due = phone.getByRole('button', { name: /^Due \(/ })
+  await newNote(phone, 'Chores', 'Milk')
+  await tool(phone, 'Checklist').click()
+  await phone.keyboard.press('Enter')
+  await phone.keyboard.type('pay rent today')
+  await phone.keyboard.press('Enter')
+  await expect(due).toHaveText('1')
+
+  const desk = await signIn(browser, name)
+  await row(desk, 'Chores').click()
+  await desk.locator('.editor-body p').getByText('Milk', { exact: true }).click()
+  await desk.keyboard.press(lineEnd)
+  await desk.keyboard.type(' today')
+  await desk.keyboard.press('ArrowDown')
+  await expect(due).toHaveText('2')
+
+  // Android can end the app without telling the page, so the device has to hold this already. A second window
+  // shows what it holds, and the first stays open, as the app was until it ended.
+  const launch = await phone.context().newPage()
+  await launch.route('**/api/me', () => {})
+  await launch.routeWebSocket(/\/socket\//, () => {})
+  await launch.goto('/')
+  await expect(launch.getByRole('button', { name: /^Due \(/ })).toHaveText('2')
+})
+
 test('typed words read as the dates they say', () => {
   // Monday 16 November 2026, two in the afternoon.
   const now = new Date(2026, 10, 16, 14)
