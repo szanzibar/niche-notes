@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useState } from 'react'
-import { alertPermission, enableAlerts } from '../lib/alerts'
+import { alertState, turnOffAlerts, turnOnAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
 import { useY } from '../sync/hooks'
 import { store } from '../sync/store'
@@ -45,10 +45,10 @@ export function SettingsDialog() {
   }, [density])
   // The Google account whose calendar holds the dated lines, or null before Settings hears from the server.
   const [google, setGoogle] = useState<{ email: string | null } | null>(null)
-  const [alerts, setAlerts] = useState(alertPermission)
+  const [alerts, setAlerts] = useState(alertState)
   const open = (opened: boolean) => {
     if (!opened) return
-    setAlerts(alertPermission())
+    setAlerts(alertState())
     api
       .googleCalendar()
       .then(setGoogle)
@@ -142,11 +142,14 @@ export function SettingsDialog() {
                   </Info>
                 )}
               </div>
-              {alerts === 'granted' && <p className="text-sm text-ink-muted">On for this device.</p>}
-              {alerts === 'default' && (
-                <Button onClick={() => void enableAlerts().then(() => setAlerts(alertPermission()))}>
-                  Turn on alerts
-                </Button>
+              {alerts === 'granted' && (
+                <>
+                  <p className="mb-2 text-sm text-ink-muted">On for this device.</p>
+                  <Button onClick={() => void turnOffAlerts().then(() => setAlerts(alertState()))}>Turn off</Button>
+                </>
+              )}
+              {(alerts === 'default' || alerts === 'off') && (
+                <Button onClick={() => void turnOnAlerts().then(() => setAlerts(alertState()))}>Turn on alerts</Button>
               )}
               {alerts === 'denied' && <p className="text-sm text-ink-muted">Blocked on this device.</p>}
             </>

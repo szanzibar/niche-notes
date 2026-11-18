@@ -93,6 +93,49 @@ test('Settings offers alerts only on a device with Web Push', async ({ browser }
   await expect(page.getByText('Alerts', { exact: true })).toBeHidden()
 })
 
+test('Settings turns alerts off for this device and back on, and a launch in between leaves them off', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  // The dev server has no service worker and the test browser no push service, so this device's subscription is a
+  // stand-in that says when it is gone, on a device that allows notifications.
+  await page.addInitScript(() => {
+    Object.defineProperty(Notification, 'permission', { get: () => 'granted' })
+    const key = (bytes: number[]) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const json = { endpoint: 'https://push.example/e2e', keys: { p256dh: key([4, ...Array(64).fill(7)]), auth: key(Array(16).fill(7)) } }
+    const subscription = { toJSON: () => json, unsubscribe: async () => !localStorage.setItem('unsubscribed', 'yes') }
+    const pushManager = {
+      getSubscription: async () => (localStorage.getItem('unsubscribed') ? null : subscription),
+      subscribe: async () => {
+        localStorage.removeItem('unsubscribed')
+        return subscription
+      },
+    }
+    Object.defineProperty(navigator.serviceWorker, 'ready', { get: async () => ({ pushManager }) })
+  })
+  await page.reload()
+  const settings = async () => {
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await expect(page.getByText('Alerts', { exact: true })).toBeVisible()
+  }
+  const unsubscribed = () => page.evaluate(() => localStorage.getItem('unsubscribed'))
+  await settings()
+  await expect(page.getByText('On for this device.')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Turn off', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Turn on alerts' })).toBeVisible()
+  expect(await unsubscribed()).toBe('yes')
+
+  await page.reload()
+  await settings()
+  await expect(page.getByRole('button', { name: 'Turn on alerts' })).toBeVisible()
+  expect(await unsubscribed()).toBe('yes')
+
+  await page.getByRole('button', { name: 'Turn on alerts' }).click()
+  await expect(page.getByText('On for this device.')).toBeVisible()
+  expect(await unsubscribed()).toBeNull()
+})
+
 test('Settings connects Google Calendar through Google, then shows the account with Disconnect', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ body: 'Google' }))
