@@ -98,7 +98,7 @@ body {
    margin beside a nested line finds that line, and it shows on a touch screen or for the line under the pointer.
    The floating handle covers everything else. */
 .editor-body li { position: relative; }
-.line-grip { position: absolute; top: 0; left: -1.75rem; width: 1.75rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; touch-action: none; user-select: none; }
+.line-grip { position: absolute; top: 0; left: -1.75rem; width: 1.75rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; user-select: none; }
 .line-grip svg { width: 1.25rem; height: 1.25rem; }
 .line-grip:hover { color: var(--accent-ink); }
 .editor-body li:hover:not(:has(li:hover)) > .line-grip, .editor-body li:hover:not(:has(li:hover)) > div > .line-grip { opacity: 1; }
@@ -118,6 +118,8 @@ body {
   .editor-body { padding-left: 2.5rem; }
   .line-grip { opacity: 1; left: -2.5rem; width: 2.5rem; justify-content: flex-end; padding-right: 0.25rem; }
   .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.5rem); }
+  /* A thumb that lands beside a box, short of its line's text, still ticks it. */
+  .editor-body ul[data-type="taskList"] > li > label::before { content: ''; position: absolute; top: 0; left: 0; width: calc(1.15rem + 0.6rem); height: calc(0.3rem + 1.6em); }
 }
 .editor-body hr { border-top: 2px solid var(--border); margin: 1rem 0; }
 .editor-body hr.ProseMirror-selectednode { border-color: var(--accent-ink); }

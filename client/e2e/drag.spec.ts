@@ -1,5 +1,5 @@
 import { expect, type Browser, type Page } from '@playwright/test'
-import { newNote, phoneOnly, row, signIn, test, uid } from './helpers'
+import { newNote, phoneOnly, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -54,13 +54,15 @@ async function drag(page: Page, text: string, onto: string, at: number, check?: 
   await page.mouse.up()
 }
 
-// Playwright has no touch drag, so the touches go straight to Chrome. `check` gets where the finger is.
+// Playwright has no touch drag, so the touches go straight to Chrome. The finger holds the grip first, which lifts the
+// line. `check` gets where the finger is.
 async function touchDrag(page: Page, text: string, onto: string, at: number, check?: (y: number) => Promise<void>) {
   const { x, y0, y1 } = await path(page, text, onto, at)
   const cdp = await page.context().newCDPSession(page)
   const touch = (type: string, y = 0) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
   await touch('touchStart', y0)
+  await page.waitForTimeout(400)
   for (let step = 1; step <= 6; step++) await touch('touchMove', y0 + ((y1 - y0) * step) / 6)
   await check?.(y1)
   await touch('touchEnd')
@@ -223,52 +225,44 @@ test('on a touch screen every list line shows its grip, and a finger moves a lin
   await expect.poll(() => shape(page)).toEqual(['B', '  C', 'A'])
 })
 
-test('a tap on the grip of a line moves it to the end of the note picked for it, into the list there', async ({ browser }) => {
+test('a finger that moves off a grip at once scrolls the note, and a tap on the grip ticks its line', async ({
+  browser,
+}) => {
   phoneOnly()
-  const page = await phone(browser)
-  await newNote(page, 'Groceries', 'Milk')
-  await tool(page, 'Checklist').click()
-  await page.getByRole('button', { name: 'Back' }).click()
-  await checklist(page, 'Eggs', 'Bread')
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 500 } })
+  const page = await context.newPage()
+  await page.goto(`/auth/login?as=alice-${uid()}`)
+  const lines = Array.from({ length: 20 }, (_, n) => `Line ${n + 1}`)
+  await checklist(page, ...lines)
+  await body(page).blur()
+  await body(page).evaluate((el) => el.parentElement!.scrollTo(0, 0))
+  const scrolled = () => body(page).evaluate((el) => el.parentElement!.scrollTop)
 
-  // A finger drifts a little during a tap.
-  const at = (await grip(page, 'Eggs').boundingBox())!
-  const cdp = await page.context().newCDPSession(page)
-  const touch = (type: string, x = 0) =>
-    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: at.y + at.height / 2 }] })
-  await touch('touchStart', at.x + at.width / 2)
-  await touch('touchMove', at.x + at.width / 2 + 3)
+  const at = (await grip(page, 'Line 6').boundingBox())!
+  const x = at.x + at.width / 2
+  const cdp = await context.newCDPSession(page)
+  const touch = (type: string, y = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+  await touch('touchStart', at.y + at.height / 2)
+  for (let step = 1; step <= 6; step++) await touch('touchMove', at.y + at.height / 2 - step * 30)
+  // The finger stops before it lifts, so the note doesn't coast on under the next tap.
+  await page.waitForTimeout(100)
   await touch('touchEnd')
-  const dialog = page.getByRole('dialog', { name: 'Move to note' })
-  await expect(dialog.getByRole('button', { name: 'Lists' })).toBeDisabled()
-  await dialog.getByRole('button', { name: 'Groceries' }).tap()
-  await expect(dialog).toBeHidden()
-  await expect(body(page).locator('li p')).toHaveText(['Bread'])
+  await expect.poll(scrolled).toBeGreaterThan(0)
+  expect(await shape(page)).toEqual(lines)
+  await expect(page.locator('.line-ghost')).toBeHidden()
 
-  await page.getByRole('button', { name: 'Back' }).click()
-  await row(page, 'Groceries').click()
-  await expect(body(page).locator('li p')).toHaveText(['Milk', 'Eggs'])
-  await expect(body(page).locator('ul')).toHaveCount(1)
-})
+  // A tick there leaves the keyboard down, as a tick on the box does.
+  const box = body(page).locator('li', { has: page.locator('p:text-is("Line 8")') }).locator('input')
+  await expect(box).not.toBeChecked()
+  const tap = (await grip(page, 'Line 8').boundingBox())!
+  await page.touchscreen.tap(tap.x + tap.width / 2, tap.y + tap.height / 2)
+  await expect(box).toBeChecked()
+  await expect(body(page)).not.toBeFocused()
 
-test('dropping a line on a note in the tree moves it there', async ({ browser }) => {
-  const page = await signIn(browser, `alice-${uid()}`)
-  await newNote(page, 'Packing', 'Socks')
-  await checklist(page, 'Charger', 'Bread')
-
-  // Playwright's dragTo jumps in one move, which Chrome never turns into a drop.
-  const from = (await grip(page, 'Charger').boundingBox())!
-  const to = (await row(page, 'Packing').boundingBox())!
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
-  await page.mouse.down()
-  for (let step = 1; step <= 6; step++) {
-    await page.mouse.move(from.x + ((to.x + 40 - from.x) * step) / 6, from.y + ((to.y + to.height / 2 - from.y) * step) / 6)
-  }
-  // Safari's engine asks a row whether it takes the line only on a move over it, not on arriving.
-  await page.mouse.move(to.x + 41, to.y + to.height / 2)
-  await page.mouse.up()
-  await expect(body(page).locator('li p')).toHaveText(['Bread'])
-  await row(page, 'Packing').click()
-  await expect(body(page).locator('p').first()).toHaveText('Socks')
-  await expect(body(page).locator('li p')).toHaveText(['Charger'])
+  // So does a tap between the box and the line's text.
+  const words = (await line(page, 'Line 9').boundingBox())!
+  await page.touchscreen.tap(words.x - 3, words.y + words.height / 2)
+  await expect(body(page).locator('li', { has: page.locator('p:text-is("Line 9")') }).locator('input')).toBeChecked()
+  await expect(body(page)).not.toBeFocused()
 })

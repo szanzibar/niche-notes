@@ -1,20 +1,13 @@
 import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
 import type { Node, ResolvedPos } from '@tiptap/pm/model'
 import { type EditorState, NodeSelection, Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
-import { Mapping, Transform } from '@tiptap/pm/transform'
+import { Mapping } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { Extension, type Editor } from '@tiptap/react'
-import {
-  prosemirrorToYXmlFragment,
-  yUndoPluginKey,
-  yXmlFragmentToProseMirrorRootNode,
-  ySyncPluginKey,
-} from '@tiptap/y-tiptap'
+import { yUndoPluginKey, ySyncPluginKey } from '@tiptap/y-tiptap'
 import { enableAlerts } from '../lib/alerts'
-import { openDoc } from '../sync/store'
 import { settings } from '../sync/tree'
 import { dueLabel, nextDue, overdue, parseRule, type Typed, typedDates, withTyped } from './dates'
-import { dragged } from './dragged'
 import { GRIP } from './icons'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
@@ -103,12 +96,15 @@ export const JoinLists = Extension.create({
   ],
 })
 
-// A finger never starts the browser's own drag, so a touch on a grip plays the drag events the editor moves lines
-// with, and a touch that doesn't move is a tap. Dragging past the visible part of a long note doesn't scroll it.
+// A finger lifts a line by holding its grip this long, so a thumb that moves sooner scrolls the note and one that
+// lets go sooner taps.
+const HOLD_MS = 300
+
+// A finger never starts the browser's own drag, so a held grip plays the drag events the editor moves lines with.
+// Dragging past the visible part of a long note doesn't scroll it.
 export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
   if (!grip) return
   const start = (down: TouchEvent) => {
-    down.preventDefault()
     const dataTransfer = new DataTransfer()
     const first = down.touches[0]
     let at = first
@@ -117,20 +113,31 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
       target?.dispatchEvent(
         new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: at.clientX, clientY: at.clientY }),
       )
-    const move = (e: TouchEvent) => {
-      e.preventDefault()
-      at = e.touches[0]
-      // A finger drifts a few pixels during a tap.
-      if (!dragging && Math.hypot(at.clientX - first.clientX, at.clientY - first.clientY) < 10) return
-      if (!dragging) fire('dragstart', grip)
+    const lift = setTimeout(() => {
       dragging = true
+      fire('dragstart', grip)
+    }, HOLD_MS)
+    const move = (e: TouchEvent) => {
+      at = e.touches[0]
+      if (!dragging) {
+        // A finger drifts a few pixels during a tap. A move the browser can't cancel is already scrolling.
+        if (!e.cancelable || Math.hypot(at.clientX - first.clientX, at.clientY - first.clientY) >= 10) stop()
+        return
+      }
+      e.preventDefault()
       fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
     }
+    // Without a tap's mouse events, the editor doesn't take the cursor and raise the keyboard.
     const end = (e: TouchEvent) => {
+      e.preventDefault()
       if (dragging) {
         if (e.type === 'touchend') fire('drop', document.elementFromPoint(at.clientX, at.clientY))
         fire('dragend', grip)
       } else if (e.type === 'touchend') onTap?.()
+      stop()
+    }
+    const stop = () => {
+      clearTimeout(lift)
       document.removeEventListener('touchmove', move)
       document.removeEventListener('touchend', end)
       document.removeEventListener('touchcancel', end)
@@ -139,33 +146,14 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
     document.addEventListener('touchend', end)
     document.addEventListener('touchcancel', end)
   }
-  grip.addEventListener('touchstart', start, { passive: false })
-  return () => grip.removeEventListener('touchstart', start)
-}
-
-// Moves a list line, with what is nested under it, to the end of another note: into the list there when that note
-// ends in the same kind of list, otherwise in a list of its own.
-export async function moveLine(editor: Editor, line: () => number | undefined, from: string, to: string) {
-  if (to === from) return
-  const target = (await openDoc(to)).getXmlFragment('content')
-  const pos = line()
-  if (pos == null) return
-  const { doc, schema } = editor.state
-  const node = doc.nodeAt(pos)!
-  const list = doc.resolve(pos).parent
-  const there = yXmlFragmentToProseMirrorRootNode(target, schema)
-  const tr = new Transform(there)
-  // The editor keeps an empty line after a list, which isn't where the note's text ends.
-  let end = there.content.size
-  let last = there.lastChild
-  if (last?.isTextblock && !last.content.size && there.childCount > 1) {
-    end -= last.nodeSize
-    last = there.child(there.childCount - 2)
+  // A held finger would otherwise open the phone's menu or select text.
+  const hold = (e: Event) => e.preventDefault()
+  grip.addEventListener('touchstart', start)
+  grip.addEventListener('contextmenu', hold)
+  return () => {
+    grip.removeEventListener('touchstart', start)
+    grip.removeEventListener('contextmenu', hold)
   }
-  if (last?.type === list.type) tr.insert(end - 1, node)
-  else tr.insert(end, list.type.create(list.attrs, node))
-  prosemirrorToYXmlFragment(tr.doc, target)
-  editor.commands.deleteRange({ from: pos, to: pos + node.nodeSize })
 }
 
 const isLine = (node: Node) => node.type.name === 'taskItem' || node.type.name === 'listItem'
@@ -258,159 +246,158 @@ function dropLine(view: EditorView, from: number, { pos, zone }: Drop) {
 const held = new PluginKey<number | null>('heldLine')
 
 // Every list line has a grip in the margin, shown all the time on a touch screen and for the line under the pointer
-// otherwise. Dragging it moves the line with what is nested under it, and a tap asks which note to move it to. A drag
-// looks like one in the tree: the line rides as a box with its text, its place stays dimmed, the line it goes into is
-// outlined, and a mark shows where it will land.
-export const LineGrips = (note: string) =>
-  Extension.create({
-    name: 'lineGrips',
-    addProseMirrorPlugins() {
-      const { editor } = this
-      const mark = document.createElement('div')
-      mark.className = 'line-drop'
-      mark.hidden = true
-      const into = document.createElement('div')
-      into.className = 'line-into'
-      into.hidden = true
-      // The same box as a note dragged in the tree.
-      const ghost = document.createElement('div')
-      ghost.className = 'line-ghost pointer-events-none fixed z-50 truncate border-2 border-border bg-surface px-3 py-2 font-medium'
-      ghost.hidden = true
-      let follow: ((e: DragEvent) => void) | null = null
-      const show = (drop: Drop | null | undefined) => {
-        mark.hidden = drop?.top == null
-        into.hidden = !drop?.into
-        if (!drop) return
-        const box = mark.parentElement!.getBoundingClientRect()
-        const top = (y: number) => `${y - box.top + mark.parentElement!.scrollTop}px`
-        if (drop.top != null) mark.style.top = top(drop.top)
-        mark.style.left = `${drop.left - box.left}px`
-        mark.toggleAttribute('data-inside', drop.zone === 'inside')
-        if (!drop.into) return
-        into.style.top = top(drop.into.top)
-        into.style.left = `${drop.into.left - box.left}px`
-        into.style.height = `${drop.into.bottom - drop.into.top}px`
+// otherwise. Dragging it moves the line with what is nested under it. A drag looks like one in the tree: the line
+// rides as a box with its text, its place stays dimmed, the line it goes into is outlined, and a mark shows where it
+// will land.
+export const LineGrips = Extension.create({
+  name: 'lineGrips',
+  addProseMirrorPlugins() {
+    // The line a grip is dragging: where it is.
+    let dragged: (() => number | undefined) | null = null
+    const mark = document.createElement('div')
+    mark.className = 'line-drop'
+    mark.hidden = true
+    const into = document.createElement('div')
+    into.className = 'line-into'
+    into.hidden = true
+    // The same box as a note dragged in the tree.
+    const ghost = document.createElement('div')
+    ghost.className = 'line-ghost pointer-events-none fixed z-50 truncate border-2 border-border bg-surface px-3 py-2 font-medium'
+    ghost.hidden = true
+    let follow: ((e: DragEvent) => void) | null = null
+    const show = (drop: Drop | null | undefined) => {
+      mark.hidden = drop?.top == null
+      into.hidden = !drop?.into
+      if (!drop) return
+      const box = mark.parentElement!.getBoundingClientRect()
+      const top = (y: number) => `${y - box.top + mark.parentElement!.scrollTop}px`
+      if (drop.top != null) mark.style.top = top(drop.top)
+      mark.style.left = `${drop.left - box.left}px`
+      mark.toggleAttribute('data-inside', drop.zone === 'inside')
+      if (!drop.into) return
+      into.style.top = top(drop.into.top)
+      into.style.left = `${drop.into.left - box.left}px`
+      into.style.height = `${drop.into.bottom - drop.into.top}px`
+    }
+    const target = (view: EditorView, e: DragEvent) => {
+      const from = dragged?.()
+      return from == null ? null : dropAt(view, e.clientY, from)
+    }
+    const grip = (view: EditorView, getPos: () => number | undefined) => {
+      const el = document.createElement('span')
+      el.className = 'line-grip'
+      el.contentEditable = 'false'
+      el.draggable = true
+      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="${GRIP}"/></svg>`
+      // The grip sits at the start of its line's content.
+      const line = () => {
+        const pos = getPos()
+        return pos == null ? undefined : pos - 1
       }
-      const target = (view: EditorView, e: DragEvent) => {
-        const from = dragged.current?.line()
-        return from == null ? null : dropAt(view, e.clientY, from)
-      }
-      const grip = (view: EditorView, getPos: () => number | undefined) => {
-        const el = document.createElement('span')
-        el.className = 'line-grip'
-        el.contentEditable = 'false'
-        el.draggable = true
-        el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="${GRIP}"/></svg>`
-        // The grip sits at the start of its line's content.
-        const line = () => {
-          const pos = getPos()
-          return pos == null ? undefined : pos - 1
+      // A thumb that misses a checkbox mostly lands on its grip.
+      dragByTouch(el, () => el.closest('li')!.querySelector<HTMLInputElement>(':scope > label > input')?.click())
+      // The editor drags whatever is selected, so the line becomes the selection.
+      el.addEventListener('dragstart', (e) => {
+        const at = line()
+        if (at == null) return
+        view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at)).setMeta(held, at))
+        dragged = line
+        const row = el.closest('li')!.getBoundingClientRect()
+        ghost.textContent = view.state.doc.nodeAt(at)!.firstChild!.textContent
+        ghost.style.width = `${row.width}px`
+        ghost.hidden = false
+        // A finger's drag is ours, so the box follows it a row above the finger, keeping the line it would land
+        // on in sight. A pointer's is the browser's, which takes a picture of the box.
+        const x = e.clientX - row.left
+        const y = e.clientY - row.top + (e.isTrusted ? 0 : 48)
+        follow = (move) => {
+          ghost.style.left = `${move.clientX - x}px`
+          ghost.style.top = `${move.clientY - y}px`
         }
-        const ask = () => view.dom.dispatchEvent(new CustomEvent('move-line', { detail: line }))
-        el.addEventListener('click', ask)
-        dragByTouch(el, ask)
-        // The editor drags whatever is selected, so the line becomes the selection.
-        el.addEventListener('dragstart', (e) => {
-          const at = line()
-          if (at == null) return
-          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at)).setMeta(held, at))
-          dragged.current = { line, moveTo: (to) => void moveLine(editor, line, note, to) }
-          const row = el.closest('li')!.getBoundingClientRect()
-          ghost.textContent = view.state.doc.nodeAt(at)!.firstChild!.textContent
-          ghost.style.width = `${row.width}px`
-          ghost.hidden = false
-          // A finger's drag is ours, so the box follows it a row above the finger, keeping the line it would land
-          // on in sight. A pointer's is the browser's, which takes a picture of the box.
-          const x = e.clientX - row.left
-          const y = e.clientY - row.top + (e.isTrusted ? 0 : 48)
-          follow = (move) => {
-            ghost.style.left = `${move.clientX - x}px`
-            ghost.style.top = `${move.clientY - y}px`
+        follow(e)
+        if (!e.isTrusted) return document.addEventListener('dragover', follow)
+        e.dataTransfer?.setDragImage(ghost, x, y)
+        requestAnimationFrame(() => (ghost.hidden = true))
+      })
+      el.addEventListener('dragend', () => {
+        dragged = null
+        show(null)
+        if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(held, null))
+        ghost.hidden = true
+        if (follow) document.removeEventListener('dragover', follow)
+      })
+      return el
+    }
+    return [
+      new Plugin({
+        key: held,
+        // Where the line being dragged is, so it stays dimmed in place.
+        state: {
+          init: () => null as number | null,
+          apply: (tr, at: number | null) => {
+            const meta = tr.getMeta(held) as number | null | undefined
+            return meta !== undefined ? meta : at == null ? null : tr.mapping.map(at)
+          },
+        },
+        view: (view) => {
+          view.dom.parentElement!.append(mark, into)
+          document.body.append(ghost)
+          return {
+            destroy: () => {
+              mark.remove()
+              into.remove()
+              ghost.remove()
+            },
           }
-          follow(e)
-          if (!e.isTrusted) return document.addEventListener('dragover', follow)
-          e.dataTransfer?.setDragImage(ghost, x, y)
-          requestAnimationFrame(() => (ghost.hidden = true))
-        })
-        el.addEventListener('dragend', () => {
-          dragged.current = null
-          show(null)
-          if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(held, null))
-          ghost.hidden = true
-          if (follow) document.removeEventListener('dragover', follow)
-        })
-        return el
-      }
-      return [
-        new Plugin({
-          key: held,
-          // Where the line being dragged is, so it stays dimmed in place.
-          state: {
-            init: () => null as number | null,
-            apply: (tr, at: number | null) => {
-              const meta = tr.getMeta(held) as number | null | undefined
-              return meta !== undefined ? meta : at == null ? null : tr.mapping.map(at)
-            },
+        },
+        props: {
+          decorations: (state) => {
+            const grips: Decoration[] = []
+            state.doc.descendants((node, pos) => {
+              if (!isLine(node)) return
+              grips.push(
+                Decoration.widget(pos + 1, grip, {
+                  side: -1,
+                  key: 'grip',
+                  ignoreSelection: true,
+                  // Drag events reach the editor, which moves the line, and so does a drop on another grip.
+                  stopEvent: (e) => !(e instanceof DragEvent),
+                }),
+              )
+            })
+            const at = held.getState(state)
+            const line = at == null ? null : state.doc.nodeAt(at)
+            if (line) grips.push(Decoration.node(at!, at! + line.nodeSize, { class: 'line-held' }))
+            return DecorationSet.create(state.doc, grips)
           },
-          view: (view) => {
-            view.dom.parentElement!.append(mark, into)
-            document.body.append(ghost)
-            return {
-              destroy: () => {
-                mark.remove()
-                into.remove()
-                ghost.remove()
-              },
-            }
-          },
-          props: {
-            decorations: (state) => {
-              const grips: Decoration[] = []
-              state.doc.descendants((node, pos) => {
-                if (!isLine(node)) return
-                grips.push(
-                  Decoration.widget(pos + 1, grip, {
-                    side: -1,
-                    key: 'grip',
-                    ignoreSelection: true,
-                    // Drag events reach the editor, which moves the line, and so does a drop on another grip.
-                    stopEvent: (e) => !(e instanceof DragEvent),
-                  }),
-                )
-              })
-              const at = held.getState(state)
-              const line = at == null ? null : state.doc.nodeAt(at)
-              if (line) grips.push(Decoration.node(at!, at! + line.nodeSize, { class: 'line-held' }))
-              return DecorationSet.create(state.doc, grips)
-            },
-            // Off every list line, the editor places the line as it would anything else.
-            handleDOMEvents: {
-              dragover: (view, e) => {
-                if (!dragged.current) return false
-                const drop = target(view, e)
-                show(drop)
-                if (drop === undefined) return false
-                e.preventDefault()
-                return true
-              },
-              dragleave: (view, e) => {
-                if (!view.dom.contains(e.relatedTarget as globalThis.Node | null)) show(null)
-                return false
-              },
-            },
-            handleDrop: (view, e) => {
-              if (!dragged.current) return false
+          // Off every list line, the editor places the line as it would anything else.
+          handleDOMEvents: {
+            dragover: (view, e) => {
+              if (!dragged) return false
               const drop = target(view, e)
-              show(null)
+              show(drop)
               if (drop === undefined) return false
-              if (drop) dropLine(view, dragged.current.line()!, drop)
+              e.preventDefault()
               return true
             },
+            dragleave: (view, e) => {
+              if (!view.dom.contains(e.relatedTarget as globalThis.Node | null)) show(null)
+              return false
+            },
           },
-        }),
-      ]
-    },
-  })
+          handleDrop: (view, e) => {
+            if (!dragged) return false
+            const drop = target(view, e)
+            show(null)
+            if (drop === undefined) return false
+            if (drop) dropLine(view, dragged()!, drop)
+            return true
+          },
+        },
+      }),
+    ]
+  },
+})
 
 // Checked lines leave once the note has been this still, so lines ticked in a row leave together and
 // nothing moves under the next tap.

@@ -44,7 +44,6 @@ import {
 } from '../sync/tree'
 import { IconButton } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
-import { dragged } from './dragged'
 import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon, UsersIcon } from './icons'
 import { OfflineIcon } from './OfflineIcon'
 import { SettingsDialog } from './SettingsDialog'
@@ -94,7 +93,7 @@ function markOf(ids: string[], { parent, index }: Spot): Mark {
 const aboveFinger: Modifier = ({ transform, activatorEvent }) =>
   activatorEvent && 'touches' in activatorEvent ? { ...transform, y: transform.y - 48 } : transform
 
-// On a touch screen a row drags by its grip, at once, like a line in a note. A touch anywhere else taps or scrolls.
+// On a touch screen a row drags by its grip once held, like a line in a note. A touch anywhere else taps or scrolls.
 class HandleSensor extends TouchSensor {
   static activators = [
     {
@@ -226,7 +225,7 @@ export function Tree({ selected }: { selected?: string }) {
   }, [picking, navigate])
 
   const sensors = useSensors(
-    useSensor(HandleSensor),
+    useSensor(HandleSensor, { activationConstraint: { delay: 300, tolerance: 10 } }),
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
   )
 
@@ -619,8 +618,6 @@ function Row({
   const showNote = useShowNote()
   const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
   const { setNodeRef: dropRef } = useDroppable({ id, disabled: isDragging })
-  // A line dragged out of the open note moves into the note it is dropped on.
-  const [taking, setTaking] = useState(false)
   if (inTrash(id)) return null
 
   const kids = children(id)
@@ -634,20 +631,9 @@ function Row({
     <>
       <div
         ref={dropRef}
-        className={`relative flex select-none items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${taking || into ? `outline-2 -outline-offset-2 ${active ? 'outline-ink' : 'outline-accent-ink'}` : ''}`}
+        className={`relative flex select-none items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${into ? `outline-2 -outline-offset-2 ${active ? 'outline-ink' : 'outline-accent-ink'}` : ''}`}
         style={{ paddingLeft: 4 + depth * INDENT }}
         data-drop-into={into || undefined}
-        onDragOver={(e) => {
-          if (!dragged.current) return
-          e.preventDefault()
-          setTaking(true)
-        }}
-        onDragLeave={() => setTaking(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setTaking(false)
-          dragged.current?.moveTo(id)
-        }}
       >
         {line && (
           <span
@@ -660,7 +646,7 @@ function Row({
           {...listeners}
           data-handle
           aria-hidden
-          className={`hidden h-11 w-7 shrink-0 touch-none items-center justify-center pointer-coarse:flex ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}
+          className={`hidden h-11 w-7 shrink-0 items-center justify-center pointer-coarse:flex ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}
         >
           <GripIcon className="h-5 w-5" />
         </span>

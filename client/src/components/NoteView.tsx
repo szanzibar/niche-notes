@@ -61,12 +61,10 @@ import {
   JoinLists,
   LineGrips,
   ListTabs,
-  moveLine,
   uncheckAll,
 } from './lists'
 import { TableEnter } from './tables'
 import { THEMES } from './themes'
-import { MoveDialog } from './MoveDialog'
 import { Toolbar } from './Toolbar'
 
 // One per note for the app's lifetime, so undo survives leaving and reopening the note.
@@ -176,7 +174,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         ListTabs,
         TableEnter,
         JoinLists,
-        LineGrips(id),
+        LineGrips,
         Placeholder.configure({ placeholder: 'Write…' }),
         HideChecked(() => meta.get('hideChecked') === true || meta.get('deleteChecked') === true),
         Collaboration.configure({
@@ -211,15 +209,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   // List lines have their own grips, so the floating handle stays off them. It stays laid out while unseen, since
   // it measures where to go even then.
   const [onList, setOnList] = useState(false)
-  // The line whose grip was tapped, until a note is picked for it.
-  const [moving, setMoving] = useState<(() => number | undefined) | null>(null)
-  useEffect(() => {
-    if (!editor) return
-    const ask = (e: Event) => setMoving(() => (e as CustomEvent<() => number | undefined>).detail)
-    const dom = editor.view.dom
-    dom.addEventListener('move-line', ask)
-    return () => dom.removeEventListener('move-line', ask)
-  }, [editor])
 
   // Delete checked shows hidden checked lines on this device for a moment first, so you see what goes.
   const [clearing, setClearing] = useState(false)
@@ -602,16 +591,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         className="relative flex-1 overflow-y-auto bg-surface"
         data-hide-checked={(hiding && !clearing) || undefined}
       />
-      {editor && moving && (
-        <MoveDialog
-          note={id}
-          onClose={() => setMoving(null)}
-          onPick={(to) => {
-            void moveLine(editor, moving, id, to)
-            setMoving(null)
-          }}
-        />
-      )}
       {editor && (
         // Pointing at a heading or paragraph shows its handle, and dragging the handle moves it. List lines have
         // their own grips. By default a pointer near a nested block's left edge picks its parent.
