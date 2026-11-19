@@ -113,7 +113,8 @@ Left for Steven, who has the passkey, the eyes and the Windows machine:
 - [ ] `tauri/updater.key` goes into the password manager and into the repository as the secret `TAURI_SIGNING_PRIVATE_KEY`, before the push, or the first build fails
 - [ ] Login against production: the Pocket ID page opens in the browser, the passkey works there, and the window comes back signed in. After Sign out the next login asks which account
 - [ ] A click on an alert's banner opens the window on that line. Without the click reaching the app it only opens the window
-- [ ] Typing with autocorrect, dragging a tree row and dragging a list line, also onto a note in the tree, all work in the window
+- [ ] Typing with autocorrect works in the window
+- [x] Dragging a tree row and a list line work in the window, once the window stopped taking drags as file drops (2026-11-19)
 - [ ] On Windows: the app installs and signs in, Settings shows no Alerts, an alert shows from the tray, and an update leaves the app in the tray instead of opening its window
 - [ ] On Windows: opening the app again after its window closed shows the window. It hung there on 2026-11-18, since building the window inside the single-instance callback deadlocks with window-state, and now the window is built on its own thread. After the login the window stayed blank, which that fix may not cover
 
