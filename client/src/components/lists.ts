@@ -96,32 +96,48 @@ export const JoinLists = Extension.create({
   ],
 })
 
-// A finger lifts a line by holding its grip this long, so a thumb that moves sooner scrolls the note and one that
-// lets go sooner taps.
+// A finger lifts a line by holding its grip this long, so one that moves sooner scrolls the note and one that lets go
+// sooner taps.
 const HOLD_MS = 300
 // A dragging finger this near the top or bottom of the note scrolls it, faster the nearer it gets.
 const EDGE = 48
+// How quickly a flick on a grip slows down once the finger lets go.
+const FLING_MS = 325
 
-// A held grip plays the drag events the editor moves lines with, since a phone's own drag waits for its long press,
-// if it has one at all.
+// A held grip plays the drag events the editor moves lines with. The grip keeps the whole touch from the browser,
+// whose own long press would put the cursor back in the note, vibrate and start a drag of its own, so the grip
+// scrolls the note itself.
 export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
   if (!grip) return
   const start = (down: TouchEvent) => {
+    down.preventDefault()
     const dataTransfer = new DataTransfer()
     const first = down.touches[0]
     let at = first
     let dragging = false
+    let scrolling = false
+    // Pixels a millisecond, from the last move.
+    let speed = 0
+    let lastY = first.clientY
+    let lastAt = down.timeStamp
     const fire = (type: string, target: Element | null) =>
       target?.dispatchEvent(
         new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: at.clientX, clientY: at.clientY }),
       )
-    // Android's long press would start the browser's drag of the grip on top of this one.
-    const native = (e: DragEvent) => {
-      if (!e.isTrusted) return
-      e.preventDefault()
-      e.stopPropagation()
-    }
     let scroller = grip.parentElement!
+    while (getComputedStyle(scroller).overflowY !== 'auto') scroller = scroller.parentElement!
+    const fling = () => {
+      let then = performance.now()
+      const step = (now: number) => {
+        speed *= Math.exp(-(now - then) / FLING_MS)
+        scroller.scrollTop += speed * (now - then)
+        then = now
+        if (Math.abs(speed) > 0.05) requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+      // Any touch stops it, as it stops the browser's own.
+      document.addEventListener('touchstart', () => (speed = 0), { once: true, capture: true })
+    }
     const scrollNearEdge = () => {
       if (!dragging) return
       const box = scroller.getBoundingClientRect()
@@ -135,29 +151,29 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
     }
     const lift = setTimeout(() => {
       dragging = true
-      // The keyboard comes back only for a tap to type, never for a drop under a cursor left in the note.
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       fire('dragstart', grip)
-      while (getComputedStyle(scroller).overflowY !== 'auto') scroller = scroller.parentElement!
       scrollNearEdge()
     }, HOLD_MS)
     const move = (e: TouchEvent) => {
+      e.preventDefault()
       at = e.touches[0]
-      if (!dragging) {
-        // A finger drifts a few pixels during a tap. A move the browser can't cancel is already scrolling.
-        if (!e.cancelable || Math.hypot(at.clientX - first.clientX, at.clientY - first.clientY) >= 10) stop()
-        return
-      }
-      e.preventDefault()
-      fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
+      if (dragging) return fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
+      // A finger drifts a few pixels during a tap.
+      if (!scrolling && Math.hypot(at.clientX - first.clientX, at.clientY - first.clientY) < 10) return
+      scrolling = true
+      clearTimeout(lift)
+      scroller.scrollTop += lastY - at.clientY
+      speed = (lastY - at.clientY) / Math.max(e.timeStamp - lastAt, 1)
+      lastY = at.clientY
+      lastAt = e.timeStamp
     }
-    // Without a tap's mouse events, the editor doesn't take the cursor and raise the keyboard.
     const end = (e: TouchEvent) => {
-      e.preventDefault()
       if (dragging) {
         if (e.type === 'touchend') fire('drop', document.elementFromPoint(at.clientX, at.clientY))
         fire('dragend', grip)
-      } else if (e.type === 'touchend') onTap?.()
+      } else if (!scrolling && e.type === 'touchend') onTap?.()
+      // A finger that stopped before it let go doesn't flick.
+      else if (scrolling && e.timeStamp - lastAt < 50) fling()
       stop()
     }
     const stop = () => {
@@ -166,21 +182,13 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
       document.removeEventListener('touchmove', move)
       document.removeEventListener('touchend', end)
       document.removeEventListener('touchcancel', end)
-      document.removeEventListener('dragstart', native, true)
     }
     document.addEventListener('touchmove', move, { passive: false })
     document.addEventListener('touchend', end)
     document.addEventListener('touchcancel', end)
-    document.addEventListener('dragstart', native, true)
   }
-  // A held finger would otherwise open the phone's menu or select text.
-  const hold = (e: Event) => e.preventDefault()
-  grip.addEventListener('touchstart', start)
-  grip.addEventListener('contextmenu', hold)
-  return () => {
-    grip.removeEventListener('touchstart', start)
-    grip.removeEventListener('contextmenu', hold)
-  }
+  grip.addEventListener('touchstart', start, { passive: false })
+  return () => grip.removeEventListener('touchstart', start)
 }
 
 const isLine = (node: Node) => node.type.name === 'taskItem' || node.type.name === 'listItem'

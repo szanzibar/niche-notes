@@ -221,8 +221,6 @@ test('on a touch screen every list line shows its grip, and a finger moves a lin
   })
   await expect(ghost).toBeHidden()
   await expect.poll(() => shape(page)).toEqual(['B', 'A', 'C'])
-  // The cursor left from typing goes with the lift, so the drop doesn't raise the keyboard.
-  await expect(body(page)).not.toBeFocused()
   await touchDrag(page, 'C', 'B', 0.5)
   await expect.poll(() => shape(page)).toEqual(['B', '  C', 'A'])
 })
@@ -253,6 +251,23 @@ test('a finger that moves off a grip at once scrolls the note, and a tap on the 
   await expect.poll(scrolled).toBeGreaterThan(0)
   expect(await shape(page)).toEqual(lines)
   await expect(page.locator('.line-ghost')).toBeHidden()
+
+  // A flick carries on after the finger lets go.
+  const before = await scrolled()
+  const flick = (await grip(page, 'Line 12').boundingBox())!
+  await touch('touchStart', flick.y + flick.height / 2)
+  for (let step = 1; step <= 4; step++) await touch('touchMove', flick.y + flick.height / 2 - step * 20)
+  await touch('touchEnd')
+  const released = await scrolled()
+  expect(released).toBeGreaterThan(before)
+  await expect.poll(scrolled).toBeGreaterThan(released + 20)
+  const still = async () => {
+    const was = await scrolled()
+    await page.waitForTimeout(100)
+    return was === (await scrolled())
+  }
+  await expect.poll(still).toBe(true)
+  await body(page).evaluate((el) => el.parentElement!.scrollTo(0, 0))
 
   // A tick there leaves the keyboard down, as a tick on the box does.
   const box = body(page).locator('li', { has: page.locator('p:text-is("Line 8")') }).locator('input')
