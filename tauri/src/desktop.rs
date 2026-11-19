@@ -40,6 +40,8 @@ pub fn window<'a>(
     window
         .title(&app.package_info().name)
         .inner_size(1100.0, 800.0)
+        // The window would take every drag as a file drop, and the page never sees a line it drags.
+        .disable_drag_drop_handler()
         // Signing in and out both load a page.
         .on_page_load(|window, loaded| {
             if loaded.event() == PageLoadEvent::Finished {
