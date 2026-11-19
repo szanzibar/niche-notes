@@ -99,9 +99,11 @@ export const JoinLists = Extension.create({
 // A finger lifts a line by holding its grip this long, so a thumb that moves sooner scrolls the note and one that
 // lets go sooner taps.
 const HOLD_MS = 300
+// A dragging finger this near the top or bottom of the note scrolls it, faster the nearer it gets.
+const EDGE = 48
 
-// A finger never starts the browser's own drag, so a held grip plays the drag events the editor moves lines with.
-// Dragging past the visible part of a long note doesn't scroll it.
+// A held grip plays the drag events the editor moves lines with, since a phone's own drag waits for its long press,
+// if it has one at all.
 export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
   if (!grip) return
   const start = (down: TouchEvent) => {
@@ -113,9 +115,31 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
       target?.dispatchEvent(
         new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: at.clientX, clientY: at.clientY }),
       )
+    // Android's long press would start the browser's drag of the grip on top of this one.
+    const native = (e: DragEvent) => {
+      if (!e.isTrusted) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    let scroller = grip.parentElement!
+    const scrollNearEdge = () => {
+      if (!dragging) return
+      const box = scroller.getBoundingClientRect()
+      const depth = (gap: number) => Math.min(Math.max(EDGE - gap, 0), EDGE)
+      const by = depth(box.bottom - at.clientY) - depth(at.clientY - box.top)
+      if (by) {
+        scroller.scrollTop += by / 4
+        fire('dragover', document.elementFromPoint(at.clientX, at.clientY))
+      }
+      requestAnimationFrame(scrollNearEdge)
+    }
     const lift = setTimeout(() => {
       dragging = true
+      // The keyboard comes back only for a tap to type, never for a drop under a cursor left in the note.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       fire('dragstart', grip)
+      while (getComputedStyle(scroller).overflowY !== 'auto') scroller = scroller.parentElement!
+      scrollNearEdge()
     }, HOLD_MS)
     const move = (e: TouchEvent) => {
       at = e.touches[0]
@@ -137,14 +161,17 @@ export function dragByTouch(grip: HTMLElement | null, onTap?: () => void) {
       stop()
     }
     const stop = () => {
+      dragging = false
       clearTimeout(lift)
       document.removeEventListener('touchmove', move)
       document.removeEventListener('touchend', end)
       document.removeEventListener('touchcancel', end)
+      document.removeEventListener('dragstart', native, true)
     }
     document.addEventListener('touchmove', move, { passive: false })
     document.addEventListener('touchend', end)
     document.addEventListener('touchcancel', end)
+    document.addEventListener('dragstart', native, true)
   }
   // A held finger would otherwise open the phone's menu or select text.
   const hold = (e: Event) => e.preventDefault()

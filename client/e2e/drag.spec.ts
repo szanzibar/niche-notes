@@ -221,6 +221,8 @@ test('on a touch screen every list line shows its grip, and a finger moves a lin
   })
   await expect(ghost).toBeHidden()
   await expect.poll(() => shape(page)).toEqual(['B', 'A', 'C'])
+  // The cursor left from typing goes with the lift, so the drop doesn't raise the keyboard.
+  await expect(body(page)).not.toBeFocused()
   await touchDrag(page, 'C', 'B', 0.5)
   await expect.poll(() => shape(page)).toEqual(['B', '  C', 'A'])
 })
@@ -265,4 +267,31 @@ test('a finger that moves off a grip at once scrolls the note, and a tap on the 
   await page.touchscreen.tap(words.x - 3, words.y + words.height / 2)
   await expect(body(page).locator('li', { has: page.locator('p:text-is("Line 9")') }).locator('input')).toBeChecked()
   await expect(body(page)).not.toBeFocused()
+})
+
+test('a line dragged to the bottom of the note scrolls it, so it can land below what was in view', async ({ browser }) => {
+  phoneOnly()
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 500 } })
+  const page = await context.newPage()
+  await page.goto(`/auth/login?as=alice-${uid()}`)
+  const lines = Array.from({ length: 20 }, (_, n) => `Line ${n + 1}`)
+  await checklist(page, ...lines)
+  await body(page).blur()
+  await body(page).evaluate((el) => el.parentElement!.scrollTo(0, 0))
+  const bottom = await body(page).evaluate((el) => el.parentElement!.getBoundingClientRect().bottom)
+  const atEnd = () => body(page).evaluate(({ parentElement: note }) => note!.scrollTop + note!.clientHeight >= note!.scrollHeight - 1)
+
+  const from = (await grip(page, 'Line 1').boundingBox())!
+  const x = from.x + from.width / 2
+  const cdp = await context.newCDPSession(page)
+  const touch = (type: string, y = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+  await touch('touchStart', from.y + from.height / 2)
+  await page.waitForTimeout(400)
+  for (let step = 1; step <= 6; step++) await touch('touchMove', from.y + ((bottom - 5 - from.y) * step) / 6)
+  await expect.poll(atEnd).toBe(true)
+  const to = (await line(page, 'Line 14').boundingBox())!
+  for (let step = 0; step < 3; step++) await touch('touchMove', to.y + to.height * 0.85 + step)
+  await touch('touchEnd')
+  await expect.poll(() => shape(page)).toEqual([...lines.slice(1, 14), 'Line 1', ...lines.slice(14)])
 })
