@@ -9,4 +9,7 @@
     <string name="alerts">Alerts</string>
     <string name="done">Done</string>
     <string name="snooze">Snooze 1 hour</string>
+    <string name="updates">Updates</string>
+    <string name="update_ready">Update ready</string>
+    <string name="update_install">Tap to install</string>
 </resources>

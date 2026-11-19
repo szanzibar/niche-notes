@@ -1,6 +1,10 @@
 package app.nichenotes
 
 import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -24,6 +28,9 @@ class MainActivity : TauriActivity() {
   companion object {
     // The text of the line a widget tap was on, which the note opens at.
     const val LINE = "line"
+    private const val UPDATES = "updates"
+    private const val OFFERED = "updateOffered"
+    private const val DAY_MS = 24 * 60 * 60 * 1000L
   }
 
   // Back goes back through the app's pages, then leaves it.
@@ -54,8 +61,9 @@ class MainActivity : TauriActivity() {
     update()
   }
 
-  // Each start offers the update the one before downloaded, which Android asks about, and looks for a newer one. So
-  // the app never restarts under someone typing.
+  // Each start looks for a newer release. One an earlier start downloaded waits in a quiet notification, at most once
+  // a day, and a tap installs it, so an update never interrupts someone using the app. With notifications off, none
+  // is offered.
   private fun update() {
     val apk = File(cacheDir, "update.apk")
     // Zero when nothing usable was downloaded.
@@ -64,14 +72,30 @@ class MainActivity : TauriActivity() {
     // An update that is installed is gone, so a normal start has nothing to read.
     if (ready <= have) apk.delete()
     BuildConfig.RELEASES?.let { releases -> Thread { download(releases, apk, maxOf(ready, have)) }.start() }
-    if (ready <= have) return
-    startActivity(
-      Intent(Intent.ACTION_VIEW)
-        .setDataAndType(
-          FileProvider.getUriForFile(this, "$packageName.fileprovider", apk),
-          "application/vnd.android.package-archive",
-        )
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val offered = getPreferences(MODE_PRIVATE)
+    val now = System.currentTimeMillis()
+    if (ready <= have || now - offered.getLong(OFFERED, 0) < DAY_MS) return
+    offered.edit().putLong(OFFERED, now).apply()
+    val install = Intent(Intent.ACTION_VIEW)
+      .setDataAndType(
+        FileProvider.getUriForFile(this, "$packageName.fileprovider", apk),
+        "application/vnd.android.package-archive",
+      )
+      .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val manager = getSystemService(NotificationManager::class.java)
+    manager.createNotificationChannel(
+      NotificationChannel(UPDATES, getString(R.string.updates), NotificationManager.IMPORTANCE_LOW)
+    )
+    manager.notify(
+      UPDATES,
+      0,
+      Notification.Builder(this, UPDATES)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setContentTitle(getString(R.string.update_ready))
+        .setContentText(getString(R.string.update_install))
+        .setAutoCancel(true)
+        .setContentIntent(PendingIntent.getActivity(this, 0, install, PendingIntent.FLAG_IMMUTABLE))
+        .build(),
     )
   }
 
