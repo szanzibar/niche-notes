@@ -190,11 +190,17 @@ test('the floating handle shows for paragraphs and never over a list line', asyn
   expect(Math.abs(at.x + at.width - beside.x)).toBeLessThan(8)
   expect(Math.abs(at.y - beside.y)).toBeLessThan(8)
 
-  // A phone shows it after a tap, with no pointer hovering anywhere.
+  // A phone shows it after a tap, with no pointer hovering anywhere. A phone has no mouse, and a click here would have
+  // Chrome move the pointer back to where it clicked after each tap, hiding the handle.
   const touch = await phone(browser)
-  await newNote(touch, 'Mixed', 'Plain words')
+  await touch.getByRole('button', { name: 'New note', exact: true }).tap()
+  await expect(touch.getByPlaceholder('Title')).toBeFocused()
+  await touch.keyboard.type('Mixed')
   await touch.keyboard.press('Enter')
-  await tool(touch, 'Checklist').click()
+  await expect(body(touch)).toBeFocused()
+  await touch.keyboard.type('Plain words')
+  await touch.keyboard.press('Enter')
+  await tool(touch, 'Checklist').tap()
   await touch.keyboard.type('Task')
   await body(touch).locator('p').getByText('Plain words').tap()
   await expect(touch.locator('.drag-handle')).toBeVisible()
