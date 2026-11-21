@@ -1,7 +1,7 @@
 defmodule NicheNotesWeb.AssetLinksController do
   use NicheNotesWeb, :controller
 
-  # Names the Android app that may open this site without an address bar. The app's id and signing key
+  # Names the Android app that opens this site's links. The app's id and signing key
   # come from the environment, so a server without the app lists none.
   def show(conn, _params) do
     android = Application.get_env(:niche_notes, :android, [])

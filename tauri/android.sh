@@ -13,7 +13,7 @@ cd "$(dirname "$0")"
 : "${GITHUB_REPOSITORY:=$(git remote get-url origin | sed -E 's#.*github.com[:/]##; s#\.git$##')}"
 count=$(git rev-list --count HEAD)
 # Logins come back as nichenotes:// links, and widgets open the server's pages.
-links='[{"scheme":["nichenotes"],"host":"callback"},{"scheme":["nichenotes"],"host":"google"},'"{\"scheme\":[\"https\"],\"host\":\"$PHX_HOST\",\"appLink\":false}]"
+links='[{"scheme":["nichenotes"],"host":"callback"},{"scheme":["nichenotes"],"host":"google"},'"{\"scheme\":[\"https\"],\"host\":\"$PHX_HOST\"}]"
 config="{\"version\":\"$count.0.0\",\"bundle\":{\"android\":{\"versionCode\":$count,\"minSdkVersion\":31}},\"plugins\":{\"deep-link\":{\"mobile\":$links}}}"
 [ -n "${CI:-}" ] || export DOCKER_CONTEXT=desktop-linux
 docker build -q --platform linux/amd64 -t nichenotes-tauri-android -f android.Dockerfile . >/dev/null
