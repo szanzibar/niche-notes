@@ -5,7 +5,7 @@ defmodule NicheNotes.Docs do
   has to happen while every app is closed, such as a home-screen widget, an alert or a calendar.
   """
   import Ecto.Query
-  alias NicheNotes.Repo
+  alias NicheNotes.{Reminders, Repo}
   alias NicheNotes.Accounts.User
   alias NicheNotes.Docs.{Doc, DocShare, DocUpdate}
 
@@ -133,6 +133,28 @@ defmodule NicheNotes.Docs do
     else
       _ -> :error
     end
+  end
+
+  # What a Due widget shows, under the user's own color: every unchecked dated line in the notes outside their trash,
+  # the earliest first, as the app's Due list has them. A repeating line says where ticking it moves it from the
+  # phone's `today`. The text is cut like an alert's, since Done finds its line by that.
+  def due_widget(user_id, today) do
+    {nodes, _settings} = tree = tree(user_id)
+
+    rows =
+      for {id, {title, lines}} <- Map.take(Reminders.notes(), note_ids(user_id)),
+          nodes[id]["leftAt"] == nil,
+          line <- lines do
+        %{
+          note: id,
+          title: title,
+          text: String.slice(line.text, 0, 200),
+          due: line.due,
+          next: Reminders.next_due(line, today)
+        }
+      end
+
+    Map.merge(%{rows: Enum.sort_by(rows, & &1.due)}, theme(tree, nil))
   end
 
   defp tree(user_id) do

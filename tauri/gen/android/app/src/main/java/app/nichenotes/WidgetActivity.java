@@ -7,7 +7,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 
-// The home screen starts this when a widget is added or reconfigured, and the picker page links back to it.
+// The home screen starts this when a widget is added or reconfigured, and for a tap on a Due widget's line. The picker
+// page links back to it.
 public class WidgetActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
@@ -19,6 +20,10 @@ public class WidgetActivity extends Activity {
             setResult(RESULT_OK, new Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widget));
             NoteWidget.show(this, widget);
             startActivity(NoteWidget.inApp(this, NoteWidget.picker(this, widget)));
+        } else if (intent.hasExtra("due")) {
+            sendBroadcast(new Intent(Alerts.DONE, null, this, AlertAction.class).putExtras(intent));
+        } else if (intent.hasExtra("note")) {
+            startActivity(NoteWidget.inApp(this, "/?n=" + intent.getStringExtra("note")).putExtras(intent));
         } else {
             Uri pick = intent.getData();
             int widget = Integer.parseInt(pick.getQueryParameter("id"));

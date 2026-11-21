@@ -245,4 +245,88 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     assert json_response(read("forged"), 401)
     assert json_response(read(NicheNotesWeb.UserSocket.token(@endpoint, me.id)), 401)
   end
+
+  test "a Due widget reads every open dated line with the tree's token, the earliest first", %{
+    conn: conn,
+    me: me,
+    other: other,
+    note: groceries
+  } do
+    start_supervised!(NicheNotes.Reminders)
+    {:ok, _} = Docs.open(me.id, me.id)
+
+    dated = fn id, title, lines ->
+      edit!(id, fn doc ->
+        Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "title", title)
+
+        items =
+          for {text, attrs} <- lines do
+            paragraph = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(text)])
+            Yex.XmlElementPrelim.new("taskItem", [paragraph], Map.put(attrs, "checked", false))
+          end
+
+        Yex.XmlFragment.push(
+          Yex.Doc.get_xml_fragment(doc, "content"),
+          Yex.XmlElementPrelim.new("taskList", items)
+        )
+      end)
+    end
+
+    dated.(groceries, "Groceries", [
+      {"eggs", %{"due" => "2026-11-22T09:00"}},
+      {String.duplicate("a", 250), %{"due" => "2026-11-20"}},
+      {"no date", %{}}
+    ])
+
+    house = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(house, other.id)
+    {:ok, _} = Docs.share(house, other.id, me.id)
+    dated.(house, "House", [{"bins", %{"due" => "2026-11-18", "repeat" => "FREQ=WEEKLY"}}])
+
+    left = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(left, other.id)
+    {:ok, _} = Docs.share(left, other.id, me.id)
+    dated.(left, "Left", [{"gone", %{"due" => "2026-11-19"}}])
+    edit!(me.id, &Yex.Map.set(Yex.Doc.get_map(&1, "nodes"), left, %{"leftAt" => 1}))
+
+    theirs = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(theirs, other.id)
+    dated.(theirs, "Theirs", [{"not mine", %{"due" => "2026-11-19"}}])
+
+    due = fn token ->
+      build_conn()
+      |> put_req_header("authorization", "Bearer " <> token)
+      |> get("/api/widget/due?today=2026-11-21")
+    end
+
+    assert json_response(due.(token(conn, me.id)), 200) == %{
+             "color" => "#FF4F3B",
+             "ink" => "#FFFFFF",
+             "rows" => [
+               %{
+                 "note" => house,
+                 "title" => "House",
+                 "text" => "bins",
+                 "due" => "2026-11-18",
+                 "next" => "2026-11-25"
+               },
+               %{
+                 "note" => groceries,
+                 "title" => "Groceries",
+                 "text" => String.duplicate("a", 200),
+                 "due" => "2026-11-20",
+                 "next" => nil
+               },
+               %{
+                 "note" => groceries,
+                 "title" => "Groceries",
+                 "text" => "eggs",
+                 "due" => "2026-11-22T09:00",
+                 "next" => nil
+               }
+             ]
+           }
+
+    assert json_response(due.(token(conn, groceries)), 401)
+  end
 end

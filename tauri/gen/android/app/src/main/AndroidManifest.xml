@@ -90,6 +90,15 @@
                 android:resource="@xml/tree_widget" />
         </receiver>
 
+        <receiver android:name=".DueWidget" android:exported="false" android:label="@string/due_widget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/due_widget" />
+        </receiver>
+
         <receiver android:name=".AlertAction" android:exported="false" />
 
         <service android:name=".Alerts" android:exported="false">

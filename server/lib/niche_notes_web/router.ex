@@ -53,9 +53,10 @@ defmodule NicheNotesWeb.Router do
     get "/assetlinks.json", AssetLinksController, :show
   end
 
-  # A widget has no session. Its token says which note it reads.
+  # A widget has no session. Its token says which note it reads, and a Due widget has the user's tree's.
   scope "/api", NicheNotesWeb do
     get "/widget", WidgetController, :show
+    get "/widget/due", WidgetController, :due
   end
 
   scope "/", NicheNotesWeb do

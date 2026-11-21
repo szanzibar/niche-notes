@@ -23,6 +23,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,9 +31,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-// Each widget shows the note picked for it, or all the notes as the tree shows them, read from the server with the
-// token that came with the pick. A tap opens that note in the app, the list for the tree, or the picker until one is
-// picked. Every widget is drawn and refreshed here, whichever kind it is.
+// Each widget shows the note picked for it, all the notes as the tree shows them, or the dated lines, read from the
+// server with the token that came with the pick. A tap opens that note in the app, the list for the tree, or the
+// picker until one is picked. Every widget is drawn and refreshed here, whichever kind it is.
 public class NoteWidget extends AppWidgetProvider {
     static final String REFRESH = "app.nichenotes.REFRESH";
 
@@ -56,7 +57,7 @@ public class NoteWidget extends AppWidgetProvider {
 
     static void refreshAll(Context context) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
-        int[] widgets = Stream.of(NoteWidget.class, TreeWidget.class)
+        int[] widgets = Stream.of(NoteWidget.class, TreeWidget.class, DueWidget.class)
                 .flatMapToInt(kind -> Arrays.stream(manager.getAppWidgetIds(new ComponentName(context, kind))))
                 .toArray();
         context.sendBroadcast(new Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE, null, context, NoteWidget.class)
@@ -68,19 +69,20 @@ public class NoteWidget extends AppWidgetProvider {
                 .remove("rows." + widget).remove("color." + widget).remove("ink." + widget);
     }
 
-    static boolean isTree(Context context, int widget) {
+    static boolean is(Context context, int widget, Class<? extends NoteWidget> kind) {
         AppWidgetProviderInfo info = AppWidgetManager.getInstance(context).getAppWidgetInfo(widget);
-        return info != null && info.provider.getClassName().equals(TreeWidget.class.getName());
+        return info != null && info.provider.getClassName().equals(kind.getName());
     }
 
-    // A notes widget's picker hands over the tree at once.
+    // Only a note widget has something to pick. The others' picker hands over the tree at once.
     static String picker(Context context, int widget) {
-        return "/widget/" + widget + (isTree(context, widget) ? "?tree" : "");
+        return "/widget/" + widget + (is(context, widget, NoteWidget.class) ? "" : "?tree");
     }
 
     static void show(Context context, int widget) {
         SharedPreferences picks = picks(context);
         String note = picks.getString("note." + widget, null);
+        boolean due = is(context, widget, DueWidget.class);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget);
         // Sizes in dp, scaled by the font size setting here, since a home screen's first draw can turn sp into text
         // a third bigger than its later draws.
@@ -90,9 +92,10 @@ public class NoteWidget extends AppWidgetProvider {
         views.setInt(R.id.header, "setBackgroundColor", picks.getInt("color." + widget, context.getColor(R.color.accent)));
         views.setTextColor(R.id.title, ink);
         views.setInt(R.id.refresh, "setColorFilter", ink);
-        views.setTextViewText(R.id.title,
-                note != null ? picks.getString("title." + widget, "")
-                        : context.getString(isTree(context, widget) ? R.string.tree_widget_pick : R.string.widget_pick));
+        views.setTextViewText(R.id.title, note == null
+                ? context.getString(is(context, widget, NoteWidget.class) ? R.string.widget_pick
+                        : due ? R.string.due_widget_pick : R.string.tree_widget_pick)
+                : due ? context.getString(R.string.due_widget) : picks.getString("title." + widget, ""));
         views.setViewVisibility(R.id.refresh, note == null ? View.GONE : View.VISIBLE);
         views.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(context, widget,
                 refresh(context, widget), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
@@ -102,36 +105,40 @@ public class NoteWidget extends AppWidgetProvider {
         PendingIntent open = PendingIntent.getActivity(context, widget, inApp(context, page),
                 PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT | Intent.FILL_IN_DATA);
         views.setOnClickPendingIntent(android.R.id.background, open);
-        views.setPendingIntentTemplate(R.id.lines, open);
+        views.setPendingIntentTemplate(R.id.lines, due ? DueWidget.taps(context, widget) : open);
 
         RemoteViews.RemoteCollectionItems.Builder items = new RemoteViews.RemoteCollectionItems.Builder();
         try {
             JSONArray rows = new JSONArray(picks.getString("rows." + widget, "[]"));
-            for (int i = 0; i < rows.length(); i++) {
-                JSONObject row = rows.getJSONObject(i);
-                RemoteViews item = new RemoteViews(context.getPackageName(), R.layout.widget_line);
-                SpannableString line = new SpannableString(row.getString("line"));
-                // Headings are bold, and the first two levels a little bigger, like in the note.
-                int level = row.optInt("heading");
-                if (level > 0) {
-                    line.setSpan(new StyleSpan(Typeface.BOLD), 0, line.length(), 0);
-                    line.setSpan(new RelativeSizeSpan(1.3f - 0.1f * level), 0, line.length(), 0);
+            if (due) {
+                DueWidget.lines(context, rows, items, font);
+            } else {
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject row = rows.getJSONObject(i);
+                    RemoteViews item = new RemoteViews(context.getPackageName(), R.layout.widget_line);
+                    SpannableString line = new SpannableString(row.getString("line"));
+                    // Headings are bold, and the first two levels a little bigger, like in the note.
+                    int level = row.optInt("heading");
+                    if (level > 0) {
+                        line.setSpan(new StyleSpan(Typeface.BOLD), 0, line.length(), 0);
+                        line.setSpan(new RelativeSizeSpan(1.3f - 0.1f * level), 0, line.length(), 0);
+                    }
+                    item.setTextViewText(R.id.line, line);
+                    item.setTextViewTextSize(R.id.line, TypedValue.COMPLEX_UNIT_DIP, 15 * font);
+                    float indent = 18 * row.getInt("depth");
+                    boolean box = row.has("checked");
+                    item.setViewVisibility(R.id.box, box ? View.VISIBLE : View.GONE);
+                    item.setImageViewResource(R.id.box,
+                            row.optBoolean("checked") ? R.drawable.widget_checked : R.drawable.widget_unchecked);
+                    item.setViewLayoutMargin(R.id.box, RemoteViews.MARGIN_START, indent, TypedValue.COMPLEX_UNIT_DIP);
+                    item.setViewLayoutMargin(R.id.line, RemoteViews.MARGIN_START, box ? 0 : indent,
+                            TypedValue.COMPLEX_UNIT_DIP);
+                    // A tap on a line opens the note at that line, and a tap on a note in the tree opens that note.
+                    item.setOnClickFillInIntent(R.id.row, row.has("note")
+                            ? new Intent().setData(Uri.parse(context.getString(R.string.site) + "/?n=" + row.getString("note")))
+                            : new Intent().putExtra(MainActivity.LINE, row.getString("text")));
+                    items.addItem(i, item);
                 }
-                item.setTextViewText(R.id.line, line);
-                item.setTextViewTextSize(R.id.line, TypedValue.COMPLEX_UNIT_DIP, 15 * font);
-                float indent = 18 * row.getInt("depth");
-                boolean box = row.has("checked");
-                item.setViewVisibility(R.id.box, box ? View.VISIBLE : View.GONE);
-                item.setImageViewResource(R.id.box,
-                        row.optBoolean("checked") ? R.drawable.widget_checked : R.drawable.widget_unchecked);
-                item.setViewLayoutMargin(R.id.box, RemoteViews.MARGIN_START, indent, TypedValue.COMPLEX_UNIT_DIP);
-                item.setViewLayoutMargin(R.id.line, RemoteViews.MARGIN_START, box ? 0 : indent,
-                        TypedValue.COMPLEX_UNIT_DIP);
-                // A tap on a line opens the note at that line, and a tap on a note in the tree opens that note.
-                item.setOnClickFillInIntent(R.id.row, row.has("note")
-                        ? new Intent().setData(Uri.parse(context.getString(R.string.site) + "/?n=" + row.getString("note")))
-                        : new Intent().putExtra(MainActivity.LINE, row.getString("text")));
-                items.addItem(i, item);
             }
         } catch (JSONException e) {
             throw new IllegalStateException(e);
@@ -149,7 +156,8 @@ public class NoteWidget extends AppWidgetProvider {
             forget(picks.edit(), widget).apply();
         } else {
             try {
-                HttpURLConnection http = (HttpURLConnection) new URL(context.getString(R.string.site) + "/api/widget").openConnection();
+                String path = is(context, widget, DueWidget.class) ? "/api/widget/due?today=" + LocalDate.now() : "/api/widget";
+                HttpURLConnection http = (HttpURLConnection) new URL(context.getString(R.string.site) + path).openConnection();
                 http.setRequestProperty("Authorization", "Bearer " + token);
                 http.setConnectTimeout(5000);
                 http.setReadTimeout(5000);
@@ -162,7 +170,7 @@ public class NoteWidget extends AppWidgetProvider {
                     }
                     JSONObject read = new JSONObject(body);
                     picks.edit()
-                            .putString("title." + widget, read.getString("title"))
+                            .putString("title." + widget, read.optString("title"))
                             .putString("rows." + widget, read.getJSONArray("rows").toString())
                             .putInt("color." + widget, Color.parseColor(read.getString("color")))
                             .putInt("ink." + widget, Color.parseColor(read.getString("ink")))

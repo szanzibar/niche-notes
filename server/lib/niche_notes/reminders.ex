@@ -55,7 +55,6 @@ defmodule NicheNotes.Reminders do
         at = due_at(date, line.time, subscription.time_zone),
         DateTime.after?(at, from) and not DateTime.after?(at, now) do
       text = String.slice(line.text, 0, 200)
-      next = line.repeat && next(line.repeat, line.date, date)
 
       # Each day gets its own tag, since one that matches yesterday's alert replaces it without a sound.
       Push.send(subscription, %{
@@ -66,8 +65,7 @@ defmodule NicheNotes.Reminders do
         due: line.due,
         text: text,
         repeat: line.repeat,
-        # Where Done moves a repeating line, at its time, for an app that can't read the rule itself.
-        next: next && String.replace(line.due, ~r/^[\d-]+/, Date.to_iso8601(next))
+        next: next_due(line, date)
       })
     end
 
@@ -95,6 +93,15 @@ defmodule NicheNotes.Reminders do
       {:ambiguous, first, _} -> first
       {:gap, _, after_gap} -> after_gap
     end
+  end
+
+  # Where Done moves a repeating line, at its time, for an app that can't read the rule itself: the rule's first day
+  # after `from`. Nil for a line that doesn't repeat.
+  def next_due(%{repeat: nil}, _from), do: nil
+
+  def next_due(line, from) do
+    next = next(line.repeat, line.date, from)
+    next && String.replace(line.due, ~r/^[\d-]+/, Date.to_iso8601(next))
   end
 
   @days ~w(MO TU WE TH FR SA SU)

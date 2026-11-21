@@ -3,4 +3,5 @@
     <color name="bar">#141414</color>
     <color name="widget_surface">#1E1E1E</color>
     <color name="widget_ink">#F2F2EE</color>
+    <color name="widget_muted">#A6A6A0</color>
 </resources>

@@ -7,4 +7,5 @@
     <color name="on_accent">#FFFFFF</color>
     <color name="widget_surface">#FFFFFF</color>
     <color name="widget_ink">#111111</color>
+    <color name="widget_muted">#555555</color>
 </resources>

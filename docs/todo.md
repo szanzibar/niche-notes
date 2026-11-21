@@ -45,6 +45,8 @@ Several home-screen widgets, each showing a whole note Steven picks, read-only; 
 - [x] Two kinds of widget, a note and all notes, both 2×3 when added (2026-11-16)
 - [x] A widget opens its note in the running app with the keyboard up. Its links are `/?n=<id>`, since Chrome hands a link to the open page only when that page sits under the link's directory, and Chrome raises the keyboard only on a page someone has tapped (2026-11-16)
 - [x] A widget raises the keyboard from a closed app too, which is the usual case since back closes the app. Android raises it for an app that comes forward with the cursor in a text, so `RaiseKeyboard` covers the new page for a moment and brings the app forward again (2026-11-16)
+- [x] A Due widget lists the dated lines in Due's sections, and its box ticks a line without opening the app (2026-11-21)
+- [ ] On Steven's phone: add a Due widget, tick a line and a repeating one from it, tap a line's text to open the note there, and see whether the tick's pass through `WidgetActivity` flickers
 - [ ] Calendar links still load a new page, since the calendar starts the app in its own task, so they open without the keyboard
 - [x] Widget text keeps its size on every redraw: sizes are dp scaled by the font size setting, since a home screen's first draw read sp as if at the phone's physical density. The bundled font is gone, since a home screen never loads an app's fonts in a widget (2026-11-16)
 - [ ] On Samsung with a downloaded system font, some rows of a newly added widget draw in another face until its first refresh; only text drawn into images in the app would avoid it
