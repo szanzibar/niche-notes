@@ -42,6 +42,26 @@ defmodule NicheNotesWeb.DocChannelTest do
              )
   end
 
+  test "someone who can only read joins the note and makes no edits", %{
+    me: me,
+    other: other,
+    note: note
+  } do
+    {:ok, _} = Docs.open(note, me.id)
+    :ok = Docs.create_link(note, me.id, "a-view-link-token", true)
+    :ok = "a-view-link-token" |> Docs.by_link() |> Docs.join(other.id)
+
+    {:ok, _, theirs} =
+      subscribe_and_join(
+        socket(NicheNotesWeb.UserSocket, nil, current_user_id: other.id),
+        "doc:#{note}"
+      )
+
+    ref = push(theirs, "update", %{"update" => Base.encode64("edit")})
+    assert_reply ref, :error, %{reason: "read_only"}
+    assert {[], _} = Docs.updates_since(note, 0)
+  end
+
   test "updates are stored, relayed to others, and replayed from since", %{
     me: me,
     other: other,

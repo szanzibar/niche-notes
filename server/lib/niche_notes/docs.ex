@@ -7,7 +7,7 @@ defmodule NicheNotes.Docs do
   import Ecto.Query
   alias NicheNotes.{Reminders, Repo}
   alias NicheNotes.Accounts.User
-  alias NicheNotes.Docs.{Doc, DocShare, DocUpdate}
+  alias NicheNotes.Docs.{Doc, DocLink, DocShare, DocUpdate}
 
   # What a join does. The first join of an unknown id creates the doc, which is how a note written offline
   # reaches the server. A long log is folded before the join reads it.
@@ -33,6 +33,15 @@ defmodule NicheNotes.Docs do
   def can_access?(doc_id, user_id) do
     Repo.exists?(from d in Doc, where: d.id == ^doc_id and d.owner_id == ^user_id) or
       shared_with?(doc_id, user_id)
+  end
+
+  # A share can be to read only, and the owner can always edit.
+  def can_edit?(doc_id, user_id) do
+    Repo.exists?(from d in Doc, where: d.id == ^doc_id and d.owner_id == ^user_id) or
+      Repo.exists?(
+        from s in DocShare,
+          where: s.doc_id == ^doc_id and s.user_id == ^user_id and not s.read_only
+      )
   end
 
   defp shared_with?(doc_id, user_id) do
@@ -245,7 +254,7 @@ defmodule NicheNotes.Docs do
   # An alert's button changing its line while the app may be closed: `changes` sets `checked` or a new `due`. The
   # line is the first unchecked one with that date and text, so one edited since the alert is left alone.
   def change_line(doc_id, user_id, due, text, changes) do
-    with true <- can_access?(doc_id, user_id),
+    with true <- can_edit?(doc_id, user_id),
          {doc, _title, _meta, content} <- load(doc_id),
          %Yex.XmlElement{} = line <- Enum.find_value(content, &find_line(&1, due, text)),
          {:ok, before} <- Yex.encode_state_vector(doc) do
@@ -512,50 +521,97 @@ defmodule NicheNotes.Docs do
       from s in DocShare,
         join: d in assoc(s, :doc),
         where: d.owner_id == ^user_id or s.user_id == ^user_id,
-        select: %{doc_id: s.doc_id, user_id: s.user_id, owner_id: d.owner_id}
+        select: %{
+          doc_id: s.doc_id,
+          user_id: s.user_id,
+          owner_id: d.owner_id,
+          read_only: s.read_only
+        }
     )
   end
 
+  # Sharing by name lets them edit, even someone a link let in to read only.
   def share(doc_id, owner_id, user_id) do
     with {:ok, doc} <- owned_note(doc_id, owner_id),
          %User{} <- Repo.get(User, user_id) || {:error, :not_found} do
-      Repo.insert(%DocShare{doc_id: doc.id, user_id: user_id}, on_conflict: :nothing)
+      Repo.insert(%DocShare{doc_id: doc.id, user_id: user_id},
+        on_conflict: [set: [read_only: false]],
+        conflict_target: [:doc_id, :user_id]
+      )
     end
   end
 
-  def link(doc_id, owner_id) do
-    with {:ok, doc} <- owned_note(doc_id, owner_id), do: {:ok, doc.link}
+  # A note's links, the oldest first, each with who came in by it and when.
+  def links(doc_id, owner_id) do
+    with {:ok, doc} <- owned_note(doc_id, owner_id) do
+      visitors =
+        Repo.all(
+          from s in DocShare,
+            join: u in assoc(s, :user),
+            where: s.doc_id == ^doc.id and not is_nil(s.link),
+            order_by: s.inserted_at,
+            select: {s.link, %{name: u.name, at: s.inserted_at}}
+        )
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+      links = Repo.all(from l in DocLink, where: l.doc_id == ^doc.id, order_by: l.inserted_at)
+
+      {:ok,
+       for link <- links do
+         %{
+           token: link.token,
+           read_only: link.read_only,
+           at: link.inserted_at,
+           visitors: Map.get(visitors, link.token, [])
+         }
+       end}
+    end
   end
 
-  def create_link(doc_id, owner_id) do
-    with {:ok, doc} <- owned_note(doc_id, owner_id) do
-      link = doc.link || Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
-      {:ok, Repo.update!(Ecto.Changeset.change(doc, link: link)).link}
+  # The device makes the token, since sharing a link has to happen in the tap that asks for it.
+  def create_link(doc_id, owner_id, token, read_only) do
+    with {:ok, doc} <- owned_note(doc_id, owner_id),
+         true <- token =~ ~r/^[\w-]{16,64}$/ || {:error, :forbidden} do
+      Repo.insert!(%DocLink{token: token, doc_id: doc.id, read_only: read_only})
+      :ok
     end
   end
 
   # The guests the link let in go with it. People with an account keep the note, since the owner can see and
   # unshare them by name.
-  def delete_link(doc_id, owner_id) do
+  def delete_link(doc_id, owner_id, token) do
     with {:ok, doc} <- owned_note(doc_id, owner_id) do
       guests =
-        from(u in User, join: s in DocShare, on: s.user_id == u.id, where: s.doc_id == ^doc.id)
+        from(u in User,
+          join: s in DocShare,
+          on: s.user_id == u.id,
+          where: s.doc_id == ^doc.id and s.link == ^token
+        )
         |> Repo.all()
         |> Enum.filter(&User.guest?/1)
         |> Enum.map(& &1.id)
 
       Repo.delete_all(from s in DocShare, where: s.doc_id == ^doc.id and s.user_id in ^guests)
-      Repo.update!(Ecto.Changeset.change(doc, link: nil))
+      Repo.delete_all(from l in DocLink, where: l.doc_id == ^doc.id and l.token == ^token)
       {:ok, guests}
     end
   end
 
-  def by_link(link), do: Repo.get_by(Doc, link: link)
+  def by_link(token), do: DocLink |> Repo.get(token) |> Repo.preload(:doc)
 
-  # Opening a link shares its note with whoever opened it.
-  def join(%Doc{} = doc, user_id) do
-    if doc.owner_id != user_id,
-      do: Repo.insert!(%DocShare{doc_id: doc.id, user_id: user_id}, on_conflict: :nothing)
+  # Opening a link shares its note with whoever opened it. Someone who can edit keeps editing when they open a link
+  # to read only, and an edit link lets someone who could only read edit.
+  def join(%DocLink{doc: doc} = link, user_id) do
+    if doc.owner_id != user_id do
+      on_conflict =
+        if link.read_only, do: :nothing, else: [set: [read_only: false, link: link.token]]
+
+      Repo.insert!(
+        %DocShare{doc_id: doc.id, user_id: user_id, read_only: link.read_only, link: link.token},
+        on_conflict: on_conflict,
+        conflict_target: [:doc_id, :user_id]
+      )
+    end
 
     :ok
   end

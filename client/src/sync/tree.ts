@@ -62,6 +62,10 @@ export function shareCount(id: string) {
   return store.shares.filter((s) => s.doc_id === id).length
 }
 
+export function readOnly(id: string) {
+  return store.shares.some((s) => s.doc_id === id && s.user_id === store.me!.id && s.read_only)
+}
+
 const orderOf = (id: string) => nodes().get(id)?.order ?? 0
 
 export function isPinned(id: string) {

@@ -60,38 +60,73 @@ test('a shared note lands under the other person\'s pins, can be left via their 
   await expect(bob.getByText('no longer shared')).toBeVisible()
 })
 
-test('a link lets someone without an account edit the note under a made-up name, until the owner turns it off', async ({
+test('an edit link lets someone without an account edit the note under a made-up name, until the owner turns it off', async ({
   browser,
 }) => {
   const a = `alice-${uid()}`
   const alice = await signIn(browser, a)
   await newNote(alice, 'Party', 'Chips')
   await alice.getByRole('button', { name: 'Share', exact: true }).click()
-  await alice.getByRole('button', { name: 'Create link' }).click()
-  const link = await alice.getByRole('textbox', { name: 'Link' }).inputValue()
+  await alice.getByRole('button', { name: 'New edit link' }).click()
+  await expect(alice.getByText('Nobody yet')).toBeVisible()
+  const { links } = await (await alice.request.get(`/api/docs/${alice.url().split('/n/')[1]}/links`)).json()
   await alice.getByRole('button', { name: 'Close' }).click()
 
-  // A phone that has never seen the app.
+  // A phone that has never seen the app gets the note and nothing around it.
   const phone = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
   const guest = await phone.newPage()
-  await guest.goto(link)
-  await expect(guest.getByPlaceholder('Title')).toHaveValue('Party')
-  // A guest has that one note: no new ones, and nobody's name but its owner's.
-  await expect(guest.getByRole('button', { name: /^New note/ })).toHaveCount(0)
+  await guest.goto(`/s/${links[0].token}`)
+  await expect(guest.locator('[data-title]')).toHaveText('Party')
+  await expect(guest.getByPlaceholder('Title')).toHaveCount(0)
+  await expect(guest.getByRole('button', { name: /^New note|^Back$|^Share$|^Leave$|^Pin$/ })).toHaveCount(0)
   const users = await (await guest.request.get('/api/users')).json()
   expect(users.users.map((u: { name: string }) => u.name)).toEqual([display(a)])
   await typeAtEnd(guest, ' and dip')
   await expect(alice.locator('.editor-body')).toContainText('Chips and dip')
   const name = alice.locator('.collaboration-carets__label')
   await expect(name).toHaveText(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
-  const guestName = await name.textContent()
+  const guestName = (await name.textContent())!
 
   await alice.getByRole('button', { name: 'Shared with 1' }).click()
-  await expect(alice.getByText(`Opened by ${guestName}`)).toBeVisible()
-  await alice.getByRole('button', { name: 'Turn off' }).click()
+  await expect(alice.getByRole('dialog').getByText(guestName)).toBeVisible()
+  await alice.getByRole('button', { name: 'Turn off this link' }).click()
   await expect(guest.getByText('no longer shared')).toBeVisible()
   await alice.getByRole('button', { name: 'Close' }).click()
   await expect(alice.getByRole('button', { name: 'Share', exact: true })).toBeVisible()
+})
+
+test('a read link shows the note and its edits without letting its guest change it, and turns off on its own', async ({
+  browser,
+}) => {
+  const alice = await signIn(browser, `alice-${uid()}`)
+  await newNote(alice, 'Groceries', 'Milk')
+  const note = alice.url().split('/n/')[1]
+  await alice.getByRole('button', { name: 'Share', exact: true }).click()
+  await alice.getByRole('button', { name: 'New read link' }).click()
+  await alice.getByRole('button', { name: 'New edit link' }).click()
+  await expect(alice.getByText('Can edit')).toBeVisible()
+  const { links } = await (await alice.request.get(`/api/docs/${note}/links`)).json()
+  const token = (readOnly: boolean) => links.find((link: { read_only: boolean }) => link.read_only === readOnly).token
+  await alice.getByRole('button', { name: 'Close' }).click()
+
+  const viewer = await (await browser.newContext()).newPage()
+  await viewer.goto(`/s/${token(true)}`)
+  await expect(viewer.locator('.editor-body')).toContainText('Milk')
+  await expect(viewer.locator('.editor-body')).toHaveAttribute('contenteditable', 'false')
+  await expect(viewer.getByRole('button', { name: 'Checklist' })).toHaveCount(0)
+  await typeAtEnd(alice, ' and eggs')
+  await expect(viewer.locator('.editor-body')).toContainText('Milk and eggs')
+
+  const editor = await (await browser.newContext()).newPage()
+  await editor.goto(`/s/${token(false)}`)
+  await expect(editor.locator('.editor-body')).toHaveAttribute('contenteditable', 'true')
+
+  await alice.getByRole('button', { name: 'Shared with 2' }).click()
+  const viewLink = alice.getByRole('listitem').filter({ hasText: 'Can read' })
+  await viewLink.getByRole('button', { name: 'Turn off this link' }).click()
+  await expect(viewer.getByText('no longer shared')).toBeVisible()
+  await typeAtEnd(editor, ' and bread')
+  await expect(alice.locator('.editor-body')).toContainText('Milk and eggs and bread')
 })
 
 test('with many people at a large size, the share dialog scrolls to every button', async ({ browser, request }) => {
@@ -104,8 +139,8 @@ test('with many people at a large size, the share dialog scrolls to every button
   await page.keyboard.type('Party')
 
   await page.getByRole('button', { name: 'Share', exact: true }).click()
-  await page.getByRole('button', { name: 'Create link' }).click()
-  await page.getByRole('button', { name: 'Turn off' }).click()
+  await page.getByRole('button', { name: 'New edit link' }).click()
+  await page.getByRole('button', { name: 'Turn off this link' }).click()
   await page.getByRole('button', { name: 'Close' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
 })

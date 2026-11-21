@@ -11,3 +11,12 @@ Anyone holding the link can edit until it is turned off, and turning it on again
 ## Amendment 2026-11-15: a guest has that note and nothing else
 
 "The whole app" gave a guest more than a link is meant to: everyone's names, notes of their own without limit, and sharing those into our trees, all still theirs after the link was turned off. A guest now opens only the notes a link let them into, plus their own tree, which holds where those notes sit. They are told only who owns those notes, they create and import nothing, and they connect no calendar. Live edits, cursors, alerts and offline work as before.
+
+## Amendment 2026-11-21: links to read only, several per note, and a guest sees only the note
+
+A note has any number of links in `doc_links`, each one to edit or to read only, since Kathrin wants to send a list someone can read but not change. A link only sets `read_only` on the share it makes, so the server's refusal of a reader's edits and the app's read-only note both go by the share. Letting a named person only read would be one more field when sharing by name. Edit wins: an edit link lets someone who could only read edit, and a view link never takes editing away.
+
+Each share remembers the link that made it, so turning one link off takes the note from that link's guests alone, and the owner sees who came by each link. The links from before were dropped with their guests' shares, since there were few and we share them again.
+
+A guest gets the note's content, not the app. There is no tree, and the header shows only the title, which a guest can't change even with an edit link. Their tree doc stays, since nothing needs it gone.
+

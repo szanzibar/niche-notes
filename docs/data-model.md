@@ -5,14 +5,15 @@ SQLite, one file. The server stores who owns what and a log of Y.js updates. It 
 ## Tables
 
 - **users** — one row per person, created on first Pocket ID login: `id`, `sub` (OIDC subject, unique), `name`, `email`. A guest who came in through a note's link has `sub` `guest:<uuid>` and a generated name (ADR 008).
-- **docs** — a Y.js document: `id` (uuid, chosen by the client), `owner_id`, `link` (the token in a note's share link, unique, null while it has none). A user's tree has `id == owner_id` and is created with the user. Every other doc is a note.
-- **doc_shares** — `doc_id`, `user_id`, unique together. One row grants full access to one note.
+- **docs** — a Y.js document: `id` (uuid, chosen by the client), `owner_id`. A user's tree has `id == owner_id` and is created with the user. Every other doc is a note.
+- **doc_shares** — `doc_id`, `user_id`, unique together, `read_only`, and `link`, the token of the link that let them in, if one did. One row grants access to one note, to edit unless `read_only`.
+- **doc_links** — a note's links: `token` (the key, chosen by the client), `doc_id`, `read_only`, `inserted_at`. Turning one off deletes the shares of the guests it let in, and the shares of people with an account forget it (ADR 008).
 - **push_subscriptions** — one row per device that allowed alerts: `endpoint` (the push service's address, the key), `user_id`, `p256dh`, `auth` and the device's `time_zone`. The Android app on Tauri's row has `fcm:` and its Firebase token as the endpoint, and empty keys. Within a minute of a change to a note its person is on, that row also gets `{ widgets }`, which has the app redraw its widgets. Every launch writes it again, and a push service that no longer knows the device deletes it.
 - **google_calendars** — one row per person who connected Google Calendar: `user_id` (the key), `calendar_id` of the Niche Notes calendar the app made, the Google `email`, the `refresh_token` encrypted with `SECRET_KEY_BASE`, and the `time_zone` of the device that connected, used until a device with alerts on reports one (ADR 007).
 - **doc_updates** — `id` (autoincrement, the sequence number), `doc_id`, `update` (Y.js binary), `inserted_at`. One row per edit, until the server folds a doc's rows into one (see the sync protocol).
 - **generation** — one row: `id`, the name of this copy of the update log, and `open`, set while the app runs. A database still open at start is a backup or what a crash left, and gets a new `id` (ADR 010).
 
-Access rule, used by every channel join and share endpoint: a user may open a doc if they own it or a share row names them.
+Access rule, used by every channel join and share endpoint: a user may open a doc if they own it or a share row names them, and may edit it unless that row is `read_only`.
 
 ## Documents
 
@@ -33,7 +34,7 @@ Socket at `/socket`, authenticated by the token that `/api/me` returns.
 **`doc:<id>` channel**
 - Join with `{ since }`. Reply `{ updates: [[seq, base64], ...], seq, owner_id }`: every update after `since`, the last `seq` sent (or `since` if none) and who owns the doc. A doc that does not exist is created, owned by the joiner, unless the joiner is a guest. A doc the joiner cannot access refuses the join.
 - Before a join reads the log, the server folds it into one row when it has more than a few dozen rows, or more than one row and no change for a day. The row is a plain merge of the others, stored under the last one's `seq`, so `since` keeps its meaning and nobody re-downloads what they have. Nothing a device sends removes rows (ADR 010).
-- Push `update` `{ update: base64 }`. Reply `{ seq }`. The server stores it and broadcasts `update` `{ seq, update }` to the other clients on the topic. An update the doc's log already holds byte for byte is not stored or broadcast again, and the reply names the row that holds it (ADR 010). On a tree, an update that gives a note a node without having seen the one its person chose (under a note, pinned, colored, folded or left) means a device wrote from a tree that was behind. The server logs it and alerts that person on every device with alerts on, naming the notes.
+- Push `update` `{ update: base64 }`. Reply `{ seq }`, or the error `read_only` for someone who may only read. The server stores it and broadcasts `update` `{ seq, update }` to the other clients on the topic. An update the doc's log already holds byte for byte is not stored or broadcast again, and the reply names the row that holds it (ADR 010). On a tree, an update that gives a note a node without having seen the one its person chose (under a note, pinned, colored, folded or left) means a device wrote from a tree that was behind. The server logs it and alerts that person on every device with alerts on, naming the notes.
 - Push `awareness` `{ update: base64 }` for cursors and names (y-protocols awareness). Relayed to the other clients, never stored.
 - A channel checks access when it joins, so the server ends the channel of someone the note is taken away from, by unsharing or by turning its link off.
 
@@ -56,18 +57,20 @@ Cookie session, JSON. The API answers only requests from the app's own pages, by
 
 - `GET /api/me`
 - `GET /api/users` — everyone, for the share picker, with `guest` set for link guests. A guest gets only the owners of the notes they were let into
-- `GET /api/shares` — every share on a doc the user owns or is named on: `doc_id`, `user_id`, `owner_id`
+- `GET /api/shares` — every share on a doc the user owns or is named on: `doc_id`, `user_id`, `owner_id`, `read_only`
 - `DELETE /api/docs/:id` — owner only, and only a note the server's own copy has in the trash: removes the doc and its updates and shares for good
-- `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc. Each device of the recipient's with alerts on gets a push saying who shared the note
+- `POST /api/docs/:id/shares` `{ user_id }` — owner only, never the tree doc. The recipient may edit, even after a link let them in to read only. Each device of the recipient's with alerts on gets a push saying who shared the note
 - `DELETE /api/docs/:id/shares/:user_id` — the owner for anyone, or a recipient for themselves
-- `GET`, `PUT`, `DELETE /api/docs/:id/link` — owner only: `{ link }`, creating it on `PUT`. `DELETE` drops the guests it let in
-- `GET /s/:link` — signs in a visitor without a session as a new guest, shares the note with whoever opened it, and redirects to the note. 404 once the link is off
+- `GET /api/docs/:id/links` — owner only: `{ links: [{ token, read_only, at, visitors: [{ name, at }] }] }`, the oldest first, with who came in by each and when they first did
+- `POST /api/docs/:id/links` `{ token, read_only }` — owner only. The client makes the token, so a link is shared in the same tap
+- `DELETE /api/docs/:id/links/:token` — owner only. Drops the guests it let in
+- `GET /s/:token` — signs in a visitor without a session as a new guest, shares the note with whoever opened it, and redirects to the note. An edit link lets someone who could only read edit, and a view link never takes editing away. 404 once the link is off
 - `GET /api/docs/:id/widget_token` — anyone who can open the note: `{ token }` for a widget (ADR 005)
 - `GET /api/widget/due?today=` — what a Due widget shows, read by the Android app with its own session: `{ color, ink, rows }` in the user's own color, with one row per unchecked dated line in the notes outside their trash, the earliest first: `{ note, title, text, due, next }`. `text` is cut to 200 letters like an alert's, and `next` is where Done moves a repeating line from the phone's `today`, or `null`
 - `GET /api/widget` — no session; the widget token as `Authorization: Bearer`. `{ title, color, ink, rows }`, where `color` and `ink` are the note's header color and its text color for the token's user. For a note, one row per paragraph, heading, list item or table row: `{ line, text, depth }`, with `checked` on a checkbox item and `heading` on a heading. Checked items are left out when the note hides or deletes them, and blank lines stay except at either end. For the user's own tree, one row per note as their tree draws it: `{ line, depth, note }`. 404 once the note is in the trash or no longer shared, 401 for any other token
 - `GET /api/push_key` — the public key a device subscribes to alerts with (ADR 006)
 - `PUT /api/push_subscriptions` `{ subscription, time_zone }` — this device's push subscription, as the browser gives it, or `{ fcm }` with the Android app's Firebase token
-- `PATCH /api/docs/:id/line` `{ due, text, checked: true }` or `{ due, text, move_to }` — an alert's Done or Snooze, or a Due widget's box: changes the first unchecked line with that date and text, and broadcasts the change to the doc's channel. 404 once no line matches
+- `PATCH /api/docs/:id/line` `{ due, text, checked: true }` or `{ due, text, move_to }` — an alert's Done or Snooze, or a Due widget's box, from someone who may edit the note: changes the first unchecked line with that date and text, and broadcasts the change to the doc's channel. 404 once no line matches
 - `GET /api/google_calendar` — `{ email }`, the Google account holding the user's Niche Notes calendar, or `null`
 - `DELETE /api/google_calendar` — deletes the Niche Notes calendar and Google's grant
 - `GET /auth/google?time_zone=` and `GET /auth/google/callback` — Google's consent, then the Niche Notes calendar is made in that time zone. Both need a session, and a guest's doesn't count

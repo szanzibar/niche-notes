@@ -1,50 +1,72 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import type { User } from '../lib/types'
+import type { Link, User } from '../lib/types'
 import { useStore } from '../sync/hooks'
 import { refreshSharing } from '../sync/store'
 import { Button, IconButton } from './Button'
-import { CloseIcon, UsersIcon } from './icons'
+import { CheckIcon, CloseIcon, EditIcon, ShareIcon, UnlinkIcon, UsersIcon, ViewIcon } from './icons'
+import { Info } from './Popover'
+
+const day = (at: string) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 
 export function ShareDialog({ id }: { id: string }) {
   const s = useStore()
   const [open, setOpen] = useState(false)
   const [users, setUsers] = useState<User[]>([])
-  const [link, setLink] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [links, setLinks] = useState<Link[]>([])
+  const [copied, setCopied] = useState<string | null>(null)
 
+  const reload = useCallback(
+    () =>
+      api
+        .links(id)
+        .then(({ links }) => setLinks(links))
+        .catch(() => setLinks([])),
+    [id],
+  )
   useEffect(() => {
     if (!open) return
     api
       .users()
       .then(({ users }) => setUsers(users.filter((u) => u.id !== s.me!.id)))
       .catch(() => setUsers([]))
-    api
-      .link(id)
-      .then(({ link }) => setLink(link))
-      .catch(() => setLink(null))
-  }, [open, s.me, id])
+    void reload()
+  }, [open, s.me, reload])
 
-  const sharedWith = new Set(s.shares.filter((x) => x.doc_id === id).map((x) => x.user_id))
+  const shares = s.shares.filter((x) => x.doc_id === id)
+  const sharedWith = new Set(shares.map((x) => x.user_id))
+  const viewers = new Set(shares.filter((x) => x.read_only).map((x) => x.user_id))
   const toggle = (user: User) =>
     (sharedWith.has(user.id) ? api.unshare(id, user.id) : api.share(id, user.id)).then(refreshSharing)
   const people = users.filter((u) => !u.guest)
-  const guests = users.filter((u) => u.guest && sharedWith.has(u.id))
-  const url = link && `${location.origin}/s/${link}`
   // A phone hands the link to its share sheet, to send in a message. Elsewhere it goes to the clipboard.
   const sheet = 'share' in navigator
-  const send = () =>
-    sheet
-      ? navigator.share({ url: url! }).catch(() => {})
-      : navigator.clipboard.writeText(url!).then(() => setCopied(true))
+  const send = (token: string) => {
+    const url = `${location.origin}/s/${token}`
+    return sheet
+      ? navigator.share({ url }).catch(() => {})
+      : navigator.clipboard.writeText(url).then(() => setCopied(token))
+  }
+  // The token is made here, so the share sheet opens in the tap while the server stores the link.
+  const create = (readOnly: boolean) => {
+    const bytes = crypto.getRandomValues(new Uint8Array(12))
+    const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_')
+    void send(token)
+    void api.createLink(id, token, readOnly).then(reload)
+  }
+  const turnOff = (token: string) =>
+    api
+      .deleteLink(id, token)
+      .then(() => setLinks((links) => links.filter((link) => link.token !== token)))
+      .then(refreshSharing)
 
   return (
     <Dialog.Root
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        setCopied(false)
+        setCopied(null)
       }}
     >
       <Dialog.Trigger asChild>
@@ -87,44 +109,63 @@ export function ShareDialog({ id }: { id: string }) {
                   onClick={() => void toggle(user)}
                 >
                   <span className="truncate">{user.name}</span>
-                  <UsersIcon filled={sharedWith.has(user.id)} />
+                  {viewers.has(user.id) ? <ViewIcon /> : <UsersIcon filled={sharedWith.has(user.id)} />}
                 </Button>
               </li>
             ))}
           </ul>
-          <section className="mt-4 flex flex-col gap-2 border-t-2 border-border pt-4">
-            <p className="font-bold">Anyone with the link can edit, no account needed.</p>
-            {url ? (
-              <>
-                <div className="flex gap-2">
-                  <input
-                    readOnly
-                    aria-label="Link"
-                    value={url}
-                    className="min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none"
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <Button onClick={() => void send()}>{sheet ? 'Send' : copied ? 'Copied' : 'Copy'}</Button>
-                </div>
-                {guests.length > 0 && (
-                  <p className="text-sm text-ink-muted">Opened by {guests.map((u) => u.name).join(', ')}</p>
-                )}
-                <Button
-                  onClick={() =>
-                    void api
-                      .deleteLink(id)
-                      .then(() => setLink(null))
-                      .then(refreshSharing)
-                  }
-                >
-                  Turn off
-                </Button>
-              </>
-            ) : (
-              <Button disabled={!s.online} onClick={() => void api.createLink(id).then(({ link }) => setLink(link))}>
-                Create link
-              </Button>
-            )}
+          <section className="mt-4 border-t-2 border-border pt-2">
+            <div className="flex items-center">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Links</p>
+              <Info label="About links">
+                Anyone with an edit link can change this note without an account, and anyone with a read link can
+                read it. Turning a link off takes the note away from the guests who came by it.
+              </Info>
+            </div>
+            <ul className="flex flex-col">
+              {links.map((link) => (
+                <li key={link.token} className="pb-2">
+                  <div className="flex items-center gap-2.5">
+                    {link.read_only ? <ViewIcon /> : <EditIcon />}
+                    <span className="flex-1 font-bold">
+                      {link.read_only ? 'Can read' : 'Can edit'}{' '}
+                      <span className="font-normal text-ink-muted">· {day(link.at)}</span>
+                    </span>
+                    <IconButton label="Share this link" onClick={() => void send(link.token)}>
+                      {copied === link.token ? <CheckIcon /> : <ShareIcon />}
+                    </IconButton>
+                    <IconButton
+                      label="Turn off this link"
+                      className="-mr-2.5"
+                      disabled={!s.online}
+                      onClick={() => void turnOff(link.token)}
+                    >
+                      <UnlinkIcon />
+                    </IconButton>
+                  </div>
+                  <ul className="ml-8 flex flex-col text-sm text-ink-muted">
+                    {link.visitors.length === 0 && <li>Nobody yet</li>}
+                    {link.visitors.map((visitor) => (
+                      <li key={visitor.name + visitor.at} className="flex justify-between gap-3">
+                        <span className="truncate">{visitor.name}</span>
+                        <span>{day(visitor.at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="mt-2 flex flex-wrap items-center gap-x-3 border-t-2 border-border pt-2">
+            <Button className="gap-2" disabled={!s.online} onClick={() => create(false)}>
+              <ShareIcon />
+              New edit link
+            </Button>
+            <span aria-hidden className="h-6 w-0.5 bg-border" />
+            <Button className="gap-2" disabled={!s.online} onClick={() => create(true)}>
+              <ShareIcon />
+              New read link
+            </Button>
           </section>
         </Dialog.Content>
       </Dialog.Portal>

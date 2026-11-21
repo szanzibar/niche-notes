@@ -25,6 +25,7 @@ import {
   nodes,
   ownerName,
   purgeNote,
+  readOnly,
   removeNote,
   restoreNote,
   setColor,
@@ -48,6 +49,7 @@ import {
   TrashIcon,
   UncheckAllIcon,
   UsersIcon,
+  ViewIcon,
 } from './icons'
 import { contentExtensions } from './content'
 import { OfflineIcon } from './OfflineIcon'
@@ -155,6 +157,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   useY(meta)
   const titleRef = useRef<HTMLInputElement>(null)
   const deleted = inTrash(id)
+  // A guest has the note's text and nothing of the app around it, so not even its title to change.
+  const guest = s.me!.guest
+  const reading = readOnly(id)
+  const locked = deleted || reading
   // One way to treat checked lines at a time. If two devices pick both at once, delete wins, and it hides too.
   const deleting = meta.get('deleteChecked') === true
   const hiding = deleting || meta.get('hideChecked') === true
@@ -224,27 +230,27 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   // Lines ticked while the note is open stay, hidden, until it opens again. Someone ticking in it right then
   // loses the line a moment early.
   useEffect(() => {
-    if (editor && !deleted && meta.get('deleteChecked') === true) deleteChecked(editor)
-  }, [editor, deleted, meta])
+    if (editor && !locked && meta.get('deleteChecked') === true) deleteChecked(editor)
+  }, [editor, locked, meta])
 
   // A trashed note can be read but not edited until it is restored.
   useEffect(() => {
-    editor?.setEditable(!deleted)
-  }, [editor, deleted])
+    editor?.setEditable(!locked)
+  }, [editor, locked])
 
   // Opening a note means writing in it: an empty title first, otherwise where this device left the
   // cursor, or the end of the text. A link from a calendar event or a widget line names its line instead. A line
   // edited since, or that reaches this device only after the note opens, isn't found, so the note opens as usual.
   useEffect(() => {
-    if (!editor || deleted) return
+    if (!editor || locked) return
     const line = new URLSearchParams(location.search).get('line')
     let end: number | null = null
     editor.state.doc.descendants((node, pos) => {
       if (end == null && line && node.isTextblock && node.textContent === line) end = pos + node.nodeSize - 1
       return end == null
     })
-    if (end == null && !titleRef.current?.value) {
-      titleRef.current?.focus()
+    if (end == null && titleRef.current && !titleRef.current.value) {
+      titleRef.current.focus()
       return
     }
     if (end == null) {
@@ -271,19 +277,19 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       clearTimeout(settled)
       removeEventListener('resize', center)
     }
-  }, [editor, deleted, id, doc, visit])
+  }, [editor, locked, id, doc, visit])
 
   // A phone raises the keyboard for a tap, not for a note a widget opened in the running app, so we ask for it.
   // Chrome says no on a page nobody has tapped since it loaded.
   useEffect(() => {
     const focused = document.activeElement
     const keyboard = (navigator as Navigator & { virtualKeyboard?: { show(): void } }).virtualKeyboard
-    if (!editor || deleted || !(focused instanceof HTMLElement) || !keyboard) return
+    if (!editor || locked || !(focused instanceof HTMLElement) || !keyboard) return
     focused.setAttribute('virtualkeyboardpolicy', 'manual')
     keyboard.show()
     // Back to the default once Chrome has acted on it, so a later tap raises the keyboard as usual.
     setTimeout(() => focused.removeAttribute('virtualkeyboardpolicy'), 300)
-  }, [editor, deleted, id, visit])
+  }, [editor, locked, id, visit])
 
   // Anchored to the text, so someone else's edit above the cursor doesn't move where it reopens.
   useEffect(() => {
@@ -347,7 +353,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       </IconButton>
     </>
   )
-  const back = (
+  const back = !guest && (
     <button type="button" className="px-2 py-1 text-xl md:hidden" onClick={leave} aria-label="Back">
       ←
     </button>
@@ -391,20 +397,23 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       open={panel === 'shared'}
       onOpenChange={(open) => setPanel(open ? 'shared' : null)}
       trigger={
-        <IconButton label={`Shared by ${ownerName(id)}`} className="px-1">
-          <UsersIcon filled />
+        <IconButton label={`Shared by ${ownerName(id)}${reading ? ', view only' : ''}`} className="px-1">
+          {reading ? <ViewIcon /> : <UsersIcon filled />}
           <ArrowDownLeftIcon className="h-4 w-4" />
         </IconButton>
       }
     >
-      <span className="px-2 py-1 text-sm font-bold">Shared by {ownerName(id)}</span>
+      <span className="px-2 py-1 text-sm font-bold">
+        Shared by {ownerName(id)}
+        {reading && ', view only'}
+      </span>
     </Popover>
   )
   // Every action folds at once, except Share or its stand-in, which stays beside the dots. Elsewhere a people icon
   // stays there when the note is shared. Behind the dots, the checked-line options and the choice of what to delete
   // get their own rows instead of a box inside the box.
   const actions = (share: React.ReactNode, buttons: React.ReactNode, checked?: React.ReactNode, choices?: React.ReactNode) =>
-    folded ? (
+    guest ? null : folded ? (
       <>
         {share ||
           sharedBy ||
@@ -469,7 +478,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
             {titleOf(id)}
           </span>
-          <OfflineIcon />
+          {!guest && <OfflineIcon />}
           {actions(
             null,
             canAct && (
@@ -495,16 +504,22 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         className="note-header flex flex-wrap items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent"
       >
         {back}
-        <input
-          ref={titleRef}
-          data-title
-          className="min-w-0 flex-1 truncate bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
-          placeholder="Title"
-          value={(meta.get('title') as string | undefined) ?? ''}
-          onChange={(e) => meta.set('title', e.target.value)}
-          onKeyDown={toBody}
-        />
-        <OfflineIcon />
+        {guest || reading ? (
+          <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
+            {titleOf(id)}
+          </span>
+        ) : (
+          <input
+            ref={titleRef}
+            data-title
+            className="min-w-0 flex-1 truncate bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
+            placeholder="Title"
+            value={(meta.get('title') as string | undefined) ?? ''}
+            onChange={(e) => meta.set('title', e.target.value)}
+            onKeyDown={toBody}
+          />
+        )}
+        {!guest && <OfflineIcon />}
         {actions(
           mine && <ShareDialog id={id} />,
           <>
@@ -552,7 +567,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
               </IconButton>
             )}
           </>,
-          tasks?.any && editor && (
+          tasks?.any && editor && !reading && (
             <>
               <IconButton
                 label="Hide checked"
@@ -591,7 +606,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         className="relative flex-1 overflow-y-auto bg-surface"
         data-hide-checked={(hiding && !clearing) || undefined}
       />
-      {editor && (
+      {editor && !reading && (
         // Pointing at a heading or paragraph shows its handle, and dragging the handle moves it. List lines have
         // their own grips. By default a pointer near a nested block's left edge picks its parent.
         <DragHandle
@@ -605,7 +620,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           </span>
         </DragHandle>
       )}
-      <Toolbar editor={editor} />
+      {!reading && <Toolbar editor={editor} />}
     </>
   )
 }

@@ -16,7 +16,7 @@ declare global {
     launchQueue?: { setConsumer(consumer: (params: { targetURL?: string }) => void): void }
   }
 }
-import { useY } from './sync/hooks'
+import { useStore, useY } from './sync/hooks'
 import { start, synced } from './sync/store'
 import { nodes, purgeExpired, settings } from './sync/tree'
 
@@ -56,6 +56,7 @@ export default function App() {
 }
 
 function Shell() {
+  const s = useStore()
   const noteId = useMatch('/n/:id')?.params.id
   const navigate = useNavigate()
   // A link from a widget, a calendar event or an alert, arriving while the app runs, opens like a tap in the app
@@ -99,6 +100,19 @@ function Shell() {
     if (theme) document.documentElement.dataset.theme = theme
     else delete document.documentElement.dataset.theme
   }, [color, text, theme])
+  // A guest has only the notes that links let them into, each opened by its link, and none of the app around them.
+  if (s.me!.guest) {
+    const guestNote = noteId ?? s.shares.find((share) => share.user_id === s.me!.id)?.doc_id
+    return (
+      <main className="flex h-dvh flex-col overflow-hidden">
+        {guestNote ? (
+          <Note id={guestNote} />
+        ) : (
+          <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
+        )}
+      </main>
+    )
+  }
   return (
     <div className="h-dvh md:grid md:grid-cols-[320px_1fr]">
       <aside

@@ -40,9 +40,9 @@ defmodule NicheNotesWeb.Router do
     delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
     get "/docs/:doc_id/widget_token", WidgetController, :token
     get "/widget/due", WidgetController, :due
-    get "/docs/:doc_id/link", LinkController, :show
-    put "/docs/:doc_id/link", LinkController, :create
-    delete "/docs/:doc_id/link", LinkController, :delete
+    get "/docs/:doc_id/links", LinkController, :index
+    post "/docs/:doc_id/links", LinkController, :create
+    delete "/docs/:doc_id/links/:token", LinkController, :delete
     get "/push_key", PushController, :key
     put "/push_subscriptions", PushController, :subscribe
     get "/google_calendar", GoogleCalendarController, :show

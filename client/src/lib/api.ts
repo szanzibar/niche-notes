@@ -1,4 +1,4 @@
-import type { Share, User } from './types'
+import type { Link, Share, User } from './types'
 
 // A page's requests fail together, and only one sign-in may start, since each one replaces the last one's state and
 // the app's sign-in that comes back from the browser then fails.
@@ -29,9 +29,10 @@ export const api = {
   unshare: (docId: string, userId: string) =>
     request<void>(`/docs/${docId}/shares/${userId}`, { method: 'DELETE' }),
   widgetToken: (docId: string) => request<{ token: string }>(`/docs/${docId}/widget_token`),
-  link: (docId: string) => request<{ link: string | null }>(`/docs/${docId}/link`),
-  createLink: (docId: string) => request<{ link: string }>(`/docs/${docId}/link`, { method: 'PUT' }),
-  deleteLink: (docId: string) => request<void>(`/docs/${docId}/link`, { method: 'DELETE' }),
+  links: (docId: string) => request<{ links: Link[] }>(`/docs/${docId}/links`),
+  createLink: (docId: string, token: string, readOnly: boolean) =>
+    request<void>(`/docs/${docId}/links`, { method: 'POST', body: JSON.stringify({ token, read_only: readOnly }) }),
+  deleteLink: (docId: string, token: string) => request<void>(`/docs/${docId}/links/${token}`, { method: 'DELETE' }),
   pushKey: () => request<{ key: string }>('/push_key'),
   subscribe: (subscription: PushSubscriptionJSON, timeZone: string) =>
     request<void>('/push_subscriptions', {

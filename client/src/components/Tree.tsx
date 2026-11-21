@@ -364,11 +364,9 @@ export function Tree({ selected }: { selected?: string }) {
           </IconButton>
         )}
         <OfflineIcon />
-        {!s.me!.guest && (
-          <IconButton label="New note" onClick={() => showNote(createNote(null))}>
-            <PlusIcon />
-          </IconButton>
-        )}
+        <IconButton label="New note" onClick={() => showNote(createNote(null))}>
+          <PlusIcon />
+        </IconButton>
       </RootDropZone>
       <nav className="flex-1 overflow-x-hidden overflow-y-auto">
         {query ? (
@@ -461,7 +459,7 @@ export function Tree({ selected }: { selected?: string }) {
           )
         ) : (
           <>
-            {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet.{!s.me!.guest && ' Tap New.'}</p>}
+            {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet. Tap New.</p>}
             {roots.map((id) => (
               <Row key={id} id={id} depth={0} selected={selected} picked={picked} onPick={pick} mark={mark} />
             ))}
@@ -685,20 +683,18 @@ function Row({
         >
           <NoteTitle id={id} depth={depth} active={active} />
         </button>
-        {!store.me!.guest && (
-          <button
-            type="button"
-            className="h-11 w-10 shrink-0 text-xl leading-none"
-            aria-label="New note inside"
-            title="New note inside"
-            onClick={() => {
-              expand(id)
-              showNote(createNote(id))
-            }}
-          >
-            +
-          </button>
-        )}
+        <button
+          type="button"
+          className="h-11 w-10 shrink-0 text-xl leading-none"
+          aria-label="New note inside"
+          title="New note inside"
+          onClick={() => {
+            expand(id)
+            showNote(createNote(id))
+          }}
+        >
+          +
+        </button>
       </div>
       {open &&
         kids.map((kid) => (

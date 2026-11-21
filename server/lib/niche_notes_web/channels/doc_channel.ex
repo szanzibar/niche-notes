@@ -24,7 +24,10 @@ defmodule NicheNotesWeb.DocChannel do
         {updates, seq} = Docs.updates_since(doc_id, params["since"] || 0)
         encoded = for {id, update} <- updates, do: [id, Base.encode64(update)]
         reply = %{updates: encoded, seq: seq, owner_id: owner_id}
-        {:ok, reply, assign(socket, :doc_id, doc_id)}
+
+        # Known and accepted: someone shared by name while the note is open sends their edits once it rejoins.
+        read_only = not Docs.can_edit?(doc_id, socket.assigns.current_user_id)
+        {:ok, reply, assign(socket, doc_id: doc_id, read_only: read_only)}
 
       :forbidden ->
         {:error, %{reason: "forbidden"}}
@@ -37,6 +40,10 @@ defmodule NicheNotesWeb.DocChannel do
     broadcast_from!(socket, "awareness", %{update: encoded})
     {:noreply, socket}
   end
+
+  # Someone who can only read sees edits and cursors, and makes none.
+  def handle_in("update", _payload, %{assigns: %{read_only: true}} = socket),
+    do: {:reply, {:error, %{reason: "read_only"}}, socket}
 
   def handle_in("update", %{"update" => encoded}, socket) do
     update = Base.decode64!(encoded)

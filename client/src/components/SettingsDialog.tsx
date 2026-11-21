@@ -1,13 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useState } from 'react'
 import { alertState, turnOffAlerts, turnOnAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
 import { useY } from '../sync/hooks'
-import { store } from '../sync/store'
 import { settings } from '../sync/tree'
 import { Button, IconButton } from './Button'
-import { CloseIcon, InfoIcon, SettingsIcon } from './icons'
+import { CloseIcon, SettingsIcon } from './icons'
+import { Info } from './Popover'
 import { THEMES } from './themes'
 
 const APPEARANCES: [string, string | undefined][] = [
@@ -156,35 +155,30 @@ export function SettingsDialog() {
               {alerts === 'denied' && <p className="text-sm text-ink-muted">Blocked on this device.</p>}
             </>
           )}
-          {/* A guest has one note, so no calendar of their own. */}
-          {!store.me!.guest && (
+          <div className="mb-2 mt-5 flex items-center">
+            <p className="font-medium">Calendar</p>
+            <Info label="About the calendar">
+              Dated checkbox lines go to a Niche Notes calendar in your Google Calendar, a minute after each change.
+              Edit them here, since changes made in Google Calendar don't come back.
+            </Info>
+          </div>
+          {google?.email ? (
             <>
-              <div className="mb-2 mt-5 flex items-center">
-                <p className="font-medium">Calendar</p>
-                <Info label="About the calendar">
-                  Dated checkbox lines go to a Niche Notes calendar in your Google Calendar, a minute after each change.
-                  Edit them here, since changes made in Google Calendar don't come back.
-                </Info>
-              </div>
-              {google?.email ? (
-                <>
-                  <p className="mb-2 text-sm text-ink-muted">{google.email}</p>
-                  <Button onClick={() => void api.disconnectGoogleCalendar().then(() => setGoogle({ email: null }))}>
-                    Disconnect
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  disabled={!google}
-                  onClick={() => {
-                    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-                    window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
-                  }}
-                >
-                  Connect Google Calendar
-                </Button>
-              )}
+              <p className="mb-2 text-sm text-ink-muted">{google.email}</p>
+              <Button onClick={() => void api.disconnectGoogleCalendar().then(() => setGoogle({ email: null }))}>
+                Disconnect
+              </Button>
             </>
+          ) : (
+            <Button
+              disabled={!google}
+              onClick={() => {
+                const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+                window.location.href = `/auth/google?${new URLSearchParams({ time_zone: timeZone })}`
+              }}
+            >
+              Connect Google Calendar
+            </Button>
           )}
           <p className="mb-2 mt-5 font-medium">Version</p>
           <p className="text-sm text-ink-muted">
@@ -194,27 +188,5 @@ export function SettingsDialog() {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
-}
-
-// A section's details stay off the page until someone taps the icon beside its name.
-function Info({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <Popover.Root>
-      <Popover.Trigger asChild>
-        <IconButton label={label} className="-my-2.5 text-ink-muted">
-          <InfoIcon className="size-4.5" />
-        </IconButton>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="top"
-          collisionPadding={8}
-          className="max-w-72 border-2 border-border bg-surface p-3 text-sm"
-        >
-          {children}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
   )
 }
