@@ -16,6 +16,7 @@ import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
 import android.util.TypedValue;
 import android.view.View;
+import android.webkit.CookieManager;
 import android.widget.RemoteViews;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -74,9 +75,9 @@ public class NoteWidget extends AppWidgetProvider {
         return info != null && info.provider.getClassName().equals(kind.getName());
     }
 
-    // Only a note widget has something to pick. The others' picker hands over the tree at once.
+    // A notes widget's picker hands over the tree at once.
     static String picker(Context context, int widget) {
-        return "/widget/" + widget + (is(context, widget, NoteWidget.class) ? "" : "?tree");
+        return "/widget/" + widget + (is(context, widget, TreeWidget.class) ? "?tree" : "");
     }
 
     static void show(Context context, int widget) {
@@ -92,16 +93,15 @@ public class NoteWidget extends AppWidgetProvider {
         views.setInt(R.id.header, "setBackgroundColor", picks.getInt("color." + widget, context.getColor(R.color.accent)));
         views.setTextColor(R.id.title, ink);
         views.setInt(R.id.refresh, "setColorFilter", ink);
-        views.setTextViewText(R.id.title, note == null
-                ? context.getString(is(context, widget, NoteWidget.class) ? R.string.widget_pick
-                        : due ? R.string.due_widget_pick : R.string.tree_widget_pick)
-                : due ? context.getString(R.string.due_widget) : picks.getString("title." + widget, ""));
-        views.setViewVisibility(R.id.refresh, note == null ? View.GONE : View.VISIBLE);
+        views.setTextViewText(R.id.title, due ? context.getString(R.string.due_widget)
+                : note != null ? picks.getString("title." + widget, "")
+                : context.getString(is(context, widget, TreeWidget.class) ? R.string.tree_widget_pick : R.string.widget_pick));
+        views.setViewVisibility(R.id.refresh, note == null && !due ? View.GONE : View.VISIBLE);
         views.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(context, widget,
                 refresh(context, widget), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
 
         // Mutable, because a tap on a row fills its intent into this one, and a note in the tree names its own page.
-        String page = note == null ? picker(context, widget) : note.equals("tree") ? "/" : "/?n=" + note;
+        String page = due ? "/" : note == null ? picker(context, widget) : note.equals("tree") ? "/" : "/?n=" + note;
         PendingIntent open = PendingIntent.getActivity(context, widget, inApp(context, page),
                 PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT | Intent.FILL_IN_DATA);
         views.setOnClickPendingIntent(android.R.id.background, open);
@@ -150,15 +150,20 @@ public class NoteWidget extends AppWidgetProvider {
     // Blocks on the network, so it runs off the main thread. Offline, the widget keeps its last lines.
     static void fetch(Context context, int widget) {
         SharedPreferences picks = picks(context);
+        boolean due = is(context, widget, DueWidget.class);
         String token = picks.getString("token." + widget, null);
-        if (token == null) {
+        if (!due && token == null) {
             // Picked before widgets had tokens, or by a picker page from before: offer the picker again.
             forget(picks.edit(), widget).apply();
         } else {
             try {
-                String path = is(context, widget, DueWidget.class) ? "/api/widget/due?today=" + LocalDate.now() : "/api/widget";
-                HttpURLConnection http = (HttpURLConnection) new URL(context.getString(R.string.site) + path).openConnection();
-                http.setRequestProperty("Authorization", "Bearer " + token);
+                String site = context.getString(R.string.site);
+                String path = due ? "/api/widget/due?today=" + LocalDate.now() : "/api/widget";
+                HttpURLConnection http = (HttpURLConnection) new URL(site + path).openConnection();
+                // A Due widget reads as whoever is signed in to the app, so it has nothing to pick.
+                String cookie = CookieManager.getInstance().getCookie(site);
+                if (!due) http.setRequestProperty("Authorization", "Bearer " + token);
+                else if (cookie != null) http.setRequestProperty("Cookie", cookie);
                 http.setConnectTimeout(5000);
                 http.setReadTimeout(5000);
                 int status = http.getResponseCode();
@@ -176,7 +181,7 @@ public class NoteWidget extends AppWidgetProvider {
                             .putInt("ink." + widget, Color.parseColor(read.getString("ink")))
                             .apply();
                 } else if (status == 401 || status == 404) {
-                    // Deleted or no longer shared, so the widget offers the picker again.
+                    // Deleted or no longer shared, so the widget offers the picker again. Signed out, a Due widget empties.
                     forget(picks.edit(), widget).apply();
                 }
             } catch (IOException | JSONException e) {

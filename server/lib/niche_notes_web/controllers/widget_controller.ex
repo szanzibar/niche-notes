@@ -18,7 +18,8 @@ defmodule NicheNotesWeb.WidgetController do
   end
 
   def show(conn, _params) do
-    with {:ok, {user_id, doc_id}} <- verify(conn),
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, {user_id, doc_id}} <- Phoenix.Token.verify(conn, @salt, token, max_age: :infinity),
          {:ok, widget} <- Docs.widget(doc_id, user_id) do
       json(conn, widget)
     else
@@ -27,18 +28,9 @@ defmodule NicheNotesWeb.WidgetController do
     end
   end
 
-  # The phone says its date, since that decides where ticking a repeating line moves it.
+  # The Android app reads this with its own sign-in, so a Due widget has nothing to pick. The phone says its date,
+  # since that decides where ticking a repeating line moves it.
   def due(conn, %{"today" => today}) do
-    with {:ok, {user_id, user_id}} <- verify(conn),
-         {:ok, today} <- Date.from_iso8601(today) do
-      json(conn, Docs.due_widget(user_id, today))
-    else
-      _ -> conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
-    end
-  end
-
-  defp verify(conn) do
-    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
-         do: Phoenix.Token.verify(conn, @salt, token, max_age: :infinity)
+    json(conn, Docs.due_widget(conn.assigns.current_user_id, Date.from_iso8601!(today)))
   end
 end

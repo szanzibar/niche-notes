@@ -39,6 +39,7 @@ defmodule NicheNotesWeb.Router do
     post "/docs/:doc_id/shares", ShareController, :create
     delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
     get "/docs/:doc_id/widget_token", WidgetController, :token
+    get "/widget/due", WidgetController, :due
     get "/docs/:doc_id/link", LinkController, :show
     put "/docs/:doc_id/link", LinkController, :create
     delete "/docs/:doc_id/link", LinkController, :delete
@@ -53,10 +54,9 @@ defmodule NicheNotesWeb.Router do
     get "/assetlinks.json", AssetLinksController, :show
   end
 
-  # A widget has no session. Its token says which note it reads, and a Due widget has the user's tree's.
+  # A widget has no session. Its token says which note it reads.
   scope "/api", NicheNotesWeb do
     get "/widget", WidgetController, :show
-    get "/widget/due", WidgetController, :due
   end
 
   scope "/", NicheNotesWeb do

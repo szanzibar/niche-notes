@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Updates every 30 minutes like a note widget, and has nothing to pick again. -->
+<!-- Updates every 30 minutes like a note widget. It has nothing to pick, so adding one opens nothing. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:configure="app.nichenotes.WidgetActivity"
     android:description="@string/due_widget_description"
     android:initialLayout="@layout/widget"
     android:minWidth="110dp"

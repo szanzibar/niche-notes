@@ -7,3 +7,7 @@ A widget reads its note from the server, because the notes on a phone live in Ch
 The token is the user and the note, signed with `SECRET_KEY_BASE`. A widget showing all the notes holds a token for the user's own tree, which reads its titles. Every read checks that the user can still open the note and that it is not in the trash, so unsharing or deleting cuts a widget off at once. That is why the token never expires: an expiring one would only blank widgets until their note was picked again.
 
 A leaked token reads one note, read-only, for as long as its user can. The server keeps no list of tokens, so one cannot be cancelled alone. Changing `SECRET_KEY_BASE` cancels them all and signs everyone out. For a family on their own phones that is enough.
+
+## Amendment 2026-11-21
+
+A Due widget reads with the Android app's own session instead, since the Tauri app's code can read its webview's cookie, as an alert's Done does. It shows all of a person's dated lines, so there is nothing to pick, and adding one opens nothing. Signing out empties it. Note and All notes widgets keep their tokens.

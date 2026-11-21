@@ -21,8 +21,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-// Every dated line the user can open, as the app's Due list shows them. Adding one hands it the tree, like an All
-// notes widget. A tap on a line's box ticks it the way an alert's Done does, and a tap on its text opens the note there.
+// Every dated line the user can open, as the app's Due list shows them, read as whoever is signed in to the app. A tap
+// on a line's box ticks it the way an alert's Done does, and a tap on its text opens the note there.
 public class DueWidget extends NoteWidget {
     private static final String[] SECTIONS = {"Past due", "Today", "Tomorrow", "Later"};
 

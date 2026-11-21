@@ -246,7 +246,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     assert json_response(read(NicheNotesWeb.UserSocket.token(@endpoint, me.id)), 401)
   end
 
-  test "a Due widget reads every open dated line with the tree's token, the earliest first", %{
+  test "a Due widget reads every open dated line with the app's sign-in, the earliest first", %{
     conn: conn,
     me: me,
     other: other,
@@ -293,13 +293,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     {:ok, _} = Docs.open(theirs, other.id)
     dated.(theirs, "Theirs", [{"not mine", %{"due" => "2026-11-19"}}])
 
-    due = fn token ->
-      build_conn()
-      |> put_req_header("authorization", "Bearer " <> token)
-      |> get("/api/widget/due?today=2026-11-21")
-    end
-
-    assert json_response(due.(token(conn, me.id)), 200) == %{
+    assert json_response(get(conn, "/api/widget/due?today=2026-11-21"), 200) == %{
              "color" => "#FF4F3B",
              "ink" => "#FFFFFF",
              "rows" => [
@@ -327,6 +321,6 @@ defmodule NicheNotesWeb.WidgetControllerTest do
              ]
            }
 
-    assert json_response(due.(token(conn, groceries)), 401)
+    assert json_response(get(build_conn(), "/api/widget/due?today=2026-11-21"), 401)
   end
 end

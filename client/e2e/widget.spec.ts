@@ -85,11 +85,7 @@ test('the notes widget gets all the notes as the tree shows them, with nothing t
     ])
 })
 
-test('a Due widget reads the dated lines with the tree from the hand-off, and its box ticks one the way Done does', async ({
-  browser,
-  request,
-}) => {
-  phoneOnly()
+test('a Due widget reads the dated lines with the app\'s sign-in, and its box ticks one the way Done does', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Milk')
   const chores = page.url().split('/n/')[1]
@@ -100,15 +96,12 @@ test('a Due widget reads the dated lines with the tree from the hand-off, and it
   await page.keyboard.type('water plants every day')
   await page.keyboard.press('Enter')
 
-  const picked = handOff(page)
-  await page.goto('/widget/7?tree')
-  const headers = { authorization: `Bearer ${(await picked).get('token')}` }
   const day = (offset: number) => {
     const date = new Date()
     date.setDate(date.getDate() + offset)
     return date.toLocaleDateString('sv')
   }
-  const rows = async () => (await (await request.get(`/api/widget/due?today=${day(0)}`, { headers })).json()).rows
+  const rows = async () => (await (await page.request.get(`/api/widget/due?today=${day(0)}`)).json()).rows
   await expect
     .poll(rows)
     .toEqual([
@@ -116,7 +109,7 @@ test('a Due widget reads the dated lines with the tree from the hand-off, and it
       { note: chores, title: 'Chores', text: 'water plants', due: day(0), next: day(1) },
     ])
 
-  // The box sends what the row says, as the person signed in to the app.
+  // The box sends what the row says.
   for (const [text, change] of [
     ['pay rent', { checked: true }],
     ['water plants', { move_to: day(1) }],
