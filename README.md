@@ -58,7 +58,8 @@ open `/s/<link>` on `localhost` there. Delete the copy with the same `docker com
 ## Develop
 
 ```bash
-./dev.sh                 # Phoenix :4100 + Vite :5173 + the desktop app, which needs cargo install tauri-cli
+mise install
+./dev.sh                 # Phoenix :4100 + Vite :5173 + the desktop app
 cd server && mix test
 cd client && npm run build   # writes into server/priv/static
 ```
@@ -66,7 +67,8 @@ cd client && npm run build   # writes into server/priv/static
 Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife` signs in a second user.
 
 The desktop app that `./dev.sh` builds and starts is `Niche Notes Dev`, with its own identifier, so it runs beside
-the installed app.
+the installed app. In WSL it is the Windows app, built with `cargo-xwin`, which needs
+`sudo apt install clang lld llvm` once.
 
 `./private-files.sh save` zips what git leaves out, such as `.env`, the signing keys and the dev database, and
 `restore` puts it in place in another clone.

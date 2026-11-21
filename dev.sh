@@ -15,11 +15,19 @@ set -a; source <(grep -E '^(GOOGLE|FIREBASE)_' "$ROOT/.env" 2>/dev/null); set +a
 # close looks like a restored backup, and every device then sends all its notes again.
 (cd "$ROOT/server" && mix ecto.create --quiet && mix ecto.migrate --quiet &&
   ELIXIR_ERL_OPTIONS=+Bi exec mix phx.server) &
-# The desktop app, built as an app bundle, since macOS shows an alert under an app's own name only for a bundle.
-# It opens Vite's page, so it waits for Vite.
-(cd "$ROOT/tauri" && cargo tauri build --debug --bundles app &&
+# The desktop app for this machine. On macOS it is an app bundle, since macOS shows an alert under an app's own
+# name only for a bundle. In WSL it is the Windows app, which opens on the Windows desktop. It opens Vite's page,
+# so it waits for Vite.
+if [ -n "${WSL_DISTRO_NAME:-}" ]; then
+  build=(--no-bundle --runner cargo-xwin --target x86_64-pc-windows-msvc)
+  app=target/x86_64-pc-windows-msvc/debug/niche-notes.exe
+else
+  build=(--bundles app)
+  app="target/debug/bundle/macos/Niche Notes Dev.app/Contents/MacOS/niche-notes"
+fi
+(cd "$ROOT/tauri" && cargo tauri build --debug "${build[@]}" &&
   until nc -z localhost 5173 2>/dev/null; do sleep 1; done &&
-  exec "target/debug/bundle/macos/Niche Notes Dev.app/Contents/MacOS/niche-notes") &
+  exec "$app") &
 trap 'kill 0' EXIT
 
 cd "$ROOT/client" && npm run dev

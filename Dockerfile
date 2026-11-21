@@ -1,4 +1,4 @@
-# Tags from https://hub.docker.com/r/hexpm/elixir/tags; keep Elixir and OTP in step with .tool-versions.
+# Tags from https://hub.docker.com/r/hexpm/elixir/tags; keep Elixir and OTP in step with mise.toml.
 ARG ELIXIR_VERSION=1.19.5
 ARG OTP_VERSION=28.3
 ARG DEBIAN_VERSION=trixie-20260610-slim

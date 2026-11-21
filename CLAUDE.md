@@ -13,7 +13,7 @@ Read the task and every file it touches before writing code. For anything beyond
 
 ## Stack
 
-Versions live in `.tool-versions`, `server/mix.exs` and `client/package.json`, not here.
+Versions live in `mise.toml`, `server/mix.exs` and `client/package.json`, not here.
 
 - `server/`: Elixir and Phoenix with Ecto on SQLite. Phoenix Channels relay and persist Y.js updates. Assent handles OIDC login against Pocket ID, and the session is a cookie.
 - `client/`: React with TypeScript and Vite. TipTap for editing, Y.js for the document model and sync, Dexie for the local update log, Tailwind and Radix UI for the interface.
