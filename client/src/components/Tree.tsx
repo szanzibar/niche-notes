@@ -42,10 +42,21 @@ import {
   trashed,
   type Spot,
 } from '../sync/tree'
-import { IconButton } from './Button'
+import { Button, IconButton } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
-import { CalendarIcon, CheckedIcon, ClockIcon, GripIcon, LeaveIcon, PinIcon, PlusIcon, TrashIcon, UsersIcon } from './icons'
+import {
+  CalendarIcon,
+  ClockIcon,
+  FilterIcon,
+  GripIcon,
+  LeaveIcon,
+  PinIcon,
+  PlusIcon,
+  TrashIcon,
+  UsersIcon,
+} from './icons'
 import { OfflineIcon } from './OfflineIcon'
+import { Popover } from './Popover'
 import { SettingsDialog } from './SettingsDialog'
 import { noteTheme } from './themes'
 
@@ -157,6 +168,7 @@ export function Tree({ selected }: { selected?: string }) {
   // Every dated line, in a section for when it is due, under its note. The note with the oldest line comes first.
   // The count is what needs doing by today.
   const [dueOpen, setDueOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const today = dayOf(new Date())
   const tomorrow = inDays(1)
   const dated = [...nodes().keys()]
@@ -319,24 +331,23 @@ export function Tree({ selected }: { selected?: string }) {
           )}
         </div>
         {query && (
-          <>
-            <IconButton
-              label="Include trash"
-              aria-pressed={searchTrash}
-              className={searchTrash ? 'text-accent-ink' : ''}
-              onClick={() => prefs.set('searchTrash', !searchTrash)}
-            >
-              <TrashIcon />
-            </IconButton>
-            <IconButton
-              label="Include checked lines"
-              aria-pressed={searchChecked}
-              className={searchChecked ? 'text-accent-ink' : ''}
-              onClick={() => prefs.set('searchChecked', !searchChecked)}
-            >
-              <CheckedIcon />
-            </IconButton>
-          </>
+          <Popover
+            side="bottom"
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            trigger={
+              <IconButton label="Search filters" className={filtersOpen ? 'text-accent-ink' : ''}>
+                <FilterIcon />
+              </IconButton>
+            }
+          >
+            <Button aria-pressed={searchTrash} onClick={() => prefs.set('searchTrash', !searchTrash)}>
+              Include trash
+            </Button>
+            <Button aria-pressed={searchChecked} onClick={() => prefs.set('searchChecked', !searchChecked)}>
+              Include checked lines
+            </Button>
+          </Popover>
         )}
         {!picking && (dated.length > 0 || dueOpen) && (
           <IconButton
