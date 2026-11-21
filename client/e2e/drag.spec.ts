@@ -29,6 +29,8 @@ const shape = (page: Page) =>
 
 const phone = async (browser: Browser) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
+  // Chrome on Linux moves its mouse off the page after each tap, which hides the paragraph handle. A phone has no mouse.
+  await context.addInitScript(() => addEventListener('mouseleave', (e) => e.stopPropagation(), true))
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)
   return page

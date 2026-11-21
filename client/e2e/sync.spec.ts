@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { DatabaseSync } from 'node:sqlite'
 import { expect, type Page } from '@playwright/test'
 import { newNote, row, signIn, test, typeAtEnd, uid } from './helpers'
 
@@ -79,16 +79,14 @@ test('a launch loads only the tree, and notes it never opened still show, search
 // What a restored backup leaves once the app has started on it: the server's log as it was at the backup,
 // numbering new rows from there, under a new generation.
 const restoreWithout = (note: string) =>
-  execFileSync('sqlite3', [
-    '-cmd',
-    '.timeout 5000',
-    '../server/data/e2e.db',
-    `delete from doc_updates where doc_id = '${note}';
+  new DatabaseSync('../server/data/e2e.db').exec(
+    `pragma busy_timeout = 5000;
+     delete from doc_updates where doc_id = '${note}';
      update sqlite_sequence set seq = (select coalesce(max(id), 0) from doc_updates) where name = 'doc_updates';
      update generation set id = lower(hex(randomblob(16)));`,
-  ])
+  )
 
-test('after the server is restored from a backup, a device sends back what the backup lacks and still gets new edits', async ({
+test('after the server is restored from a backup, a device sends back what the backup lacks and still gets new edits', { tag: '@alone' }, async ({
   browser,
 }) => {
   const name = `alice-${uid()}`
@@ -111,11 +109,8 @@ test('after the server is restored from a backup, a device sends back what the b
   await expect(phone.locator('.editor-body')).toContainText('oat milk and bread')
 
   // The phone sent its tree again too, which the backup still had, so the log holds none of it twice.
-  const copies = execFileSync('sqlite3', [
-    '-cmd',
-    '.timeout 5000',
-    '../server/data/e2e.db',
-    `select count(*) - count(distinct "update") from doc_updates where doc_id = (select id from users where sub = 'dev-${name}')`,
-  ])
-  expect(copies.toString().trim()).toBe('0')
+  const copies = new DatabaseSync('../server/data/e2e.db')
+    .prepare(`select count(*) - count(distinct "update") as n from doc_updates where doc_id = (select id from users where sub = ?)`)
+    .get(`dev-${name}`)
+  expect(copies).toEqual({ n: 0 })
 })

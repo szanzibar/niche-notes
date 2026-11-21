@@ -7,8 +7,18 @@ export default defineConfig({
   timeout: 30_000,
   // Checked lines take 5 seconds to hide.
   expect: { timeout: 8_000 },
-  workers: 1,
-  use: { baseURL: 'http://localhost:5199', trace: 'retain-on-failure' },
+  // Each test signs in its own people, so tests run side by side.
+  fullyParallel: true,
+  // A test tagged @alone changes the server for everyone, so it waits for the rest. Projects rule out --browser.
+  projects: [
+    { name: 'all', grepInvert: /@alone/ },
+    { name: 'alone', grep: /@alone/, dependencies: ['all'] },
+  ],
+  use: {
+    browserName: process.env.BROWSER === 'webkit' ? 'webkit' : 'chromium',
+    baseURL: 'http://localhost:5199',
+    trace: 'retain-on-failure',
+  },
   webServer: [
     {
       command:
