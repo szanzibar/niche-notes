@@ -68,7 +68,7 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
 The desktop app that `./dev.sh` builds and starts is `Niche Notes Dev`, with its own identifier, so it runs beside
 the installed app.
 
-`pwsh ./private-files.ps1 save` zips what git leaves out, such as `.env`, the signing keys and the dev database, and
+`./private-files.sh save` zips what git leaves out, such as `.env`, the signing keys and the dev database, and
 `restore` puts it in place in another clone.
 
 ## Apps
