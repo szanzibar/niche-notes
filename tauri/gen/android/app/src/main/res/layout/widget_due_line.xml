@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A Due widget's line under its note, with its date at the end. The box's padding makes it big enough for a finger,
-     and it sits on the text's first line. -->
+     and the text's padding puts its first line beside the box. Baseline alignment would cut off a second line. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:baselineAligned="false"
     android:orientation="horizontal">
 
     <ImageView
@@ -12,7 +13,6 @@
         android:layout_width="34dp"
         android:layout_height="34dp"
         android:layout_marginStart="8dp"
-        android:baseline="21dp"
         android:contentDescription="@string/done"
         android:padding="10dp"
         android:src="@drawable/widget_unchecked" />
@@ -24,6 +24,7 @@
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="2"
+        android:paddingVertical="8dp"
         android:textColor="@color/widget_ink" />
 
     <TextView
@@ -31,5 +32,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
+        android:paddingTop="10dp"
         android:textStyle="bold" />
 </LinearLayout>
