@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A Due widget's line under its note, with its date at the end. The box's padding makes it big enough for a finger,
-     and the text's padding puts its first line beside the box. Baseline alignment would cut off a second line. -->
+<!-- A Due widget's line, in line with its note's title, with its date under it. The box's padding makes it big enough
+     for a finger, and the text's padding puts its first line beside the box. Baseline alignment would cut off its
+     other lines. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/row"
     android:layout_width="match_parent"
@@ -10,28 +11,33 @@
 
     <ImageView
         android:id="@+id/box"
-        android:layout_width="34dp"
-        android:layout_height="34dp"
-        android:layout_marginStart="8dp"
+        android:layout_width="22dp"
+        android:layout_height="30dp"
         android:contentDescription="@string/done"
-        android:padding="10dp"
+        android:paddingVertical="8dp"
+        android:paddingEnd="8dp"
         android:src="@drawable/widget_unchecked" />
 
-    <TextView
-        android:id="@+id/line"
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:ellipsize="end"
-        android:maxLines="2"
-        android:paddingVertical="8dp"
-        android:textColor="@color/widget_ink" />
+        android:orientation="vertical"
+        android:paddingTop="5dp"
+        android:paddingBottom="4dp">
 
-    <TextView
-        android:id="@+id/date"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:paddingTop="10dp"
-        android:textStyle="bold" />
+        <TextView
+            android:id="@+id/line"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:textColor="@color/widget_ink" />
+
+        <TextView
+            android:id="@+id/date"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textStyle="bold" />
+    </LinearLayout>
 </LinearLayout>

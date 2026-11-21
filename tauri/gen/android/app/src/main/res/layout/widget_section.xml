@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A Due widget's section: small grey capitals under a 2dp rule, like a section in the app. -->
+<!-- A Due widget's section: small grey capitals under a 2dp rule, like a section in the app, which a tap folds. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/section"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingTop="6dp">
+    android:paddingVertical="6dp">
 
     <FrameLayout
         android:id="@+id/rule"

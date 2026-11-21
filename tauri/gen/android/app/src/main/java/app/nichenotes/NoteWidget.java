@@ -67,7 +67,7 @@ public class NoteWidget extends AppWidgetProvider {
 
     static SharedPreferences.Editor forget(SharedPreferences.Editor editor, int widget) {
         return editor.remove("note." + widget).remove("title." + widget).remove("token." + widget)
-                .remove("rows." + widget).remove("color." + widget).remove("ink." + widget);
+                .remove("rows." + widget).remove("color." + widget).remove("ink." + widget).remove("collapsed." + widget);
     }
 
     static boolean is(Context context, int widget, Class<? extends NoteWidget> kind) {
@@ -111,7 +111,7 @@ public class NoteWidget extends AppWidgetProvider {
         try {
             JSONArray rows = new JSONArray(picks.getString("rows." + widget, "[]"));
             if (due) {
-                DueWidget.lines(context, rows, items, font);
+                DueWidget.lines(context, widget, rows, items, font);
             } else {
                 for (int i = 0; i < rows.length(); i++) {
                     JSONObject row = rows.getJSONObject(i);
@@ -176,6 +176,7 @@ public class NoteWidget extends AppWidgetProvider {
                     JSONObject read = new JSONObject(body);
                     picks.edit()
                             .putString("title." + widget, read.optString("title"))
+                            .putString("collapsed." + widget, read.optString("collapsed", "[]"))
                             .putString("rows." + widget, read.getJSONArray("rows").toString())
                             .putInt("color." + widget, Color.parseColor(read.getString("color")))
                             .putInt("ink." + widget, Color.parseColor(read.getString("ink")))

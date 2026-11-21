@@ -145,10 +145,10 @@ defmodule NicheNotes.Docs do
   end
 
   # What a Due widget shows, under the user's own color: every unchecked dated line in the notes outside their trash,
-  # the earliest first, as the app's Due list has them. A repeating line says where ticking it moves it from the
-  # phone's `today`. The text is cut like an alert's, since Done finds its line by that.
+  # the earliest first, as the app's Due list has them, and the sections it has folded. A repeating line says where
+  # ticking it moves it from the phone's `today`. The text is cut like an alert's, since Done finds its line by that.
   def due_widget(user_id, today) do
-    {nodes, _settings} = tree = tree(user_id)
+    {nodes, settings} = tree = tree(user_id)
 
     rows =
       for {id, {title, lines}} <- Map.take(Reminders.notes(), note_ids(user_id)),
@@ -163,7 +163,21 @@ defmodule NicheNotes.Docs do
         }
       end
 
-    Map.merge(%{rows: Enum.sort_by(rows, & &1.due)}, theme(tree, nil))
+    Map.merge(
+      %{rows: Enum.sort_by(rows, & &1.due), collapsed: settings["dueCollapsed"] || []},
+      theme(tree, nil)
+    )
+  end
+
+  # A Due widget folding a section, in the setting the app's Due list folds by, so both stay folded together.
+  def collapse_due(user_id, section, collapsed) do
+    {doc, _meta} = read(user_id)
+    settings = Yex.Doc.get_map(doc, "settings")
+    folded = List.delete(Yex.Map.to_map(settings)["dueCollapsed"] || [], section)
+    {:ok, before} = Yex.encode_state_vector(doc)
+    Yex.Map.set(settings, "dueCollapsed", if(collapsed, do: folded ++ [section], else: folded))
+    {:ok, update} = Yex.encode_state_as_update(doc, before)
+    {append_update(user_id, update), update}
   end
 
   defp tree(user_id) do

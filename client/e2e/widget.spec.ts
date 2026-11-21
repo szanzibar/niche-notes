@@ -85,7 +85,7 @@ test('the notes widget gets all the notes as the tree shows them, with nothing t
     ])
 })
 
-test('a Due widget reads the dated lines with the app\'s sign-in, and its box ticks one the way Done does', async ({ browser }) => {
+test('a Due widget reads the dated lines with the app\'s sign-in, its box ticks one the way Done does, and it folds the app\'s sections', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Milk')
   const chores = page.url().split('/n/')[1]
@@ -118,6 +118,16 @@ test('a Due widget reads the dated lines with the app\'s sign-in, and its box ti
     expect(done.status()).toBe(204)
   }
   await expect.poll(rows).toEqual([{ note: chores, title: 'Chores', text: 'water plants', due: day(1), next: day(2) }])
+
+  // A fold from the widget folds the app's Due list too, while it is open.
+  await page.goto('/')
+  await page.getByRole('button', { name: /^Due \(/ }).click()
+  const tomorrow = page.getByRole('button', { name: /^Tomorrow/ })
+  await expect(tomorrow).toHaveAttribute('aria-expanded', 'true')
+  const fold = await page.request.patch('/api/widget/due', { data: { section: 'Tomorrow', collapsed: true } })
+  expect(fold.status()).toBe(204)
+  await expect(tomorrow).toHaveAttribute('aria-expanded', 'false')
+  expect((await (await page.request.get(`/api/widget/due?today=${day(0)}`)).json()).collapsed).toEqual(['Tomorrow'])
 })
 
 test('a tap on a line in a widget opens the note at that line, over the list, and asks for the keyboard', async ({

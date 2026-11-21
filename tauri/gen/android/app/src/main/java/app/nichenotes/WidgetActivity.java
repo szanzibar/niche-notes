@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.appwidget.AppWidgetManager;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Bundle;
 
@@ -20,8 +22,12 @@ public class WidgetActivity extends Activity {
             setResult(RESULT_OK, new Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widget));
             NoteWidget.show(this, widget);
             startActivity(NoteWidget.inApp(this, NoteWidget.picker(this, widget)));
-        } else if (intent.hasExtra("due")) {
-            sendBroadcast(new Intent(Alerts.DONE, null, this, AlertAction.class).putExtras(intent));
+        } else if (intent.hasExtra("due") && !online()) {
+            // Offline the widget can't tick, but the app can, so the box opens the note at its line.
+            startActivity(NoteWidget.inApp(this, "/?n=" + intent.getStringExtra("note"))
+                    .putExtra(MainActivity.LINE, intent.getStringExtra("text")));
+        } else if (intent.hasExtra("due") || intent.hasExtra("section")) {
+            sendBroadcast(new Intent(DueWidget.TAP, null, this, DueWidget.class).putExtras(intent));
         } else if (intent.hasExtra("note")) {
             startActivity(NoteWidget.inApp(this, "/?n=" + intent.getStringExtra("note")).putExtras(intent));
         } else {
@@ -41,5 +47,11 @@ public class WidgetActivity extends Activity {
             }
         }
         finish();
+    }
+
+    private boolean online() {
+        ConnectivityManager network = getSystemService(ConnectivityManager.class);
+        NetworkCapabilities capabilities = network.getNetworkCapabilities(network.getActiveNetwork());
+        return capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 }

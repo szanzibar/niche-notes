@@ -296,6 +296,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     assert json_response(get(conn, "/api/widget/due?today=2026-11-21"), 200) == %{
              "color" => "#FF4F3B",
              "ink" => "#FFFFFF",
+             "collapsed" => [],
              "rows" => [
                %{
                  "note" => house,
@@ -322,5 +323,22 @@ defmodule NicheNotesWeb.WidgetControllerTest do
            }
 
     assert json_response(get(build_conn(), "/api/widget/due?today=2026-11-21"), 401)
+  end
+
+  test "a Due widget folds a section in the setting the app folds Due by", %{conn: conn, me: me} do
+    start_supervised!(NicheNotes.Reminders)
+    {:ok, _} = Docs.open(me.id, me.id)
+    edit!(me.id, &Yex.Map.set(Yex.Doc.get_map(&1, "settings"), "dueCollapsed", ["Later"]))
+    NicheNotesWeb.Endpoint.subscribe("doc:#{me.id}")
+
+    fold = fn section, collapsed ->
+      patch(conn, "/api/widget/due", %{section: section, collapsed: collapsed}) |> response(204)
+      json_response(get(conn, "/api/widget/due?today=2026-11-21"), 200)["collapsed"]
+    end
+
+    assert fold.("Today", true) == ["Later", "Today"]
+    assert_receive %Phoenix.Socket.Broadcast{event: "update"}
+    assert fold.("Today", true) == ["Later", "Today"]
+    assert fold.("Later", false) == ["Today"]
   end
 end

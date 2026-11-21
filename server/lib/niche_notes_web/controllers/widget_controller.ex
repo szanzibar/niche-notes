@@ -33,4 +33,18 @@ defmodule NicheNotesWeb.WidgetController do
   def due(conn, %{"today" => today}) do
     json(conn, Docs.due_widget(conn.assigns.current_user_id, Date.from_iso8601!(today)))
   end
+
+  # The app's lists get the fold at once.
+  def collapse(conn, %{"section" => section, "collapsed" => collapsed})
+      when is_boolean(collapsed) do
+    user_id = conn.assigns.current_user_id
+    {stored, update} = Docs.collapse_due(user_id, section, collapsed)
+
+    NicheNotesWeb.Endpoint.broadcast!("doc:#{user_id}", "update", %{
+      seq: stored.id,
+      update: Base.encode64(update)
+    })
+
+    send_resp(conn, :no_content, "")
+  end
 end

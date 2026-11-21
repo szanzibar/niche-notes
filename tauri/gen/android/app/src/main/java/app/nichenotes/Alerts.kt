@@ -83,9 +83,9 @@ class Alerts : FirebaseMessagingService() {
 }
 
 // Done ticks the alert's line, or moves a repeating one to the next date the server sent, and Snooze moves it to an
-// hour from now. A Due widget's box is Done too. The server makes the change, since the app may be closed, and the
-// alert goes away and the widgets redraw once it has, or once it answers 404 because the line was already ticked or
-// edited. Otherwise the alert stays, and its tap opens the note.
+// hour from now. The server makes the change, since the app may be closed, and the alert goes away and the widgets
+// redraw once it has, or once it answers 404 because the line was already ticked or edited. Otherwise the alert stays,
+// and its tap opens the note.
 class AlertAction : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val alert = intent.extras!!
@@ -101,7 +101,7 @@ class AlertAction : BroadcastReceiver() {
     Thread {
       val status = Alerts.send(context, "PATCH", "/api/docs/${alert.getString("note")}/line", change)
       if (status in 200..299 || status == 404) {
-        alert.getString("tag")?.let { context.getSystemService(NotificationManager::class.java).cancel(it, 0) }
+        context.getSystemService(NotificationManager::class.java).cancel(alert.getString("tag"), 0)
         NoteWidget.refreshAll(context)
       }
       finished.finish()
