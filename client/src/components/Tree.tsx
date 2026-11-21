@@ -483,7 +483,7 @@ export function Tree({ selected }: { selected?: string }) {
           ))}
         </section>
       )}
-      <footer className="flex items-center gap-1 border-t-2 border-border py-1 pl-4 pr-2 text-sm">
+      <footer className="flex items-center gap-1 border-t-2 border-border py-1.5 pl-4 pr-2 text-sm">
         <span className="flex-1 truncate">{s.me!.name}</span>
         {recent.length > 0 && (
           <IconButton
@@ -593,7 +593,7 @@ function RootDropZone({ active, children }: { active: boolean; children: React.R
   return (
     <header
       ref={setNodeRef}
-      className={`flex items-center gap-2 border-b-2 border-border px-4 py-3 ${active ? 'bg-accent text-on-accent' : ''}`}
+      className={`flex items-center gap-2 border-b-2 border-border px-4 py-2 ${active ? 'bg-accent text-on-accent' : ''}`}
     >
       {children}
     </header>

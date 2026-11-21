@@ -236,3 +236,18 @@ test('delete goes to the trash without asking; a trashed note is read-only until
   await page.reload()
   await expect(page.getByText('No notes yet')).toBeVisible()
 })
+
+test("beside the tree, the note's header and toolbar line up with the tree's header and footer", async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Shopping', 'milk')
+  const edges = () =>
+    page.evaluate(() => {
+      const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect()
+      const toolbar = document.querySelector('[aria-label="Checklist"]')!.closest('.border-t-2')!.getBoundingClientRect()
+      return [box('header:not(.note-header)').bottom - box('.note-header').bottom, box('footer').top - toolbar.top]
+    })
+  for (const density of ['compact', 'default', 'large']) {
+    await page.evaluate((density) => document.documentElement.setAttribute('data-density', density), density)
+    expect(await edges(), density).toEqual([0, 0])
+  }
+})
