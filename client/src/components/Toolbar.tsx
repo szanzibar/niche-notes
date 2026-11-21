@@ -115,7 +115,11 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
         return true
       })
       .run()
-  const setDue = (next: string | null, repeat: string | null = rule && formatRule(rule)) => {
+  // A monthly rule on a day of the month repeats on the day picked.
+  const setDue = (
+    next: string | null,
+    repeat: string | null = rule && formatRule(rule.monthDay && next ? { ...rule, monthDay: Number(next.slice(8, 10)) } : rule),
+  ) => {
     // A line that gets a time lasts as long as the last length this person picked.
     const picked = !time && next?.includes('T') ? settings().get('duration') : null
     setLine({ due: next, repeat: next ? repeat : null, duration: next ? (line!.attrs.duration ?? picked ?? null) : null })

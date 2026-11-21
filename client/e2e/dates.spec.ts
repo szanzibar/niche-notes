@@ -153,6 +153,18 @@ test('a monthly repeat can be the nth or last weekday, several at once', async (
   await expect(page.getByText(`Every 2 months on the 1st and 3rd ${weekday}`)).toBeVisible()
 })
 
+test('a monthly repeat on a day of the month moves to the day picked', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Pay rent')
+  await tool(page, 'Checklist').click()
+  await tool(page, 'Date').click()
+  await tool(page, 'Every month').click()
+  await page.getByLabel('Day', { exact: true }).fill(inDays(1))
+  const date = Number(inDays(1).slice(8))
+  await expect(line(page, 'Pay rent')).toHaveAttribute('data-repeat', `FREQ=MONTHLY;BYMONTHDAY=${date}`)
+  await expect(page.getByText(new RegExp(`^Every month on the ${date}(st|nd|rd|th)$`))).toBeVisible()
+})
+
 test('repeat rules land on the right next day', () => {
   // Monday 16 November 2026.
   const today = new Date(2026, 10, 16)
@@ -276,6 +288,32 @@ test('typed words turn into the date when the note closes or the app goes to the
     document.dispatchEvent(new Event('visibilitychange'))
   })
   await expect(line(page, 'feed cat')).toHaveAttribute('data-due', inDays(0))
+})
+
+test('typed words turn into the date when the app goes to the background while the keyboard still writes them', async ({
+  browser,
+}) => {
+  phoneOnly()
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Garden', 'Rake')
+  await tool(page, 'Checklist').click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('feed cat today at ')
+  // A phone's keyboard holds the last word open, and may write it again once it lets go, so it has to let go while
+  // the words are still in the line.
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Input.imeSetComposition', { text: '22:00', selectionStart: 5, selectionEnd: 5 })
+  await expect(chip(page, 'feed cat today at 22:00')).toHaveAttribute('data-label', 'Today 10:00 PM ✕')
+  const letGo = await page.evaluate(() => {
+    const text = new Promise((resolve) =>
+      document.addEventListener('compositionend', () => resolve(document.querySelector('.editor-body li:last-child p')?.textContent)),
+    )
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    return Promise.race([text, new Promise((resolve) => setTimeout(() => resolve('still writing'), 1000))])
+  })
+  expect(letGo).toBe('feed cat today at 22:00')
+  await expect(line(page, 'feed cat')).toHaveAttribute('data-due', `${inDays(0)}T22:00`)
 })
 
 test('the tree lists dated lines by when they are due, under their notes, and a tap opens the note or its line', async ({
@@ -452,6 +490,22 @@ test('typed words read as the dates they say', () => {
   expect(read('review every 2 weeks')).toEqual({ words: 'every 2 weeks', due: '2026-11-16', repeat: 'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO' })
   expect(read('rent monthly')).toEqual({ words: 'monthly', due: '2026-11-16', repeat: 'FREQ=MONTHLY;BYMONTHDAY=16' })
   expect(read('card for mom every year')).toEqual({ words: 'every year', due: '2026-11-16', repeat: 'FREQ=YEARLY' })
+  // A month's day or weekday can be said, and the line moves to its next one.
+  expect(read('pay rent every month on the first')).toEqual({
+    words: 'every month on the first',
+    due: '2026-12-01',
+    repeat: 'FREQ=MONTHLY;BYMONTHDAY=1',
+  })
+  expect(read('water plants monthly on the 15th')).toEqual({
+    words: 'monthly on the 15th',
+    due: '2026-12-15',
+    repeat: 'FREQ=MONTHLY;BYMONTHDAY=15',
+  })
+  expect(read('book club every month on the last friday')).toEqual({
+    words: 'every month on the last friday',
+    due: '2026-11-27',
+    repeat: 'FREQ=MONTHLY;BYDAY=-1FR',
+  })
 
   // What the words leave unsaid stays as the line had it.
   expect(read('call bank at 9:15', { due: '2026-12-01', repeat: 'FREQ=YEARLY' })).toEqual({
@@ -461,7 +515,7 @@ test('typed words read as the dates they say', () => {
   })
   expect(read('call bank tomorrow', { due: '2026-12-01T08:00' })).toEqual({ words: 'tomorrow', due: '2026-11-17T08:00', repeat: null })
 
-  for (const text of ['sun cream', "today's special", 'Monday: pasta', 'look at 5 houses', 'feb 30', 'every other day', 'ratio 16:9']) {
+  for (const text of ['sun cream', "today's special", 'Monday: pasta', 'look at 5 houses', 'feb 30', 'every other day', 'ratio 16:9', 'every week on the 1st', 'every month on the 5th monday']) {
     expect(typedDates(text, now), text).toEqual([])
   }
 })

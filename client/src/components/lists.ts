@@ -666,7 +666,14 @@ export const TaskItem = TipTapTaskItem.extend({
             const words = typedWords.getState(view.state)
             if (words && !words.alone) view.dispatch(view.state.tr.setMeta(typedWords, 'leave'))
           }
-          const hidden = () => document.hidden && leave()
+          const hidden = () => {
+            if (!document.hidden) return
+            if (!view.composing) return leave()
+            // A word the keyboard is still writing would come back after the words leave, once the keyboard lets
+            // go of it. Blurring makes it let go at once.
+            view.dom.blur()
+            setTimeout(leave, 50)
+          }
           document.addEventListener('visibilitychange', hidden)
           return {
             destroy: () => {

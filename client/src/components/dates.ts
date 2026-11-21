@@ -133,6 +133,7 @@ const MONTH =
   'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
 const NEAR: Record<string, number> = { today: 0, tomorrow: 1, 'next week': 7 }
 const EACH: Record<string, string> = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }
+const NTH = ['first', 'second', 'third', 'fourth', 'last']
 const HOUR = '(?:[01]?\\d|2[0-3])'
 const CLOCK = `(?:at )?(?:${HOUR}:[0-5]\\d(?: ?[ap]m)?|${HOUR} ?[ap]m)`
 const HEAD = [
@@ -140,8 +141,8 @@ const HEAD = [
   `(?:next )?(?<weekday>${WEEKDAY})`,
   `(?<month>${MONTH}) (?<date>\\d{1,2})(?:st|nd|rd|th)?`,
   `(?<date2>\\d{1,2})(?:st|nd|rd|th)? (?<month2>${MONTH})`,
-  `every (?:(?<apart>other|\\d{1,2}) )?(?<each>day|weekday|weeks?|months?|years?|(?:${WEEKDAY})(?:(?:,| and|, and) (?:${WEEKDAY}))*)`,
-  '(?<ly>daily|weekly|monthly|yearly)',
+  `(?:every (?:(?<apart>other|\\d{1,2}) )?(?<each>day|weekday|weeks?|months?|years?|(?:${WEEKDAY})(?:(?:,| and|, and) (?:${WEEKDAY}))*)|(?<ly>daily|weekly|monthly|yearly))` +
+    `(?: on the (?<nth>${NTH.join('|')}|\\d{1,2}(?:st|nd|rd|th)?)(?: (?<nthday>${WEEKDAY}))?)?`,
 ].join('|')
 // "at 5" is as likely a count as a time, so a bare hour only counts after a day. "today's" and "Monday:" are
 // not dates.
@@ -178,6 +179,14 @@ export function typedDates(text: string, now = new Date()): Typed[] {
         weeks: [],
         monthDay: null,
       }
+      // "On the first" is a day of the month, "on the first monday" a week of it, as the date box writes them.
+      if (g.nth) {
+        const n = NTH.includes(g.nth) ? (g.nth === 'last' ? -1 : NTH.indexOf(g.nth) + 1) : parseInt(g.nth)
+        const weekday = g.nthday && DAYS[WEEKDAYS.indexOf(g.nthday)]
+        if (typed.rule.freq !== 'MONTHLY' || (weekday ? n > 4 : n < 1 || n > 31)) continue
+        if (weekday) Object.assign(typed.rule, { days: [weekday], weeks: [n] })
+        else typed.rule.monthDay = n
+      }
     }
 
     const clock = /(\d{1,2})(?::(\d\d))?(?: ?([ap])m)?$/.exec(g.then ?? g.alone ?? '')
@@ -203,7 +212,7 @@ export function withTyped(line: { due?: string | null; repeat?: string | null },
     const start = parseDay(due.split('T')[0])
     const rule = { ...typed.rule }
     if (rule.freq === 'WEEKLY' && !rule.days.length) rule.days = [DAYS[start.getDay()]]
-    if (rule.freq === 'MONTHLY') rule.monthDay = start.getDate()
+    if (rule.freq === 'MONTHLY' && !rule.weeks.length) rule.monthDay ??= start.getDate()
     repeat = formatRule(rule)
     // Every other week counts from the first of its days, not from this week.
     due = onRule(due, formatRule({ ...rule, interval: 1 }), now)
