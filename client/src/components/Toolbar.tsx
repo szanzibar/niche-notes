@@ -11,6 +11,8 @@ import {
   BulletListIcon,
   CalendarIcon,
   CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CodeBlockIcon,
   ChecklistIcon,
   CodeIcon,
@@ -38,6 +40,8 @@ import { listPosition, toggleList } from './lists'
 import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
+// The width of the scroll chevrons, w-6.
+const CHEVRON = 24
 // How long a timed line lasts in the calendar. Half an hour unless set.
 const DURATIONS = [
   ['15m', '15 minutes', 15],
@@ -75,6 +79,33 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   useEffect(() => {
     if (inTable) tableTools.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
   }, [inTable])
+  // A chevron shows at each end with more tools past it, since a bar can end exactly on a whole tool. It goes
+  // once less than its width is left, so the tool under it slides out instead of popping in.
+  const tools = useRef<HTMLDivElement>(null)
+  const [moreLeft, setMoreLeft] = useState(false)
+  const [moreRight, setMoreRight] = useState(false)
+  const measure = () => {
+    const el = tools.current
+    if (!el) return
+    setMoreLeft(el.scrollLeft > CHEVRON)
+    setMoreRight(el.scrollWidth - el.clientWidth - el.scrollLeft > CHEVRON)
+  }
+  useLayoutEffect(measure)
+  useEffect(() => {
+    if (!tools.current) return
+    const observer = new ResizeObserver(measure)
+    observer.observe(tools.current)
+    return () => observer.disconnect()
+  }, [editor])
+  // A smooth scroll restarts from where the last one got to, so a quick wheel notch adds to where it was headed.
+  const glide = useRef({ to: 0, at: 0 })
+  const scroll = (by: number) => {
+    const el = tools.current!
+    const at = performance.now()
+    const from = at - glide.current.at < 500 ? glide.current.to : el.scrollLeft
+    glide.current = { to: Math.max(0, Math.min(el.scrollWidth - el.clientWidth, from + by)), at }
+    el.scrollTo({ left: glide.current.to, behavior: 'smooth' })
+  }
   const link = editor?.getAttributes('link').href as string | undefined
   // The box places itself before its address is drawn in it, so it measures again once it is.
   useLayoutEffect(() => {
@@ -163,330 +194,358 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <span className="truncate">{link?.replace(/^https?:\/\//, '')}</span>
         </a>
       </BubbleMenu>
-      {/* A scrollbar would make the bar taller than the tree's footer. The cut-off last tool shows it scrolls. */}
-      <div
-        onWheel={(e) => (e.currentTarget.scrollLeft += e.deltaY)}
-        className="flex gap-2 overflow-x-auto p-2 [scrollbar-width:none] [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2"
-      >
-        <Group>
-          <Tool
-            label="Checklist"
-            disabled={inTable}
-            active={list === 'taskList'}
-            onClick={() => toggleList(editor, 'taskList')}
+      <div className="relative m-2">
+        {moreLeft && (
+          <button
+            type="button"
+            aria-label="Scroll tools left"
+            title="Scroll tools left"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => scroll(-tools.current!.clientWidth / 2)}
+            className="absolute inset-y-0 left-0 z-10 flex w-6 items-center justify-center border-r-2 border-border bg-surface"
           >
-            <ChecklistIcon className={ICON} />
-          </Tool>
-          <Tool
-            label="Bullet list"
-            disabled={inTable}
-            active={list === 'bulletList'}
-            onClick={() => toggleList(editor, 'bulletList')}
+            <ChevronLeftIcon className={ICON} />
+          </button>
+        )}
+        {moreRight && (
+          <button
+            type="button"
+            aria-label="Scroll tools right"
+            title="Scroll tools right"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => scroll(tools.current!.clientWidth / 2)}
+            className="absolute inset-y-0 right-0 z-10 flex w-6 items-center justify-center border-l-2 border-border bg-surface"
           >
-            <BulletListIcon className={ICON} />
-          </Tool>
-          <Tool
-            label="Numbered list"
-            disabled={inTable}
-            active={list === 'orderedList'}
-            onClick={() => toggleList(editor, 'orderedList')}
-          >
-            <NumberedListIcon className={ICON} />
-          </Tool>
-        </Group>
-        <Group>
-          <Popover
-            side="top"
-            open={row === 'due'}
-            onOpenChange={(open) => setRow(open ? 'due' : null)}
-            className="w-[min(calc(100vw-1rem),19rem)]"
-            trigger={
-              <Tool label="Date" disabled={!line} active={row === 'due' || Boolean(due)}>
-                <CalendarIcon className={ICON} />
-              </Tool>
-            }
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-2 p-1">
-              <Group className="[&>*]:flex-1">
-                {(
-                  [
-                    ['Today', 0],
-                    ['Tomorrow', 1],
-                    ['Next week', 7],
-                  ] as const
-                ).map(([label, days]) => (
-                  <Tool key={label} label={label} active={day === inDays(days)} onClick={() => pick(inDays(days))}>
-                    {label}
-                  </Tool>
-                ))}
-              </Group>
-              <div className="flex gap-1">
-                <label className={`${FIELD} flex flex-1 items-center gap-1 focus-within:border-accent-ink`}>
-                  {day && <span className="shrink-0">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>}
-                  <input
-                    type="date"
-                    aria-label="Day"
-                    value={day}
-                    onChange={(e) => setDue(e.target.value ? (time ? `${e.target.value}T${time}` : e.target.value) : null)}
-                    className="min-w-0 flex-1 bg-transparent outline-none"
-                  />
-                </label>
-                <input
-                  type="time"
-                  aria-label="Time"
-                  value={time}
-                  onChange={(e) => setDue(e.target.value ? `${day || inDays(0)}T${e.target.value}` : day || null)}
-                  className={`${FIELD} w-28`}
-                />
-              </div>
-              {time && (
-                <Group className="[&>*]:flex-1">
-                  {DURATIONS.map(([text, label, minutes]) => (
-                    <Tool
-                      key={minutes}
-                      label={label}
-                      active={(line!.attrs.duration ?? 30) === minutes}
-                      onClick={() => {
-                        setLine({ duration: minutes })
-                        settings().set('duration', minutes)
-                      }}
-                    >
-                      {text}
-                    </Tool>
-                  ))}
-                </Group>
-              )}
-              <Group className="[&>*]:flex-1">
-                {(
-                  [
-                    ['Never', null],
-                    ['Week', { freq: 'WEEKLY', interval: 1, days: [weekday], weeks: [], monthDay: null }],
-                    ['Month', { freq: 'MONTHLY', interval: 1, days: [], weeks: [], monthDay: start.getDate() }],
-                    ['Year', { freq: 'YEARLY', interval: 1, days: [], weeks: [], monthDay: null }],
-                  ] satisfies [string, Rule | null][]
-                ).map(([label, fresh]) => (
-                  <Tool
-                    key={label}
-                    label={label === 'Never' ? "Doesn't repeat" : `Every ${label.toLowerCase()}`}
-                    active={(rule?.freq ?? null) === (fresh?.freq ?? null)}
-                    onClick={() => (rule?.freq ?? null) !== (fresh?.freq ?? null) && setRule(fresh)}
-                  >
-                    {label}
-                  </Tool>
-                ))}
-              </Group>
-              {rule?.freq === 'MONTHLY' && (
-                <Group className="[&>*]:flex-1">
-                  <Tool
-                    label={`On the ${start.getDate()}`}
-                    active={!rule.weeks.length}
-                    onClick={() => setRule({ ...rule, weeks: [], days: [], monthDay: start.getDate() })}
-                  >
-                    {start.getDate()}
-                  </Tool>
-                  {[1, 2, 3, 4, -1].map((week) => (
-                    <Tool
-                      key={week}
-                      label={week < 0 ? 'Last' : ['1st', '2nd', '3rd', '4th'][week - 1]}
-                      active={rule.weeks.includes(week)}
-                      onClick={() => {
-                        const weeks = rule.weeks.includes(week) ? rule.weeks.filter((w) => w !== week) : [...rule.weeks, week]
-                        setRule(
-                          weeks.length
-                            ? { ...rule, weeks, days: rule.days.length ? rule.days : [weekday], monthDay: null }
-                            : { ...rule, weeks, days: [], monthDay: start.getDate() },
-                        )
-                      }}
-                    >
-                      {week < 0 ? 'Last' : ['1st', '2nd', '3rd', '4th'][week - 1]}
-                    </Tool>
-                  ))}
-                </Group>
-              )}
-              {(rule?.freq === 'WEEKLY' || (rule?.freq === 'MONTHLY' && rule.weeks.length > 0)) && (
-                <Group className="[&>*]:flex-1">
-                  {WEEK.map((d: Day) => (
-                    <Tool
-                      key={d}
-                      label={new Date(2026, 10, 1 + DAYS.indexOf(d)).toLocaleDateString('en', { weekday: 'long' })}
-                      active={rule.days.includes(d)}
-                      // A rule keeps at least one day.
-                      onClick={() =>
-                        (rule.days.length > 1 || !rule.days.includes(d)) &&
-                        setRule({ ...rule, days: WEEK.filter((x) => (x === d) !== rule.days.includes(x)) })
-                      }
-                    >
-                      {'SMTWTFS'[DAYS.indexOf(d)]}
-                    </Tool>
-                  ))}
-                </Group>
-              )}
-              {rule && (
-                <div className="flex items-center gap-2">
-                  <Group>
-                    <Tool
-                      label="Repeat more often"
-                      disabled={rule.interval === 1}
-                      onClick={() => setRule({ ...rule, interval: rule.interval - 1 })}
-                    >
-                      <span className="text-xl leading-none">−</span>
-                    </Tool>
-                    <Tool label="Repeat less often" onClick={() => setRule({ ...rule, interval: rule.interval + 1 })}>
-                      <span className="text-xl leading-none">+</span>
-                    </Tool>
-                  </Group>
-                  <span className="min-w-0 flex-1 text-sm font-bold">{describeRule(rule, start)}</span>
-                </div>
-              )}
-              {due && (
-                <Tool
-                  label="Remove date"
-                  onClick={() => {
-                    setRow(null)
-                    setDue(null)
-                  }}
-                >
-                  <TrashIcon className={ICON} />
-                  <span className="ml-1">Remove date</span>
-                </Tool>
-              )}
-            </div>
-          </Popover>
-        </Group>
-        <Group>
-          <Tool label="Outdent" disabled={inTable} onClick={() => chain().liftListItem(listItem).run()}>
-            <OutdentIcon className={ICON} />
-          </Tool>
-          <Tool label="Indent" disabled={inTable} onClick={() => chain().sinkListItem(listItem).run()}>
-            <IndentIcon className={ICON} />
-          </Tool>
-        </Group>
-        <Group>
-          <Tool label="Undo" onClick={() => chain().undo().run()}>
-            <UndoIcon className={ICON} />
-          </Tool>
-          <Tool label="Redo" onClick={() => chain().redo().run()}>
-            <RedoIcon className={ICON} />
-          </Tool>
-        </Group>
-        <Group>
-          <Popover
-            side="top"
-            open={row === 'styles'}
-            onOpenChange={(open) => setRow(open ? 'styles' : null)}
-            trigger={
-              <Tool label="Text style" disabled={inTable} active={row === 'styles' || editor.isActive('heading')}>
-                <HeadingIcon className={ICON} />
-              </Tool>
-            }
-          >
-            <Tool label="Text" active={editor.isActive('paragraph')} onClick={() => style(() => chain().setParagraph().run())}>
-              Text
+            <ChevronRightIcon className={ICON} />
+          </button>
+        )}
+        {/* A scrollbar would make the bar taller than the tree's footer. */}
+        <div
+          ref={tools}
+          onScroll={measure}
+          onWheel={(e) => Math.abs(e.deltaY) > Math.abs(e.deltaX) && scroll(e.deltaY)}
+          className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2"
+        >
+          <Group>
+            <Tool
+              label="Checklist"
+              disabled={inTable}
+              active={list === 'taskList'}
+              onClick={() => toggleList(editor, 'taskList')}
+            >
+              <ChecklistIcon className={ICON} />
             </Tool>
-            {([1, 2, 3] as const).map((level) => (
-              <Tool
-                key={level}
-                label={`Heading ${level}`}
-                active={editor.isActive('heading', { level })}
-                onClick={() => style(() => chain().setHeading({ level }).run())}
-              >
-                H{level}
-              </Tool>
-            ))}
-          </Popover>
-          <Tool label="Quote" disabled={inTable} active={editor.isActive('blockquote')} onClick={() => chain().toggleBlockquote().run()}>
-            <QuoteIcon className={ICON} />
-          </Tool>
-          <Tool label="Code block" disabled={inTable} active={editor.isActive('codeBlock')} onClick={() => chain().toggleCodeBlock().run()}>
-            <CodeBlockIcon className={ICON} />
-          </Tool>
-          <Tool label="Divider" disabled={inTable} onClick={() => chain().setHorizontalRule().run()}>
-            <DividerIcon className={ICON} />
-          </Tool>
-          <Tool
-            label="Table"
-            disabled={inTable}
-            onClick={() => chain().insertTable({ rows: 2, cols: 3, withHeaderRow: true }).run()}
-          >
-            <TableIcon className={ICON} />
-          </Tool>
-        </Group>
-        {inTable && (
-          <Group ref={tableTools}>
-            <Tool label="Add row" onClick={() => chain().addRowAfter().run()}>
-              <AddRowIcon className={ICON} />
+            <Tool
+              label="Bullet list"
+              disabled={inTable}
+              active={list === 'bulletList'}
+              onClick={() => toggleList(editor, 'bulletList')}
+            >
+              <BulletListIcon className={ICON} />
             </Tool>
-            <Tool label="Add column" onClick={() => chain().addColumnAfter().run()}>
-              <AddColumnIcon className={ICON} />
-            </Tool>
-            <Tool label="Delete row" onClick={() => chain().deleteRow().run()}>
-              <DeleteRowIcon className={ICON} />
-            </Tool>
-            <Tool label="Delete column" onClick={() => chain().deleteColumn().run()}>
-              <DeleteColumnIcon className={ICON} />
-            </Tool>
-            <Tool label="Delete table" onClick={() => chain().deleteTable().run()}>
-              <DeleteTableIcon className={ICON} />
+            <Tool
+              label="Numbered list"
+              disabled={inTable}
+              active={list === 'orderedList'}
+              onClick={() => toggleList(editor, 'orderedList')}
+            >
+              <NumberedListIcon className={ICON} />
             </Tool>
           </Group>
-        )}
-        <Group>
-          <Tool label="Bold" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()}>
-            <BoldIcon className={ICON} />
-          </Tool>
-          <Tool label="Italic" active={editor.isActive('italic')} onClick={() => chain().toggleItalic().run()}>
-            <ItalicIcon className={ICON} />
-          </Tool>
-          <Tool label="Strikethrough" active={editor.isActive('strike')} onClick={() => chain().toggleStrike().run()}>
-            <StrikeIcon className={ICON} />
-          </Tool>
-          <Tool label="Code" active={editor.isActive('code')} onClick={() => chain().toggleCode().run()}>
-            <CodeIcon className={ICON} />
-          </Tool>
-          <Popover
-            side="top"
-            open={row === 'link'}
-            onOpenChange={openLink}
-            className="w-[min(calc(100vw-1rem),28rem)]"
-            trigger={
-              <Tool label="Link" active={row === 'link' || editor.isActive('link')}>
-                <LinkIcon className={ICON} />
-              </Tool>
-            }
-          >
-            <form
-              className="flex min-w-0 flex-1 items-center gap-1"
-              onSubmit={(e) => {
-                e.preventDefault()
-                applyLink()
-              }}
-            >
-              <input
-                aria-label="Link address"
-                inputMode="url"
-                placeholder="Paste or type a link"
-                autoFocus
-                value={href}
-                onChange={(e) => setHref(e.target.value)}
-                className="h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink"
-              />
-              <Tool label="Apply link" onClick={applyLink}>
-                <CheckIcon className={ICON} />
-              </Tool>
-              {editor.isActive('link') && (
-                <Tool
-                  label="Remove link"
-                  onClick={() => style(() => chain().extendMarkRange('link').unsetLink().run())}
-                >
-                  <UnlinkIcon className={ICON} />
+          <Group>
+            <Popover
+              side="top"
+              open={row === 'due'}
+              onOpenChange={(open) => setRow(open ? 'due' : null)}
+              className="w-[min(calc(100vw-1rem),19rem)]"
+              trigger={
+                <Tool label="Date" disabled={!line} active={row === 'due' || Boolean(due)}>
+                  <CalendarIcon className={ICON} />
                 </Tool>
-              )}
-            </form>
-          </Popover>
-          <Tool label="Highlight" active={editor.isActive('highlight')} onClick={() => chain().toggleHighlight().run()}>
-            <HighlightIcon className={ICON} />
-          </Tool>
-        </Group>
+              }
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-2 p-1">
+                <Group className="[&>*]:flex-1">
+                  {(
+                    [
+                      ['Today', 0],
+                      ['Tomorrow', 1],
+                      ['Next week', 7],
+                    ] as const
+                  ).map(([label, days]) => (
+                    <Tool key={label} label={label} active={day === inDays(days)} onClick={() => pick(inDays(days))}>
+                      {label}
+                    </Tool>
+                  ))}
+                </Group>
+                <div className="flex gap-1">
+                  <label className={`${FIELD} flex flex-1 items-center gap-1 focus-within:border-accent-ink`}>
+                    {day && <span className="shrink-0">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>}
+                    <input
+                      type="date"
+                      aria-label="Day"
+                      value={day}
+                      onChange={(e) => setDue(e.target.value ? (time ? `${e.target.value}T${time}` : e.target.value) : null)}
+                      className="min-w-0 flex-1 bg-transparent outline-none"
+                    />
+                  </label>
+                  <input
+                    type="time"
+                    aria-label="Time"
+                    value={time}
+                    onChange={(e) => setDue(e.target.value ? `${day || inDays(0)}T${e.target.value}` : day || null)}
+                    className={`${FIELD} w-28`}
+                  />
+                </div>
+                {time && (
+                  <Group className="[&>*]:flex-1">
+                    {DURATIONS.map(([text, label, minutes]) => (
+                      <Tool
+                        key={minutes}
+                        label={label}
+                        active={(line!.attrs.duration ?? 30) === minutes}
+                        onClick={() => {
+                          setLine({ duration: minutes })
+                          settings().set('duration', minutes)
+                        }}
+                      >
+                        {text}
+                      </Tool>
+                    ))}
+                  </Group>
+                )}
+                <Group className="[&>*]:flex-1">
+                  {(
+                    [
+                      ['Never', null],
+                      ['Week', { freq: 'WEEKLY', interval: 1, days: [weekday], weeks: [], monthDay: null }],
+                      ['Month', { freq: 'MONTHLY', interval: 1, days: [], weeks: [], monthDay: start.getDate() }],
+                      ['Year', { freq: 'YEARLY', interval: 1, days: [], weeks: [], monthDay: null }],
+                    ] satisfies [string, Rule | null][]
+                  ).map(([label, fresh]) => (
+                    <Tool
+                      key={label}
+                      label={label === 'Never' ? "Doesn't repeat" : `Every ${label.toLowerCase()}`}
+                      active={(rule?.freq ?? null) === (fresh?.freq ?? null)}
+                      onClick={() => (rule?.freq ?? null) !== (fresh?.freq ?? null) && setRule(fresh)}
+                    >
+                      {label}
+                    </Tool>
+                  ))}
+                </Group>
+                {rule?.freq === 'MONTHLY' && (
+                  <Group className="[&>*]:flex-1">
+                    <Tool
+                      label={`On the ${start.getDate()}`}
+                      active={!rule.weeks.length}
+                      onClick={() => setRule({ ...rule, weeks: [], days: [], monthDay: start.getDate() })}
+                    >
+                      {start.getDate()}
+                    </Tool>
+                    {[1, 2, 3, 4, -1].map((week) => (
+                      <Tool
+                        key={week}
+                        label={week < 0 ? 'Last' : ['1st', '2nd', '3rd', '4th'][week - 1]}
+                        active={rule.weeks.includes(week)}
+                        onClick={() => {
+                          const weeks = rule.weeks.includes(week) ? rule.weeks.filter((w) => w !== week) : [...rule.weeks, week]
+                          setRule(
+                            weeks.length
+                              ? { ...rule, weeks, days: rule.days.length ? rule.days : [weekday], monthDay: null }
+                              : { ...rule, weeks, days: [], monthDay: start.getDate() },
+                          )
+                        }}
+                      >
+                        {week < 0 ? 'Last' : ['1st', '2nd', '3rd', '4th'][week - 1]}
+                      </Tool>
+                    ))}
+                  </Group>
+                )}
+                {(rule?.freq === 'WEEKLY' || (rule?.freq === 'MONTHLY' && rule.weeks.length > 0)) && (
+                  <Group className="[&>*]:flex-1">
+                    {WEEK.map((d: Day) => (
+                      <Tool
+                        key={d}
+                        label={new Date(2026, 10, 1 + DAYS.indexOf(d)).toLocaleDateString('en', { weekday: 'long' })}
+                        active={rule.days.includes(d)}
+                        // A rule keeps at least one day.
+                        onClick={() =>
+                          (rule.days.length > 1 || !rule.days.includes(d)) &&
+                          setRule({ ...rule, days: WEEK.filter((x) => (x === d) !== rule.days.includes(x)) })
+                        }
+                      >
+                        {'SMTWTFS'[DAYS.indexOf(d)]}
+                      </Tool>
+                    ))}
+                  </Group>
+                )}
+                {rule && (
+                  <div className="flex items-center gap-2">
+                    <Group>
+                      <Tool
+                        label="Repeat more often"
+                        disabled={rule.interval === 1}
+                        onClick={() => setRule({ ...rule, interval: rule.interval - 1 })}
+                      >
+                        <span className="text-xl leading-none">−</span>
+                      </Tool>
+                      <Tool label="Repeat less often" onClick={() => setRule({ ...rule, interval: rule.interval + 1 })}>
+                        <span className="text-xl leading-none">+</span>
+                      </Tool>
+                    </Group>
+                    <span className="min-w-0 flex-1 text-sm font-bold">{describeRule(rule, start)}</span>
+                  </div>
+                )}
+                {due && (
+                  <Tool
+                    label="Remove date"
+                    onClick={() => {
+                      setRow(null)
+                      setDue(null)
+                    }}
+                  >
+                    <TrashIcon className={ICON} />
+                    <span className="ml-1">Remove date</span>
+                  </Tool>
+                )}
+              </div>
+            </Popover>
+          </Group>
+          <Group>
+            <Tool label="Outdent" disabled={inTable} onClick={() => chain().liftListItem(listItem).run()}>
+              <OutdentIcon className={ICON} />
+            </Tool>
+            <Tool label="Indent" disabled={inTable} onClick={() => chain().sinkListItem(listItem).run()}>
+              <IndentIcon className={ICON} />
+            </Tool>
+          </Group>
+          <Group>
+            <Tool label="Undo" onClick={() => chain().undo().run()}>
+              <UndoIcon className={ICON} />
+            </Tool>
+            <Tool label="Redo" onClick={() => chain().redo().run()}>
+              <RedoIcon className={ICON} />
+            </Tool>
+          </Group>
+          <Group>
+            <Popover
+              side="top"
+              open={row === 'styles'}
+              onOpenChange={(open) => setRow(open ? 'styles' : null)}
+              trigger={
+                <Tool label="Text style" disabled={inTable} active={row === 'styles' || editor.isActive('heading')}>
+                  <HeadingIcon className={ICON} />
+                </Tool>
+              }
+            >
+              <Tool label="Text" active={editor.isActive('paragraph')} onClick={() => style(() => chain().setParagraph().run())}>
+                Text
+              </Tool>
+              {([1, 2, 3] as const).map((level) => (
+                <Tool
+                  key={level}
+                  label={`Heading ${level}`}
+                  active={editor.isActive('heading', { level })}
+                  onClick={() => style(() => chain().setHeading({ level }).run())}
+                >
+                  H{level}
+                </Tool>
+              ))}
+            </Popover>
+            <Tool label="Quote" disabled={inTable} active={editor.isActive('blockquote')} onClick={() => chain().toggleBlockquote().run()}>
+              <QuoteIcon className={ICON} />
+            </Tool>
+            <Tool label="Code block" disabled={inTable} active={editor.isActive('codeBlock')} onClick={() => chain().toggleCodeBlock().run()}>
+              <CodeBlockIcon className={ICON} />
+            </Tool>
+            <Tool label="Divider" disabled={inTable} onClick={() => chain().setHorizontalRule().run()}>
+              <DividerIcon className={ICON} />
+            </Tool>
+            <Tool
+              label="Table"
+              disabled={inTable}
+              onClick={() => chain().insertTable({ rows: 2, cols: 3, withHeaderRow: true }).run()}
+            >
+              <TableIcon className={ICON} />
+            </Tool>
+          </Group>
+          {inTable && (
+            <Group ref={tableTools}>
+              <Tool label="Add row" onClick={() => chain().addRowAfter().run()}>
+                <AddRowIcon className={ICON} />
+              </Tool>
+              <Tool label="Add column" onClick={() => chain().addColumnAfter().run()}>
+                <AddColumnIcon className={ICON} />
+              </Tool>
+              <Tool label="Delete row" onClick={() => chain().deleteRow().run()}>
+                <DeleteRowIcon className={ICON} />
+              </Tool>
+              <Tool label="Delete column" onClick={() => chain().deleteColumn().run()}>
+                <DeleteColumnIcon className={ICON} />
+              </Tool>
+              <Tool label="Delete table" onClick={() => chain().deleteTable().run()}>
+                <DeleteTableIcon className={ICON} />
+              </Tool>
+            </Group>
+          )}
+          <Group>
+            <Tool label="Bold" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()}>
+              <BoldIcon className={ICON} />
+            </Tool>
+            <Tool label="Italic" active={editor.isActive('italic')} onClick={() => chain().toggleItalic().run()}>
+              <ItalicIcon className={ICON} />
+            </Tool>
+            <Tool label="Strikethrough" active={editor.isActive('strike')} onClick={() => chain().toggleStrike().run()}>
+              <StrikeIcon className={ICON} />
+            </Tool>
+            <Tool label="Code" active={editor.isActive('code')} onClick={() => chain().toggleCode().run()}>
+              <CodeIcon className={ICON} />
+            </Tool>
+            <Popover
+              side="top"
+              open={row === 'link'}
+              onOpenChange={openLink}
+              className="w-[min(calc(100vw-1rem),28rem)]"
+              trigger={
+                <Tool label="Link" active={row === 'link' || editor.isActive('link')}>
+                  <LinkIcon className={ICON} />
+                </Tool>
+              }
+            >
+              <form
+                className="flex min-w-0 flex-1 items-center gap-1"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  applyLink()
+                }}
+              >
+                <input
+                  aria-label="Link address"
+                  inputMode="url"
+                  placeholder="Paste or type a link"
+                  autoFocus
+                  value={href}
+                  onChange={(e) => setHref(e.target.value)}
+                  className="h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink"
+                />
+                <Tool label="Apply link" onClick={applyLink}>
+                  <CheckIcon className={ICON} />
+                </Tool>
+                {editor.isActive('link') && (
+                  <Tool
+                    label="Remove link"
+                    onClick={() => style(() => chain().extendMarkRange('link').unsetLink().run())}
+                  >
+                    <UnlinkIcon className={ICON} />
+                  </Tool>
+                )}
+              </form>
+            </Popover>
+            <Tool label="Highlight" active={editor.isActive('highlight')} onClick={() => chain().toggleHighlight().run()}>
+              <HighlightIcon className={ICON} />
+            </Tool>
+          </Group>
+        </div>
       </div>
     </div>
   )
