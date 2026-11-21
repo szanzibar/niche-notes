@@ -237,7 +237,9 @@ test('delete goes to the trash without asking; a trashed note is read-only until
   await expect(page.getByText('No notes yet')).toBeVisible()
 })
 
-test("beside the tree, the note's header and toolbar line up with the tree's header and footer", async ({ browser }) => {
+test("beside the tree, the note's header and toolbar line up with the tree's header and footer, even when the toolbar scrolls", async ({
+  browser,
+}) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Shopping', 'milk')
   const edges = () =>
@@ -250,4 +252,14 @@ test("beside the tree, the note's header and toolbar line up with the tree's hea
     await page.evaluate((density) => document.documentElement.setAttribute('data-density', density), density)
     expect(await edges(), density).toEqual([0, 0])
   }
+
+  await page.setViewportSize({ width: 800, height: 720 })
+  const tools = page.locator('.overflow-x-auto').filter({ has: page.getByLabel('Checklist') })
+  expect(await tools.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+  // Headless Chromium hides scrollbars, so a desktop one taking room only shows as the style.
+  expect(await tools.evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe('none')
+  expect(await edges()).toEqual([0, 0])
+  await tools.hover()
+  await page.mouse.wheel(0, 200)
+  await expect.poll(() => tools.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
 })

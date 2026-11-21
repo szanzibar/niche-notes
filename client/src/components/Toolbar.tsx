@@ -163,7 +163,11 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <span className="truncate">{link?.replace(/^https?:\/\//, '')}</span>
         </a>
       </BubbleMenu>
-      <div className="flex gap-2 overflow-x-auto p-2 [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2">
+      {/* A scrollbar would make the bar taller than the tree's footer. The cut-off last tool shows it scrolls. */}
+      <div
+        onWheel={(e) => (e.currentTarget.scrollLeft += e.deltaY)}
+        className="flex gap-2 overflow-x-auto p-2 [scrollbar-width:none] [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2"
+      >
         <Group>
           <Tool
             label="Checklist"
