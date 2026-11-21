@@ -1,4 +1,7 @@
-import { DatabaseSync } from 'node:sqlite'
+import { execFileSync, spawn } from 'node:child_process'
+import { once } from 'node:events'
+import { openSync, readdirSync, rmSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { expect, type Page } from '@playwright/test'
 import { newNote, row, signIn, test, typeAtEnd, uid } from './helpers'
 
@@ -20,6 +23,7 @@ const localRows = (page: Page) =>
 
 // One row per keystroke, so a few hundred characters cross the limit on the device and on the server.
 test('a long edit history is folded into one row and the note survives it everywhere', async ({ browser }) => {
+  test.slow()
   const name = `alice-${uid()}`
   const text = 'x'.repeat(600)
   const page = await signIn(browser, name)
@@ -76,41 +80,107 @@ test('a launch loads only the tree, and notes it never opened still show, search
   await expect(laptop.locator('.editor-body')).toContainText('wool socks')
 })
 
-// What a restored backup leaves once the app has started on it: the server's log as it was at the backup,
-// numbering new rows from there, under a new generation.
-const restoreWithout = (note: string) =>
-  new DatabaseSync('../server/data/e2e.db').exec(
-    `pragma busy_timeout = 5000;
-     delete from doc_updates where doc_id = '${note}';
-     update sqlite_sequence set seq = (select coalesce(max(id), 0) from doc_updates) where name = 'doc_updates';
-     update generation set id = lower(hex(randomblob(16)));`,
+// A restore stops the server, so this test runs its own Phoenix and Vite. Vite stays up throughout, since a browser
+// keeps a device's notes per address.
+const restoreApp = 'http://localhost:5197'
+const servers = new Set<() => Promise<unknown>>()
+test.afterEach(() => Promise.all([...servers].map((stop) => stop())))
+
+// Its output lands beside the test's trace.
+async function serve(name: string, command: string, args: string[], env: Record<string, string>, port: number, path = '/') {
+  // A server left from an earlier run would answer in place of this one.
+  await new Promise<void>((resolve, reject) => {
+    const probe = createServer().once('error', reject).listen(port, '127.0.0.1', () => probe.close(() => resolve()))
+  })
+  const log = openSync(test.info().outputPath(`${name}.log`), 'a')
+  const child = spawn(command, args, { env: { ...process.env, ...env }, stdio: ['ignore', log, log] })
+  const exited = once(child, 'exit')
+  const stop = async () => {
+    servers.delete(stop)
+    child.kill()
+    await exited
+  }
+  servers.add(stop)
+  const url = `http://localhost:${port}${path}`
+  await expect.poll(() => fetch(url).then(() => true, () => false), { timeout: 60_000 }).toBe(true)
+  return stop
+}
+
+const phoenix = (database: string) =>
+  serve(
+    'phoenix',
+    'sh',
+    ['-c', 'cd ../server && exec mix do ecto.create --quiet + ecto.migrate --quiet + phx.server'],
+    { MIX_BUILD_ROOT: '_build/e2e', DATABASE_PATH: database, PORT: '4197', GOOGLE_CLIENT_ID: 'e2e' },
+    4197,
+    '/api/me',
   )
 
-test('after the server is restored from a backup, a device sends back what the backup lacks and still gets new edits', { tag: '@alone' }, async ({
+test('a server restored from a backup gets back what the backup lacks from a phone, which keeps up with it after', async ({
   browser,
 }) => {
+  test.slow()
+  for (const file of readdirSync('../server/data')) if (file.startsWith('e2e-restore')) rmSync(`../server/data/${file}`)
+  const live = await phoenix('data/e2e-restore.db')
+  await serve('vite', 'node_modules/.bin/vite', ['--port', '5197', '--strictPort'], { PHOENIX_PORT: '4197' }, 5197)
+
   const name = `alice-${uid()}`
-  const phone = await signIn(browser, name)
+  const device = async () => {
+    const page = await (await browser.newContext({ baseURL: restoreApp })).newPage()
+    await page.goto(`/auth/login?as=${name}`)
+    await expect(page.getByPlaceholder('Search notes')).toBeVisible()
+    return page
+  }
+  const phone = await device()
   await newNote(phone, 'Groceries', 'oat milk')
   await expect.poll(() => localRows(phone)).toMatchObject({ unsent: 0 })
-  const note = new URL(phone.url()).pathname.split('/n/')[1]
 
-  restoreWithout(note)
-  const laptop = await signIn(browser, name)
-  await expect(row(laptop, 'Untitled')).toBeVisible()
+  // The README's backup and restore. What is written after the backup reached the old server, so only the phone
+  // still has it.
+  execFileSync('sqlite3', ['../server/data/e2e-restore.db', '.backup ../server/data/e2e-restore-backup.db'])
+  await typeAtEnd(phone, ' and eggs')
+  await newNote(phone, 'Packing', 'wool socks')
+  // A tablet, gone by the restore, writes a note the phone holds only as one row, so the old server numbered
+  // rows far past what the phone sends back.
+  const tablet = await device()
+  await newNote(tablet, 'Recipes', 'enough for the whole week, so nobody goes back to the shop on Thursday')
+  await expect.poll(() => localRows(tablet)).toMatchObject({ unsent: 0 })
+  await tablet.context().close()
+  await phone.getByPlaceholder('Search notes').fill('Thursday')
+  await expect(phone.getByRole('option')).toHaveText(/Recipes/)
+  await phone.getByRole('button', { name: 'Clear search' }).click()
+  await expect.poll(() => localRows(phone)).toMatchObject({ unsent: 0 })
+  await live()
+  await phoenix('data/e2e-restore-backup.db')
 
-  await phone.reload()
-  await expect(row(laptop, 'Groceries')).toBeVisible()
+  // The phone reconnects by itself and sends it all again.
+  const laptop = await device()
+  await expect(row(laptop, 'Packing')).toBeVisible({ timeout: 20_000 })
   await row(laptop, 'Groceries').click()
-  await expect(laptop.locator('.editor-body')).toContainText('oat milk')
+  await expect(laptop.locator('.editor-body')).toContainText('oat milk and eggs')
+  await row(laptop, 'Recipes').click()
+  await expect(laptop.locator('.editor-body')).toContainText('on Thursday')
+  await row(laptop, 'Packing').click()
+  await expect(laptop.locator('.editor-body')).toContainText('wool socks')
 
-  // The laptop's rows take numbers the phone held before the restore.
-  await typeAtEnd(laptop, ' and bread')
-  await expect(phone.locator('.editor-body')).toContainText('oat milk and bread')
+  // The restored server numbers new rows from where the backup ended, below what the phone saw from the old one.
+  await typeAtEnd(laptop, ' and boots')
+  await expect(phone.locator('.editor-body')).toContainText('wool socks and boots')
+  await phone.context().setOffline(true)
+  await row(laptop, 'Recipes').click()
+  await laptop.getByPlaceholder('Title').fill('Recipes for the week')
+  await typeAtEnd(laptop, ' or Friday')
+  await expect.poll(() => localRows(laptop)).toMatchObject({ unsent: 0 })
+  await phone.context().setOffline(false)
+  await row(phone, 'Recipes for the week').click()
+  await expect(phone.locator('.editor-body')).toContainText('on Thursday or Friday')
 
-  // The phone sent its tree again too, which the backup still had, so the log holds none of it twice.
-  const copies = new DatabaseSync('../server/data/e2e.db')
-    .prepare(`select count(*) - count(distinct "update") as n from doc_updates where doc_id = (select id from users where sub = ?)`)
-    .get(`dev-${name}`)
-  expect(copies).toEqual({ n: 0 })
+  // The phone sent what the backup has too, and the log holds each of those once.
+  const doubled = execFileSync('sqlite3', [
+    '-cmd',
+    '.timeout 5000',
+    '../server/data/e2e-restore-backup.db',
+    'select count(*) from (select 1 from doc_updates group by doc_id, "update" having count(*) > 1)',
+  ])
+  expect(doubled.toString().trim()).toBe('0')
 })

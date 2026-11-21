@@ -29,7 +29,7 @@ cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
 ```
 
-Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one. The Mac app runs on Safari's engine, so the suite also runs as `BROWSER=webkit npm run e2e` before a desktop release.
+Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one. The Mac app runs on Safari's engine, so the suite also runs with `-- --browser=webkit` before a desktop release.
 
 Steven keeps the running task list in a note on the prod server, shared by the guest link in `.env` as
 `PUBLIC_DEV_TASK_LIST`. Read it from the repo root with
