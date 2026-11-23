@@ -168,6 +168,7 @@ test('a server restored from a backup gets back what the backup lacks from a pho
   await expect(phone.locator('.editor-body')).toContainText('wool socks and boots')
   await phone.context().setOffline(true)
   await row(laptop, 'Recipes').click()
+  await expect(laptop.getByPlaceholder('Title')).toHaveValue('Recipes')
   await laptop.getByPlaceholder('Title').fill('Recipes for the week')
   await typeAtEnd(laptop, ' or Friday')
   await expect.poll(() => localRows(laptop)).toMatchObject({ unsent: 0 })
