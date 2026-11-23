@@ -21,12 +21,15 @@ set -a; source <(grep -E '^(GOOGLE|FIREBASE)_' "$ROOT/.env" 2>/dev/null); set +a
 if [ -n "${WSL_DISTRO_NAME:-}" ]; then
   build=(--no-bundle --runner cargo-xwin --target x86_64-pc-windows-msvc)
   app=target/x86_64-pc-windows-msvc/debug/niche-notes.exe
-else
+elif [ "$(uname)" = Darwin ]; then
   build=(--bundles app)
   app="target/debug/bundle/macos/Niche Notes Dev.app/Contents/MacOS/niche-notes"
+else
+  build=(--no-bundle)
+  app=target/debug/niche-notes
 fi
 (cd "$ROOT/tauri" && cargo tauri build --debug "${build[@]}" &&
-  until nc -z localhost 5173 2>/dev/null; do sleep 1; done &&
+  until curl -so /dev/null localhost:5173; do sleep 1; done &&
   exec "$app") &
 trap 'kill 0' EXIT
 

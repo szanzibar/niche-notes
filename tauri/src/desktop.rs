@@ -55,14 +55,19 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
     let icon = tauri::include_image!("icons/tray.png");
     #[cfg(not(target_os = "macos"))]
     let icon = app.default_window_icon().unwrap().clone();
+    // Linux never reports a click on the icon, so its menu opens the window.
+    let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     TrayIconBuilder::new()
         .icon(icon)
         .icon_as_template(true)
         .tooltip(&app.package_info().name)
-        .menu(&Menu::with_items(app, &[&quit])?)
+        .menu(&Menu::with_items(app, &[&open, &quit])?)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, _| app.exit(0))
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => show_window(app, None),
+            _ => app.exit(0),
+        })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,

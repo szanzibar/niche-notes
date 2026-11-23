@@ -123,6 +123,9 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // An AppImage has no installed launcher entry to claim `nichenotes://` links, so it claims them at each start.
+            #[cfg(target_os = "linux")]
+            app.deep_link().register_all()?;
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 for link in event.urls() {

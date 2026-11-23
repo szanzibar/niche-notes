@@ -68,7 +68,8 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
 
 The desktop app that `./dev.sh` builds and starts is `Niche Notes Dev`, with its own identifier, so it runs beside
 the installed app. In WSL it is the Windows app, built with `cargo-xwin`, which needs
-`sudo apt install clang lld llvm` once.
+`sudo apt install clang lld llvm` once. On Linux it needs WebKitGTK 4.1 and libappindicator, which KDE desktops
+usually have.
 
 `./private-files.sh save` zips what git leaves out, such as `.env`, the signing keys and the dev database, and
 `restore` puts it in place in another clone.
@@ -84,11 +85,12 @@ the installed app. In WSL it is the Windows app, built with `cargo-xwin`, which 
   `PHX_HOST` and `ANDROID_APP_ID` from repository variables. Installed apps download a newer release by themselves
   and offer it on their next launch. The first update asks to allow installing unknown apps. The server's
   `FIREBASE_SERVICE_ACCOUNT` sends its alerts.
-- **Desktop.** A Tauri app for macOS on Apple silicon and for Windows: the site in its own window, which stays in
-  the tray for alerts, starts at login and updates itself. Install `niche-notes-mac.dmg` or
-  `niche-notes-windows-setup.exe` from the repository's `desktop` release. Neither carries a paid certificate, so
-  a Mac asks for Open Anyway in System Settings once, and Windows shows SmartScreen once and needs Smart App
-  Control off. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
+- **Desktop.** A Tauri app for macOS on Apple silicon, Windows and Linux: the site in its own window, which stays
+  in the tray for alerts, starts at login and updates itself. Install `niche-notes-mac.dmg`,
+  `niche-notes-windows-setup.exe` or `niche-notes-linux.AppImage` from the repository's `desktop` release. None
+  carries a paid certificate, so a Mac asks for Open Anyway in System Settings once, and Windows shows SmartScreen
+  once and needs Smart App Control off. The AppImage goes in a folder the user can write to, such as
+  `~/Applications`, since it updates by replacing itself, and Gear Lever adds it to the launcher. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
   push to `main` that touches `tauri/` builds both for the `PHX_HOST` repository variable and publishes them,
   signed for updates with the `TAURI_SIGNING_PRIVATE_KEY` secret. `tauri/build.sh` builds the same on the machine
   it runs on, with the key in `tauri/updater.key`. Keep that key safe, because an installed app only takes
