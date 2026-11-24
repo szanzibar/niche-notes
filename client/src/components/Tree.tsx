@@ -380,13 +380,14 @@ export function Tree({ selected }: { selected?: string }) {
                       type="button"
                       aria-current={active ? 'page' : undefined}
                       className={`relative flex w-full flex-col px-4 py-2 text-left ${active ? 'bg-accent text-on-accent' : i === cursor ? 'bg-bg' : 'hover:bg-bg'} ${i === cursor ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
+                      style={{ paddingLeft: 16 + hit.depth * INDENT }}
                       onClick={() => {
                         setCursor(i)
                         openNote(hit.id)
                       }}
                     >
                       <span className="flex w-full items-baseline gap-2">
-                        <NoteTitle id={hit.id} active={active} />
+                        <NoteTitle id={hit.id} depth={hit.depth} active={active} />
                         {inTrash(hit.id) && <span className={`shrink-0 text-xs ${muted}`}>trash</span>}
                       </span>
                       {hit.snippet && <span className={`w-full truncate text-xs ${muted}`}>{hit.snippet}</span>}

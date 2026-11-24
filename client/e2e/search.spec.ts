@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test'
-import { newNote, signIn, test, uid } from './helpers'
+import { drag, newNote, row, signIn, test, uid } from './helpers'
 
 test('search matches titles and text as you type, and arrow keys open a result', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
@@ -41,6 +41,29 @@ test('search matches titles and text as you type, and arrow keys open a result',
   await expect(options.first()).toContainText('trash')
   await box.press('Enter')
   await expect(page.locator('main').getByRole('button', { name: 'Restore' })).toBeVisible()
+})
+
+test('a title match lists the notes under it, indented, even under a folded row', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  for (const title of ['Garden', 'Seeds', 'Tomatoes']) await newNote(page, title)
+  await drag(page, row(page, 'Seeds'), row(page, 'Garden'))
+  await drag(page, row(page, 'Tomatoes'), row(page, 'Seeds'))
+  await row(page, 'Garden').locator('..').getByRole('button', { name: 'Collapse' }).click()
+  await expect(row(page, 'Seeds')).toBeHidden()
+  const box = page.getByPlaceholder('Search notes')
+  const options = page.getByRole('option')
+  const indents = () => options.evaluateAll((els) => els.map((el) => getComputedStyle(el.firstElementChild!).paddingLeft))
+
+  await box.fill('garden')
+  await expect(options).toHaveText([/^Garden/, /^Seeds/, /^Tomatoes/])
+  expect(await indents()).toEqual(['16px', '32px', '48px'])
+  await box.press('ArrowDown')
+  await box.press('Enter')
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Seeds')
+
+  await box.fill('seeds')
+  await expect(options).toHaveText([/^Seeds/, /^Tomatoes/])
+  expect(await indents()).toEqual(['16px', '32px'])
 })
 
 test('the open note is the highlighted result, and the arrow keys go on from it', async ({ browser }) => {
