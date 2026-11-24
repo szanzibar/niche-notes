@@ -121,7 +121,12 @@ pub fn run() {
     let builder = desktop::plugins(builder);
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_opener::init())
+        // Without its click script, which has the page call the shell and so swallows every new-tab link.
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .setup(|app| {
             // An AppImage has no installed launcher entry to claim `nichenotes://` links, so it claims them at each start.
             #[cfg(target_os = "linux")]

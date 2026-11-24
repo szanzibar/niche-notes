@@ -228,3 +228,18 @@ test('on a phone, Recent under the list goes back to a note opened before, the l
   await page.reload()
   await expect(recent).toHaveText(['Groceries', 'Chores'])
 })
+
+test('on a phone, a tap on a link shows its box and a tap on the box opens the link', async ({ browser }) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await page.keyboard.type('Recipes')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Link', exact: true }).click()
+  await page.getByLabel('Link address').fill('https://example.com/turkey')
+  await page.keyboard.press('Enter')
+
+  await page.locator('.editor-body a').tap()
+  const opened = page.context().waitForEvent('page')
+  await page.getByTitle('Open link').tap()
+  expect((await opened).url()).toBe('https://example.com/turkey')
+})
