@@ -88,3 +88,33 @@ test('everyone on the note gets the same suggestions', async ({ browser }) => {
   await newLine(bob, 'be')
   await expect(box(bob).getByRole('button')).toHaveText(['Coffee beans'])
 })
+
+test('the box sits right under its line after Enter in the middle of a list, and follows it when a line above folds away', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Milk', 'Eggs', 'Bread', 'Jam')
+  await check(page, 'Milk')
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Eggs', 'Bread', 'Jam'])
+  const gap = async () => {
+    const line = (await body(page).locator('li p').getByText('mi', { exact: true }).boundingBox())!
+    return (await box(page).boundingBox())!.y - (line.y + line.height)
+  }
+
+  await check(page, 'Eggs')
+  await body(page).locator('li p').getByText('Bread', { exact: true }).click()
+  await page.waitForTimeout(60)
+  await page.keyboard.press(lineEnd)
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('mi')
+  await expect(box(page)).toBeVisible()
+  await expect.poll(gap).toBeGreaterThanOrEqual(0)
+  expect(await gap()).toBeLessThan(16)
+  // Eggs folds away once the note is still, and the line moves up under the box.
+  await expect(body(page).locator('li p:visible')).toHaveText(['Bread', 'mi', 'Jam'])
+  await page.waitForTimeout(400)
+  expect(await gap()).toBeGreaterThanOrEqual(0)
+  expect(await gap()).toBeLessThan(16)
+})

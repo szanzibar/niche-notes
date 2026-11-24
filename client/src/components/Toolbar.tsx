@@ -78,14 +78,23 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
     // A tap on a line's date or person opens its box too.
     const due = () => setRow('due')
     const person = () => setRow('person')
+    // Lines slide and fold for a moment after an edit, so the boxes under the cursor measure again once they stop. A
+    // line folding away ends hidden, which cancels its transition rather than ending it.
+    const settled = (e: TransitionEvent) =>
+      e.propertyName === 'height' &&
+      editor.view.dispatch(editor.state.tr.setMeta('personBox', 'updatePosition').setMeta('suggestionBox', 'updatePosition'))
     const dom = editor.view.dom
     editor.on('transaction', force)
     dom.addEventListener('due-date', due)
     dom.addEventListener('assign', person)
+    dom.addEventListener('transitionend', settled)
+    dom.addEventListener('transitioncancel', settled)
     return () => {
       editor.off('transaction', force)
       dom.removeEventListener('due-date', due)
       dom.removeEventListener('assign', person)
+      dom.removeEventListener('transitionend', settled)
+      dom.removeEventListener('transitioncancel', settled)
     }
   }, [editor])
   // Moving into a table brings its tools into view on a narrow bar.
