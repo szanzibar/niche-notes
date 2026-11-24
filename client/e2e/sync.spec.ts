@@ -21,7 +21,7 @@ const localRows = (page: Page) =>
       }),
   )
 
-// One row per keystroke, so a few hundred characters cross the limit on the device and on the server.
+// One row per keystroke, so a few hundred characters cross the device's limit.
 test('a long edit history is folded into one row and the note survives it everywhere', async ({ browser }) => {
   test.slow()
   const name = `alice-${uid()}`

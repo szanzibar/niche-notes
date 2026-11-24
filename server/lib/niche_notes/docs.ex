@@ -10,7 +10,7 @@ defmodule NicheNotes.Docs do
   alias NicheNotes.Docs.{Doc, DocLink, DocShare, DocUpdate}
 
   # What a join does. The first join of an unknown id creates the doc, which is how a note written offline
-  # reaches the server. A long log is folded before the join reads it.
+  # reaches the server. The log is folded before the join reads it.
   def open(doc_id, user_id) do
     with {:ok, _} <- Ecto.UUID.cast(doc_id),
          %Doc{owner_id: owner_id} <- Repo.get(Doc, doc_id) || create(doc_id, user_id),
@@ -66,29 +66,57 @@ defmodule NicheNotes.Docs do
     {rows, seq}
   end
 
-  @fold_rows 50
-  @fold_idle_seconds 24 * 60 * 60
+  # Every row with its time, from which a device builds each version of the note itself.
+  def history(doc_id) do
+    Repo.all(
+      from u in DocUpdate,
+        where: u.doc_id == ^doc_id,
+        order_by: u.id,
+        select: {u.id, u.inserted_at, u.update}
+    )
+  end
 
-  # A busy doc's log becomes one row, and so does one untouched for a day, where rows from before timestamps count
-  # as old. The row takes the last one's id, so a device's `since` keeps meaning "I hold everything up to here".
-  # A plain merge, since rebuilding the doc drops an edit that waits on a row the log lacks. Deleted text stays.
+  # The last 20 minutes keep every edit, the month before one row per 10 minutes, and anything older one row. An active
+  # note keeps at most 6 rows an hour plus the last 20 minutes of keystrokes, about 500 rows for a month of 3 hours a day.
+  # A row takes its bucket's last id and newest time, so a device's `since` keeps meaning "I hold everything up to here"
+  # and the row stays in its bucket. A plain merge, since rebuilding the doc drops an edit that waits on a row the log
+  # lacks. Deleted text stays.
   defp fold(doc_id) do
-    log = from u in DocUpdate, where: u.doc_id == ^doc_id
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    month = DateTime.add(now, -30, :day)
 
-    {rows, last, at} =
-      Repo.one(from u in log, select: {count(u.id), max(u.id), max(u.inserted_at)})
+    rows =
+      from u in DocUpdate,
+        where:
+          u.doc_id == ^doc_id and
+            (is_nil(u.inserted_at) or u.inserted_at < ^DateTime.add(now, -20, :minute)),
+        select: %{
+          id: u.id,
+          at: u.inserted_at,
+          update: u.update,
+          bucket:
+            fragment(
+              "CASE WHEN ? >= ? THEN unixepoch(?) / 600 ELSE 0 END",
+              u.inserted_at,
+              type(^month, :utc_datetime),
+              u.inserted_at
+            )
+        }
 
-    idle = at == nil or DateTime.diff(DateTime.utc_now(), at) > @fold_idle_seconds
+    full = from r in subquery(rows), group_by: r.bucket, having: count() > 1, select: r.bucket
+    folded = Repo.all(from r in subquery(rows), where: r.bucket in subquery(full), order_by: r.id)
 
-    with true <- rows > @fold_rows or (rows > 1 and idle),
-         folded = from(u in log, where: u.id <= ^last),
-         updates = Repo.all(from u in folded, order_by: u.id, select: u.update),
-         {:ok, update} <- merge(updates) do
-      Repo.transaction(fn ->
-        Repo.delete_all(folded)
-        Repo.insert!(%DocUpdate{id: last, doc_id: doc_id, update: update})
-      end)
-    end
+    Repo.transaction(fn ->
+      for {_bucket, rows} <- Enum.group_by(folded, & &1.bucket),
+          {:ok, update} <- [merge(Enum.map(rows, & &1.update))] do
+        last = List.last(rows)
+        Repo.delete_all(from u in DocUpdate, where: u.id in ^Enum.map(rows, & &1.id))
+
+        Repo.insert_all(DocUpdate, [
+          %{id: last.id, doc_id: doc_id, update: update, inserted_at: last.at}
+        ])
+      end
+    end)
   end
 
   # A log from before the server stored each update once can hold one several times, and merging enough copies

@@ -36,6 +36,7 @@ defmodule NicheNotesWeb.Router do
     get "/users", UserController, :index
     get "/shares", ShareController, :index
     delete "/docs/:id", DocController, :delete
+    get "/docs/:id/history", DocController, :history
     post "/docs/:doc_id/shares", ShareController, :create
     delete "/docs/:doc_id/shares/:user_id", ShareController, :delete
     get "/docs/:doc_id/widget_token", WidgetController, :token

@@ -199,37 +199,81 @@ defmodule NicheNotesWeb.DocChannelTest do
         %{"since" => since}
       )
 
-  test "a join folds a long log into one row under the last seq, which a device holding it all skips",
-       %{me: me, note: note} do
-    {:ok, %{updates: []}, _} = join_doc(me, note, 0)
-    rows = for i <- 1..51, do: title!(note, "#{i}")
-    last = List.last(rows).id
-
-    assert {:ok, %{updates: [], seq: ^last}, _} = join_doc(me, note, last)
-    assert {:ok, %{updates: [[^last, folded]], seq: ^last}, _} = join_doc(me, note, last - 1)
-
-    doc = Yex.Doc.new()
-    :ok = Yex.apply_update(doc, Base.decode64!(folded))
-    assert %{"title" => "51"} = Yex.Map.to_map(Yex.Doc.get_map(doc, "meta"))
-
-    assert title!(note, "more").id > last
-    assert {:ok, %{updates: [_, _]}, _} = join_doc(me, note, 0)
+  defp backdate!(row, seconds) do
+    at = DateTime.utc_now() |> DateTime.add(-seconds) |> DateTime.truncate(:second)
+    Repo.update_all(from(u in DocUpdate, where: u.id == ^row.id), set: [inserted_at: at])
+    at
   end
 
-  test "a join folds a log of more than one row after a day of quiet", %{me: me, note: note} do
+  defp log(note),
+    do:
+      Repo.all(
+        from u in DocUpdate,
+          where: u.doc_id == ^note,
+          order_by: u.id,
+          select: {u.id, u.inserted_at}
+      )
+
+  defp meta(update) do
+    doc = Yex.Doc.new()
+    :ok = Yex.apply_update(doc, Base.decode64!(update))
+    Yex.Map.to_map(Yex.Doc.get_map(doc, "meta"))
+  end
+
+  test "a join folds each 10 minutes into one row under its last seq and newest time, which a device holding it all skips",
+       %{me: me, note: note} do
+    {:ok, %{updates: []}, _} = join_doc(me, note, 0)
+
+    # Three edits early in one 10 minutes an hour ago, one alone in the 10 minutes before, and one just now.
+    hour = 3600 + rem(System.os_time(:second), 600)
+    [one, two, three, before, now] = for i <- 1..5, do: title!(note, "#{i}")
+    backdate!(one, hour - 1)
+    backdate!(two, hour - 2)
+    at = backdate!(three, hour - 3)
+    before_at = backdate!(before, hour + 60)
+    last = three.id
+
+    assert {:ok, %{updates: [[^last, folded], _, _]}, _} = join_doc(me, note, one.id)
+    assert %{"title" => "3"} = meta(folded)
+    assert log(note) == [{last, at}, {before.id, before_at}, {now.id, now.inserted_at}]
+    assert {:ok, %{updates: [_, _]}, _} = join_doc(me, note, last)
+  end
+
+  test "a join keeps every edit of the last 20 minutes", %{me: me, note: note} do
     {:ok, _, _} = join_doc(me, note, 0)
-    title!(note, "one")
-    title!(note, "two")
-    assert {:ok, %{updates: [_, _]}, _} = join_doc(me, note, 0)
+    rows = for i <- 1..3, do: title!(note, "#{i}")
+    for row <- rows, do: backdate!(row, 19 * 60)
 
-    two_days_ago =
-      DateTime.utc_now() |> DateTime.add(-2 * 24 * 60 * 60) |> DateTime.truncate(:second)
+    assert {:ok, %{updates: [_, _, _]}, _} = join_doc(me, note, 0)
+  end
 
-    Repo.update_all(from(u in DocUpdate, where: u.doc_id == ^note),
-      set: [inserted_at: two_days_ago]
-    )
+  test "a join folds rows from before a month ago, and from before timestamps, into one row", %{
+    me: me,
+    note: note
+  } do
+    {:ok, _, _} = join_doc(me, note, 0)
+    [untimed, old, older, recent] = for i <- 1..4, do: title!(note, "#{i}")
+    Repo.update_all(from(u in DocUpdate, where: u.id == ^untimed.id), set: [inserted_at: nil])
+    backdate!(old, 40 * 24 * 3600)
+    at = backdate!(older, 31 * 24 * 3600)
+    recent_at = backdate!(recent, 29 * 24 * 3600)
 
-    assert {:ok, %{updates: [_]}, _} = join_doc(me, note, 0)
+    assert {:ok, %{updates: [[_, base], _]}, _} = join_doc(me, note, 0)
+    assert %{"title" => "3"} = meta(base)
+    assert log(note) == [{older.id, at}, {recent.id, recent_at}]
+  end
+
+  test "a join leaves the log alone when no 10 minutes holds more than one row", %{
+    me: me,
+    note: note
+  } do
+    {:ok, _, _} = join_doc(me, note, 0)
+    rows = for i <- 1..5, do: title!(note, "#{i}")
+    for {row, ago} <- Enum.zip(rows, [40 * 24 * 3600, 7200, 3600, 60, 0]), do: backdate!(row, ago)
+    before = log(note)
+
+    assert {:ok, %{updates: [_, _, _, _, _]}, _} = join_doc(me, note, 0)
+    assert log(note) == before
   end
 
   test "nothing a device sends takes rows out of the log", %{me: me, note: note} do
