@@ -2,6 +2,7 @@ import Highlight from '@tiptap/extension-highlight'
 import { TaskList } from '@tiptap/extension-list'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import StarterKit from '@tiptap/starter-kit'
+import { Extension } from '@tiptap/react'
 import { TaskItem } from './lists'
 
 // What a note's content can hold, so an import builds the same nodes the editor reads.
@@ -20,4 +21,17 @@ export const contentExtensions = [
   TableRow,
   TableHeader.extend({ content: 'paragraph+' }),
   TableCell.extend({ content: 'paragraph+' }),
+  // A line made with Enter starts plain. Every split carries over the stored marks, so we store none before it splits.
+  Extension.create({
+    name: 'plainNewLine',
+    priority: 1000,
+    addKeyboardShortcuts() {
+      return {
+        Enter: () => {
+          this.editor.view.dispatch(this.editor.state.tr.setStoredMarks([]))
+          return false
+        },
+      }
+    },
+  }),
 ]
