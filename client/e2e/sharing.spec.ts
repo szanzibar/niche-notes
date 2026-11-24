@@ -147,3 +147,33 @@ test('with many people at a large size, the share dialog scrolls to every button
   await page.getByRole('button', { name: 'Close' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
 })
+
+test('the share dialog puts the person we share with most on top and finds anyone else by name', async ({
+  browser,
+  request,
+}) => {
+  for (let n = 0; n < 4; n++) await request.get(`/auth/login?as=aaron${n}-${uid()}`)
+  const b = `bob-${uid()}`
+  const c = `carol-${uid()}`
+  await request.get(`/auth/login?as=${b}`)
+  await request.get(`/auth/login?as=${c}`)
+  const alice = await signIn(browser, `alice-${uid()}`)
+  const dialog = alice.getByRole('dialog')
+  const field = dialog.getByRole('searchbox', { name: 'Search people' })
+
+  await newNote(alice, 'One')
+  await alice.getByRole('button', { name: 'Share', exact: true }).click()
+  await field.fill(display(c))
+  await expect(dialog.getByRole('listitem')).toHaveText([display(c)])
+  await field.press('Enter')
+  await expect(field).toHaveValue('')
+  await expect(dialog.getByRole('button', { name: display(c), pressed: true })).toBeVisible()
+  await field.fill('nobody-here')
+  await expect(dialog.getByText('Nobody by that name.')).toBeVisible()
+  await alice.getByRole('button', { name: 'Close' }).click()
+
+  await newNote(alice, 'Two')
+  await alice.getByRole('button', { name: 'Share', exact: true }).click()
+  await expect(dialog.getByRole('listitem').first()).toHaveText(display(c))
+  await expect(dialog.getByRole('listitem').filter({ hasText: display(b) })).toHaveCount(0)
+})

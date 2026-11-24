@@ -16,6 +16,7 @@ export function ShareDialog({ id }: { id: string }) {
   const [users, setUsers] = useState<User[]>([])
   const [links, setLinks] = useState<Link[]>([])
   const [copied, setCopied] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   const reload = useCallback(
     () =>
@@ -39,7 +40,19 @@ export function ShareDialog({ id }: { id: string }) {
   const viewers = new Set(shares.filter((x) => x.read_only).map((x) => x.user_id))
   const toggle = (user: User) =>
     (sharedWith.has(user.id) ? api.unshare(id, user.id) : api.share(id, user.id)).then(refreshSharing)
-  const people = users.filter((u) => !u.guest)
+  // Whoever shares the most notes with us comes first, so the usual person is one tap away and a field finds the rest.
+  const together = new Map<string, number>()
+  for (const x of s.shares) {
+    const other = x.owner_id === s.me!.id ? x.user_id : x.owner_id
+    together.set(other, (together.get(other) ?? 0) + 1)
+  }
+  const people = users
+    .filter((u) => !u.guest)
+    .sort((a, b) => (together.get(b.id) ?? 0) - (together.get(a.id) ?? 0) || a.name.localeCompare(b.name))
+  const term = query.trim().toLowerCase()
+  const shown = term
+    ? people.filter((u) => u.name.toLowerCase().includes(term))
+    : people.filter((u, i) => i < 3 || sharedWith.has(u.id))
   // A phone hands the link to its share sheet, to send in a message. Elsewhere it goes to the clipboard.
   const sheet = 'share' in navigator
   const send = (token: string) => {
@@ -67,6 +80,7 @@ export function ShareDialog({ id }: { id: string }) {
       onOpenChange={(next) => {
         setOpen(next)
         setCopied(null)
+        setQuery('')
       }}
     >
       <Dialog.Trigger asChild>
@@ -101,7 +115,7 @@ export function ShareDialog({ id }: { id: string }) {
             </p>
           )}
           <ul className="-mx-3 flex flex-col">
-            {people.map((user) => (
+            {shown.map((user) => (
               <li key={user.id}>
                 <Button
                   aria-pressed={sharedWith.has(user.id)}
@@ -114,6 +128,28 @@ export function ShareDialog({ id }: { id: string }) {
               </li>
             ))}
           </ul>
+          {term && shown.length === 0 && <p className="py-2 text-ink-muted">Nobody by that name.</p>}
+          {people.length > 3 && (
+            <form
+              className="mt-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!shown[0]) return
+                void toggle(shown[0])
+                setQuery('')
+              }}
+            >
+              <input
+                type="search"
+                aria-label="Search people"
+                placeholder="Search people"
+                enterKeyHint="done"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="h-10 w-full border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink"
+              />
+            </form>
+          )}
           <section className="mt-4 border-t-2 border-border pt-2">
             <div className="flex items-center">
               <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Links</p>

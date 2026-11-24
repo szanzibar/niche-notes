@@ -49,7 +49,11 @@ export const row = (page: Page, title: string) =>
 
 export async function shareWith(page: Page, name: string) {
   await page.getByRole('button', { name: /^Share$|^Shared with/ }).click()
-  await page.getByRole('listitem').filter({ hasText: display(name) }).getByRole('button').click()
+  const person = page.getByRole('listitem').filter({ hasText: display(name) })
+  const field = page.getByRole('searchbox', { name: 'Search people' })
+  await field.or(person).first().waitFor()
+  if (await field.isVisible()) await field.fill(display(name))
+  await person.getByRole('button').click()
   await page.getByRole('button', { name: 'Close' }).click()
 }
 
