@@ -63,6 +63,7 @@ import {
   Assignees,
   deleteChecked,
   dragByTouch,
+  FoldLines,
   HideChecked,
   inList,
   JoinLists,
@@ -84,7 +85,11 @@ const undoManagers = new Map<string, Y.UndoManager>()
 function undoManagerFor(id: string, doc: Y.Doc) {
   let manager = undoManagers.get(id)
   if (!manager) {
-    manager = new NoteUndoManager(doc.getXmlFragment('content'), { trackedOrigins: new Set([ySyncPluginKey]) })
+    manager = new NoteUndoManager(doc.getXmlFragment('content'), {
+      trackedOrigins: new Set([ySyncPluginKey]),
+      // An edit marked to stay out of history, such as the id a line gets when it folds, is no step to undo.
+      captureTransaction: (tr) => tr.meta.get('addToHistory') !== false,
+    })
     undoManagers.set(id, manager)
   }
   return manager
@@ -194,6 +199,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         Assignees(() => people(id)),
         Suggestions,
         FindInNote(hidingChecked),
+        // After FindInNote, which reads its folds, since TipTap applies the later of two extensions first.
+        FoldLines(id),
         Collaboration.configure({
           document: doc,
           field: 'content',

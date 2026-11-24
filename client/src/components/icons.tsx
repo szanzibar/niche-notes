@@ -51,8 +51,10 @@ export const CloudOffIcon = icon(
 export const PlusIcon = icon('M5 12h14M12 5v14')
 export const CheckedIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 12l3 3 5-6')
 export const ChevronLeftIcon = icon('M15 18l-6-6 6-6')
-export const ChevronRightIcon = icon('M9 18l6-6-6-6')
-export const ChevronDownIcon = icon('M6 9l6 6 6-6')
+export const CHEVRON_RIGHT = 'M9 18l6-6-6-6'
+export const ChevronRightIcon = icon(CHEVRON_RIGHT)
+export const CHEVRON_DOWN = 'M6 9l6 6 6-6'
+export const ChevronDownIcon = icon(CHEVRON_DOWN)
 export const ChevronUpIcon = icon('M18 15l-6-6-6 6')
 export function MoreIcon({ className = SIZE }: { className?: string }) {
   return (

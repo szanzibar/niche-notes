@@ -21,6 +21,17 @@ export const contentExtensions = [
   TableRow,
   TableHeader.extend({ content: 'paragraph+' }),
   TableCell.extend({ content: 'paragraph+' }),
+  // A line gets an id once someone folds it, which their fold finds it by. A line split from it or pasted starts
+  // without one. A copy dragged with Alt or Ctrl keeps it and folds along with its original, which is accepted.
+  Extension.create({
+    name: 'lineId',
+    addGlobalAttributes: () => [
+      {
+        types: ['taskItem', 'listItem'],
+        attributes: { id: { default: null, keepOnSplit: false, parseHTML: () => null, renderHTML: () => ({}) } },
+      },
+    ],
+  }),
   // A line made with Enter starts plain. Every split carries over the stored marks, so we store none before it splits.
   Extension.create({
     name: 'plainNewLine',

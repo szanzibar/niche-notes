@@ -24,6 +24,11 @@ export function settings() {
   return getDoc(store.me!.id)!.getMap('settings')
 }
 
+// The lines this person folded in each note, by line id. A deleted line's id stays behind, a few bytes each.
+export function folds() {
+  return getDoc(store.me!.id)!.getMap<string[]>('folds')
+}
+
 export function titleOf(id: string) {
   return (store.meta.get(id)?.title as string | undefined) || 'Untitled'
 }

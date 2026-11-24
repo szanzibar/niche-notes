@@ -9,9 +9,9 @@ import type * as Y from 'yjs'
 import { enableAlerts } from '../lib/alerts'
 import type { User } from '../lib/types'
 import { store } from '../sync/store'
-import { settings } from '../sync/tree'
+import { folds, settings } from '../sync/tree'
 import { describeRule, dueLabel, nextDue, overdue, parseDay, parseRule, type Typed, typedDates, withTyped } from './dates'
-import { GRIP } from './icons'
+import { CHEVRON_DOWN, CHEVRON_RIGHT, GRIP } from './icons'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
 const ITEM: Record<ListType, string> = { taskList: 'taskItem', bulletList: 'listItem', orderedList: 'listItem' }
@@ -272,13 +272,15 @@ function dropAt(view: EditorView, y: number, from: number): Drop | null | undefi
     if (!isLine(node)) return
     const li = view.nodeDOM(pos) as HTMLElement
     const row = li.getBoundingClientRect()
-    const nested = li.querySelector(':scope > div > :is(ul, ol), :scope > :is(ul, ol)')
+    // A folded line takes a line above or below it, never into the lines it hides.
+    const folded = li.hasAttribute('data-folded')
+    const nested = folded ? null : li.querySelector(':scope > div > :is(ul, ol), :scope > :is(ul, ol)')
     const bottom = nested ? nested.getBoundingClientRect().top : row.bottom
     if (y < row.top || y >= bottom) return
     if (pos >= from && pos < end) found = null
     else {
       const at = (y - row.top) / (bottom - row.top)
-      const zone = at < 0.3 ? 'before' : at > 0.7 && !nested ? 'after' : 'inside'
+      const zone = folded ? (at < 0.5 ? 'before' : 'after') : at < 0.3 ? 'before' : at > 0.7 && !nested ? 'after' : 'inside'
       const parent = zone === 'inside' ? li : li.parentElement?.closest('li')
       found = {
         pos,
@@ -1032,6 +1034,123 @@ export const HideChecked = (hiding: () => boolean) =>
         },
       }),
     ],
+  })
+
+// The ids of the lines folded in the open note.
+export const foldedLines = new PluginKey<Set<string>>('foldedLines')
+
+// The depths of the folded lines whose nested lines hold `$pos`, outermost first.
+export function foldsHolding($pos: ResolvedPos, folded: Set<string>) {
+  const depths: number[] = []
+  for (let depth = 1; depth < $pos.depth; depth++) {
+    const node = $pos.node(depth)
+    if (isLine(node) && folded.has(node.attrs.id) && $pos.node(depth + 1).type.name in ITEM) depths.push(depth)
+  }
+  return depths
+}
+
+// A list line with lines nested under it has a chevron in the margin beside its grip, which folds them away for
+// this person on every device of theirs. It shows like the grip, and always on a folded line. Folding a line first
+// gives it an id, so in a note this person can't edit, only a line that already has one folds.
+export const FoldLines = (note: string) =>
+  Extension.create({
+    name: 'foldLines',
+    // Enter at the end of a folded line starts the next line below the lines it hides, instead of taking them along.
+    addKeyboardShortcuts() {
+      return {
+        Enter: () => {
+          const { state, view } = this.editor
+          const { $from, empty } = state.selection
+          const line = $from.node(-1)
+          if (!empty || $from.parentOffset < $from.parent.content.size || !isLine(line) || $from.index(-1) > 0) return false
+          if (!foldedLines.getState(state)!.has(line.attrs.id)) return false
+          const after = $from.after(-1)
+          const tr = state.tr.insert(after, line.type.create(null, state.schema.nodes.paragraph.create()))
+          view.dispatch(tr.setSelection(TextSelection.create(tr.doc, after + 2)).scrollIntoView())
+          return true
+        },
+      }
+    },
+    addProseMirrorPlugins() {
+      const { editor } = this
+      const toggle = (view: EditorView, at: number) => {
+        const line = view.state.doc.nodeAt(at)!
+        const id = line.attrs.id ?? crypto.randomUUID()
+        if (!line.attrs.id) view.dispatch(view.state.tr.setNodeMarkup(at, undefined, { ...line.attrs, id }).setMeta('addToHistory', false))
+        const folded = [...foldedLines.getState(view.state)!]
+        folds().set(note, folded.includes(id) ? folded.filter((other) => other !== id) : [...folded, id])
+      }
+      const chevron = (open: boolean) => (view: EditorView, getPos: () => number | undefined) => {
+        const el = document.createElement('span')
+        el.className = 'line-fold'
+        el.contentEditable = 'false'
+        el.role = 'button'
+        el.ariaLabel = el.title = open ? 'Collapse' : 'Expand'
+        el.ariaExpanded = String(open)
+        el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${open ? CHEVRON_DOWN : CHEVRON_RIGHT}"/></svg>`
+        // The cursor and the keyboard stay where they were.
+        el.addEventListener('mousedown', (e) => e.preventDefault())
+        el.addEventListener('click', () => {
+          const pos = getPos()
+          if (pos != null) toggle(view, pos - 1)
+        })
+        return el
+      }
+      return [
+        new Plugin<Set<string>>({
+          key: foldedLines,
+          state: {
+            init: () => new Set(folds().get(note)),
+            apply: (tr, was) => tr.getMeta(foldedLines) ?? was,
+          },
+          // Our own edit that takes the cursor into folded lines, such as Tab, unfolds them. Anything else, such as
+          // opening the note or a fold on another device, moves the cursor to the end of the folded line.
+          appendTransaction: (transactions, _old, state) => {
+            const folded = foldedLines.getState(state)!
+            const { $from } = state.selection
+            const depths = foldsHolding($from, folded)
+            if (!depths.length) return null
+            if (transactions.some((tr) => tr.docChanged && !tr.getMeta(ySyncPluginKey))) {
+              const holding = depths.map((depth) => $from.node(depth).attrs.id)
+              const open = [...folded].filter((id) => !holding.includes(id))
+              // Writing the tree now would redraw the note while this transaction is still being applied.
+              queueMicrotask(() => folds().set(note, open))
+              return state.tr.setMeta(foldedLines, new Set(open))
+            }
+            const [depth] = depths
+            return state.tr.setSelection(TextSelection.create(state.doc, $from.before(depth) + $from.node(depth).firstChild!.nodeSize))
+          },
+          view: (view) => {
+            const changed = ({ keysChanged }: { keysChanged: Set<string> }) => {
+              if (keysChanged.has(note)) view.dispatch(view.state.tr.setMeta(foldedLines, new Set(folds().get(note))))
+            }
+            folds().observe(changed)
+            return { destroy: () => folds().unobserve(changed) }
+          },
+          props: {
+            decorations: (state) => {
+              const folded = foldedLines.getState(state)!
+              const found: Decoration[] = []
+              state.doc.descendants((node, pos) => {
+                if (!isLine(node) || !node.content.content.some((child) => child.type.name in ITEM)) return
+                if (!node.attrs.id && !editor.isEditable) return
+                const open = !folded.has(node.attrs.id)
+                found.push(
+                  Decoration.widget(pos + 1, chevron(open), {
+                    side: -2,
+                    key: open ? 'collapse' : 'expand',
+                    ignoreSelection: true,
+                    stopEvent: () => true,
+                  }),
+                )
+                if (!open) found.push(Decoration.node(pos, pos + node.nodeSize, { 'data-folded': '' }))
+              })
+              return DecorationSet.create(state.doc, found)
+            },
+          },
+        }),
+      ]
+    },
   })
 
 // One step, so Undo brings them all back. Going from the end keeps the earlier positions valid, and
