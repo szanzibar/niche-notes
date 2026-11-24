@@ -281,3 +281,15 @@ test("beside the tree, the note's header and toolbar line up with the tree's hea
   await left.click()
   await expect(right).toBeVisible()
 })
+
+test('Ctrl or ⌘ and N start a new note on top from inside another, with the cursor in its title', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Groceries', 'milk')
+  await expect(page.getByRole('button', { name: 'New note', exact: true })).toHaveAttribute('title', 'New note (Ctrl+N)')
+
+  await page.keyboard.press('Control+n')
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await expect(page.getByPlaceholder('Title')).toHaveValue('')
+  await page.keyboard.type('Hardware')
+  await expect.poll(() => rowTitles(page)).toEqual(['Hardware', 'Groceries'])
+})

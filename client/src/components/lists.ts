@@ -59,21 +59,55 @@ export function toggleList(editor: Editor, type: ListType) {
 }
 
 // TipTap's own Tab handlers each indent their own item type, which grabs the parent line when a
-// bullet sits inside a checkbox. Ours runs first and indents the line the cursor is on.
-export const ListTabs = Extension.create({
-  name: 'listTabs',
-  priority: 1000,
-  addKeyboardShortcuts() {
-    const indent = (sink: boolean) => {
-      const { item } = listPosition(this.editor)
-      if (!item) return false
-      if (sink) this.editor.commands.sinkListItem(item)
-      else this.editor.commands.liftListItem(item)
-      return true
-    }
-    return { Tab: () => indent(true), 'Shift-Tab': () => indent(false) }
-  },
-})
+// bullet sits inside a checkbox. Ours runs first and indents the line the cursor is on. Ctrl or ⌘ and Enter tick
+// the task the cursor is on, and Alt+Shift and an arrow move its line past the next line in view.
+export const ListKeys = (hiding: () => boolean) =>
+  Extension.create({
+    name: 'listKeys',
+    priority: 1000,
+    addKeyboardShortcuts() {
+      const indent = (sink: boolean) => {
+        const { item } = listPosition(this.editor)
+        if (!item) return false
+        if (sink) this.editor.commands.sinkListItem(item)
+        else this.editor.commands.liftListItem(item)
+        return true
+      }
+      const tick = () => {
+        const { item, depth } = listPosition(this.editor)
+        if (item !== 'taskItem') return false
+        const li = this.editor.view.nodeDOM(this.editor.state.selection.$from.before(depth)) as HTMLElement
+        li.querySelector<HTMLInputElement>(':scope > label > input')!.click()
+        return true
+      }
+      const move = (dir: -1 | 1) => {
+        const { item, depth } = listPosition(this.editor)
+        if (!item) return false
+        const { view, state } = this.editor
+        const { $from } = state.selection
+        const from = $from.before(depth)
+        const list = $from.node(depth! - 1)
+        let at = $from.index(depth! - 1) + dir
+        while (list.maybeChild(at) && hiding() && done(list.child(at))) at += dir
+        const beside = list.maybeChild(at)
+        if (!beside) return true
+        // A step of its own, so Undo takes back the move and not the typing before it.
+        yUndoPluginKey.getState(state)?.undoManager.stopCapturing()
+        const pos = $from.posAtIndex(at, depth! - 1)
+        const start = dir < 0 ? pos : pos + beside.nodeSize - $from.node(depth).nodeSize
+        dropLine(view, from, { pos, zone: dir < 0 ? 'before' : 'after' })
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, start + $from.pos - from)))
+        return true
+      }
+      return {
+        Tab: () => indent(true),
+        'Shift-Tab': () => indent(false),
+        'Mod-Enter': tick,
+        'Alt-Shift-ArrowUp': () => move(-1),
+        'Alt-Shift-ArrowDown': () => move(1),
+      }
+    },
+  })
 
 // Two lists of one type side by side read as one list with a gap, and Indent can't cross the gap, so an edit
 // that leaves them touching joins them. Only our own edits, around the cursor: if two devices joined the same
@@ -259,7 +293,7 @@ function dropAt(view: EditorView, y: number, from: number): Drop | null | undefi
 }
 
 // One step, so Undo puts the line back. A line takes the kind of the list it lands in.
-function dropLine(view: EditorView, from: number, { pos, zone }: Drop) {
+function dropLine(view: EditorView, from: number, { pos, zone }: Pick<Drop, 'pos' | 'zone'>) {
   const { doc, schema, tr } = view.state
   const line = doc.nodeAt(from)!
   const target = doc.nodeAt(pos)!

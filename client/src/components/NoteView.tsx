@@ -67,7 +67,7 @@ import {
   inList,
   JoinLists,
   LineGrips,
-  ListTabs,
+  ListKeys,
   uncheckAll,
 } from './lists'
 import { TableEnter } from './tables'
@@ -184,7 +184,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     {
       extensions: [
         ...contentExtensions,
-        ListTabs,
+        ListKeys(hidingChecked),
         TableEnter,
         JoinLists,
         LineGrips,

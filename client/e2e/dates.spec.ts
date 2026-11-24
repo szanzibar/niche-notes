@@ -111,6 +111,27 @@ test('ticking a repeating line moves it to its next date instead of checking it'
   await expect(line(page, 'Bins')).toHaveAttribute('data-checked', 'false')
 })
 
+test('Ctrl or ⌘ and Enter tick the task at the cursor as a tap on its box does, repeats included', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Bins')
+  await tool(page, 'Task list').click()
+  const box = page.getByRole('checkbox', { name: 'Task item checkbox for Bins' })
+
+  await page.keyboard.press('Control+Enter')
+  await expect(box).toBeChecked()
+  await expect(page.locator('.editor-body li br')).toHaveCount(0)
+  await page.keyboard.press('Control+Enter')
+  await expect(box).not.toBeChecked()
+
+  await tool(page, 'Date').click()
+  await tool(page, 'Today').click()
+  await tool(page, 'Daily').click()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+Enter')
+  await expect(line(page, 'Bins')).toHaveAttribute('data-due', inDays(1))
+  await expect(box).not.toBeChecked()
+})
+
 test('Daily repeats every day in one tap, and Weekly after it starts with all seven days ticked', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Brush teeth')

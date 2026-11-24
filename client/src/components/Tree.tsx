@@ -65,6 +65,7 @@ import { SettingsDialog } from './SettingsDialog'
 import { noteTheme } from './themes'
 
 const ROOT = 'root'
+const MOD = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+'
 const INDENT = 16
 const DUE_SECTIONS = ['Past due', 'Today', 'Tomorrow', 'Later']
 type Zone = 'before' | 'inside' | 'after'
@@ -291,6 +292,33 @@ export function Tree({ selected }: { selected?: string }) {
     if (to.parent) expand(to.parent)
   }
 
+  const newNote = () => showNote(createNote(null))
+  // Ctrl or ⌘ and K search, first leaving the open note as Back does where a narrow window hides the list under it.
+  // A browser tab keeps Ctrl+N for itself, and that's accepted.
+  const searchField = useRef<HTMLInputElement>(null)
+  const searching = useRef(false)
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || (e.key !== 'k' && e.key !== 'n')) return
+      e.preventDefault()
+      if (e.key === 'n') return newNote()
+      if (!searchField.current!.offsetParent) {
+        searching.current = true
+        return navigate(-1)
+      }
+      searchField.current!.focus()
+      searchField.current!.select()
+    }
+    addEventListener('keydown', key)
+    return () => removeEventListener('keydown', key)
+  })
+  useEffect(() => {
+    if (!searching.current || !searchField.current!.offsetParent) return
+    searching.current = false
+    searchField.current!.focus()
+    searchField.current!.select()
+  })
+
   const onSearchKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') setCursor(Math.min(cursor + 1, results.length - 1))
     else if (e.key === 'ArrowUp') setCursor(Math.max(cursor - 1, 0))
@@ -327,6 +355,8 @@ export function Tree({ selected }: { selected?: string }) {
             type="search"
             placeholder="Search notes"
             aria-label="Search notes"
+            title={`Search notes (${MOD}K)`}
+            ref={searchField}
             className="w-full bg-transparent pr-9 text-lg font-bold outline-none placeholder:text-ink-muted"
             value={query}
             onChange={(e) => {
@@ -382,7 +412,7 @@ export function Tree({ selected }: { selected?: string }) {
           </IconButton>
         )}
         <OfflineIcon />
-        <IconButton label="New note" onClick={() => showNote(createNote(null))}>
+        <IconButton label="New note" title={`New note (${MOD}N)`} onClick={newNote}>
           <PlusIcon />
         </IconButton>
       </RootDropZone>

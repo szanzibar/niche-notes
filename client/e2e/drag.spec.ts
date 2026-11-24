@@ -1,5 +1,5 @@
 import { expect, type Browser, type Page } from '@playwright/test'
-import { newNote, phoneOnly, signIn, test, uid } from './helpers'
+import { lineEnd, newNote, phoneOnly, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -317,4 +317,47 @@ test('a line dragged to the bottom of the note scrolls it, so it can land below 
   for (let step = 0; step < 3; step++) await touch('touchMove', to.y + to.height * 0.85 + step)
   await touch('touchEnd')
   await expect.poll(() => shape(page)).toEqual([...lines.slice(1, 14), 'Line 1', ...lines.slice(14)])
+})
+
+test('Alt+Shift and an arrow move the line at the cursor and its nested lines past the next one in view, one Undo step each', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'A', 'B', 'B1')
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.type('C')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  // The editor takes a click or an arrow key a moment later.
+  await page.waitForTimeout(100)
+
+  await page.keyboard.press('Alt+Shift+ArrowDown')
+  await expect.poll(() => shape(page)).toEqual(['A', 'C', 'B', '  B1'])
+  // The cursor goes along.
+  await page.keyboard.press(lineEnd)
+  await page.keyboard.type('!')
+  await expect.poll(() => shape(page)).toEqual(['A', 'C', 'B!', '  B1'])
+  await page.keyboard.press('Alt+Shift+ArrowUp')
+  await page.keyboard.press('Alt+Shift+ArrowUp')
+  await expect.poll(() => shape(page)).toEqual(['B!', '  B1', 'A', 'C'])
+  // The first line has nothing above it to pass.
+  await page.keyboard.press('Alt+Shift+ArrowUp')
+  await expect.poll(() => shape(page)).toEqual(['B!', '  B1', 'A', 'C'])
+
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => shape(page)).toEqual(['A', 'B!', '  B1', 'C'])
+
+  // In a note that hides checked tasks, a line passes the hidden ones too, so each press moves it in view.
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
+  await page.keyboard.press('Escape')
+  for (const text of ['B1', 'B!']) await page.getByRole('checkbox', { name: `Task item checkbox for ${text}` }).check()
+  await line(page, 'A').click()
+  await page.waitForTimeout(100)
+  await page.keyboard.press('Alt+Shift+ArrowDown')
+  await expect.poll(() => shape(page)).toEqual(['B!', '  B1', 'C', 'A'])
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => shape(page)).toEqual(['A', 'B!', '  B1', 'C'])
 })

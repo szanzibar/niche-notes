@@ -148,3 +148,29 @@ test('search leaves out checked lines unless asked, and both choices follow the 
   await other.getByRole('button', { name: 'Include checked tasks' }).click()
   await expect(other.getByText('No matches')).toBeVisible()
 })
+
+test('Ctrl or ⌘ and K put the cursor in search from a note, showing the list first on a narrow window', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Groceries', 'milk')
+  await newNote(page, 'Hardware', 'nails')
+  const box = page.getByPlaceholder('Search notes')
+  await expect(box).toHaveAttribute('title', 'Search notes (Ctrl+K)')
+  await expect(page.locator('.editor-body')).toBeFocused()
+
+  await page.keyboard.press('Control+k')
+  await expect(box).toBeFocused()
+  await page.keyboard.type('groc')
+  await page.keyboard.press('Enter')
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Groceries')
+
+  // The last search is picked, so typing replaces it.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(box).toBeHidden()
+  await page.keyboard.press('Control+k')
+  await expect(box).toBeFocused()
+  await page.keyboard.type('hard')
+  await expect(box).toHaveValue('hard')
+  await page.keyboard.press('Enter')
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Hardware')
+  await expect(box).toBeHidden()
+})
