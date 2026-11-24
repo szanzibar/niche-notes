@@ -9,7 +9,7 @@ import { enableAlerts } from '../lib/alerts'
 import type { User } from '../lib/types'
 import { store } from '../sync/store'
 import { settings } from '../sync/tree'
-import { dueLabel, nextDue, overdue, parseRule, type Typed, typedDates, withTyped } from './dates'
+import { describeRule, dueLabel, nextDue, overdue, parseDay, parseRule, type Typed, typedDates, withTyped } from './dates'
 import { GRIP } from './icons'
 
 export type ListType = 'taskList' | 'bulletList' | 'orderedList'
@@ -540,6 +540,22 @@ export const TaskItem = TipTapTaskItem.extend({
         renderHTML: () => ({}),
       },
     }
+  },
+  // The date, its repeat and the person follow the line's text, the way Obsidian's Tasks plugin writes them.
+  renderMarkdown(node, h, ctx) {
+    const { due, repeat, assignee } = node.attrs ?? {}
+    const rule = due && parseRule(repeat)
+    const words = rule ? describeRule(rule, parseDay(due.split('T')[0])) : ''
+    const person = store.users.find((u) => u.id === assignee)
+    const tail = [
+      due && `📅 ${due.replace('T', ' ')}`,
+      words && `🔁 ${words[0].toLowerCase()}${words.slice(1)}`,
+      person && `@${person.name.split(' ')[0]}`,
+    ].filter(Boolean)
+    if (tail.length === 0) return this.parent!(node, h, ctx)
+    const [line, ...nested] = node.content!
+    const text = [...(line.content ?? []), { type: 'text', text: ` ${tail.join(' ')}` }]
+    return this.parent!({ ...node, content: [{ ...line, content: text }, ...nested] }, h, ctx)
   },
   addNodeView() {
     const render = this.parent?.()

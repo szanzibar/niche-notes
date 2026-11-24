@@ -385,6 +385,15 @@ export async function wipeLocal() {
   localStorage.removeItem('recent')
 }
 
+// A note as this device holds it, without opening it, so reading every note leaves none of them loaded.
+export async function readDoc(id: string) {
+  const open = docs.get(id)
+  if (open) return open
+  const doc = new Y.Doc()
+  for (const { update } of await db.updates.where('doc').equals(id).toArray()) Y.applyUpdate(doc, update)
+  return doc
+}
+
 export function openDoc(id: string): Promise<Y.Doc> {
   const pending = opening.get(id)
   if (pending) return pending

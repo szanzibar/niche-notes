@@ -6,6 +6,8 @@ import base from './playwright.config'
 export default defineConfig({
   ...base,
   testDir: './e2e-app',
+  // tauri-driver runs one app at a time.
+  workers: 1,
   webServer: [
     ...[base.webServer!].flat(),
     {

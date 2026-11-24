@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
-import { uid } from '../e2e/helpers'
+import { display, uid } from '../e2e/helpers'
 
 const driver = async (method: string, path: string, body?: object) => {
   const res = await fetch(`http://localhost:4444${path}`, { method, body: body && JSON.stringify(body) })
@@ -22,8 +22,11 @@ test('a link in a note opens in the default browser from the box under it, and a
   try {
     await driver('POST', `${session}/timeouts`, { implicit: 10_000 })
     // The app opens its window a moment after the session starts.
-    const signIn = `http://localhost:5199/auth/login?as=alice-${uid()}`
-    await expect(() => driver('POST', `${session}/url`, { url: signIn })).toPass()
+    const name = `alice-${uid()}`
+    await expect(() => driver('POST', `${session}/url`, { url: `http://localhost:5199/auth/login?as=${name}` })).toPass()
+    // The app still holds the person from the test before, and reloads once it hears who this is.
+    const me = { using: 'xpath', value: `//footer/span[text()="${display(name)}"]` }
+    await expect(() => driver('POST', `${session}/element`, me)).toPass()
     await click('[aria-label="New note"]')
     await type('[placeholder="Title"]', 'Recipes\uE007')
     await click('[aria-label="Link"]')

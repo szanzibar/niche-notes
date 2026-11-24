@@ -2,14 +2,17 @@
 //! while no window is open.
 
 use crate::{alerts, show_window};
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::time::Duration;
 #[cfg(not(target_os = "linux"))]
 use tauri::menu::{Menu, MenuItem};
 #[cfg(not(target_os = "linux"))]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::webview::PageLoadEvent;
+use tauri::webview::{DownloadEvent, PageLoadEvent};
 use tauri::{App, AppHandle, Builder, Manager, RunEvent, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use tokio::sync::Notify;
@@ -48,6 +51,32 @@ pub fn window<'a>(
         .on_page_load(|window, loaded| {
             if loaded.event() == PageLoadEvent::Finished {
                 alerts::read_session(window.app_handle());
+            }
+        })
+        // Left alone, a Mac drops a download and Linux saves it in the app's working folder. The webview proposes
+        // a name in Downloads that isn't taken, and the alert names it from the start, since a Mac gives no path
+        // at the end.
+        .on_download({
+            let saving = Mutex::new(HashMap::new());
+            move |webview, event| {
+                match event {
+                    DownloadEvent::Requested { url, destination } => {
+                        saving.lock().unwrap().insert(url, destination.clone());
+                    }
+                    DownloadEvent::Finished { url, success, .. } => {
+                        let file = saving.lock().unwrap().remove(&url);
+                        if let (Some(file), true) = (file, success) {
+                            let _ = webview
+                                .notification()
+                                .builder()
+                                .title(file.file_name().unwrap_or_default().to_string_lossy())
+                                .body("Saved to Downloads.")
+                                .show();
+                        }
+                    }
+                    _ => {}
+                }
+                true
             }
         })
 }

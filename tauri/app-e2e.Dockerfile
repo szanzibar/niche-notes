@@ -10,3 +10,5 @@ RUN cargo install tauri-driver --locked
 # The app hands other sites to xdg-open, so the tests read here what it handed over.
 RUN printf '#!/bin/sh\necho "$1" >> /tmp/opened\n' > /usr/local/bin/xdg-open && chmod +x /usr/local/bin/xdg-open \
   && touch /tmp/opened
+# A Downloads folder as on a desktop, where the app saves what the page downloads.
+RUN mkdir -p /root/Downloads /root/.config && echo 'XDG_DOWNLOAD_DIR="$HOME/Downloads"' > /root/.config/user-dirs.dirs

@@ -151,8 +151,15 @@ export function Tree({ selected }: { selected?: string }) {
   useY(prefs)
   const navigate = useNavigate()
   const showNote = useShowNote()
-  const openNote = useOpenNote()
+  const openOrHandOff = useOpenNote()
   const widget = useMatch('/widget/:id')?.params.id
+  // Export picks a note in this same tree, from Settings, and a tap downloads it.
+  const [exporting, setExporting] = useState(false)
+  const openNote = (id: string) => {
+    if (!exporting) return openOrHandOff(id)
+    setExporting(false)
+    void import('./markdown').then(({ exportNote }) => exportNote(id))
+  }
   const picking = widget != null
   // The notes widget has nothing to pick, so it gets the tree once the server can hand out a token.
   const allNotes = picking && new URLSearchParams(location.search).has('tree')
@@ -349,6 +356,14 @@ export function Tree({ selected }: { selected?: string }) {
           {s.online === false ? 'Connect to the internet to add the widget' : 'Tap a note to show it in the widget'}
         </p>
       )}
+      {exporting && (
+        <div className="flex items-center border-b-2 border-border bg-accent py-1 pl-4 pr-2 text-sm font-bold text-on-accent">
+          <p className="flex-1">Tap a note to export it</p>
+          <IconButton label="Cancel export" onClick={() => setExporting(false)}>
+            <CloseIcon />
+          </IconButton>
+        </div>
+      )}
       <RootDropZone active={hint?.id === ROOT}>
         <div className="relative flex min-w-0 flex-1 items-center">
           <input
@@ -397,7 +412,7 @@ export function Tree({ selected }: { selected?: string }) {
             </div>
           </Popover>
         )}
-        {!picking && (dated.length > 0 || dueOpen) && (
+        {!picking && !exporting && (dated.length > 0 || dueOpen) && (
           <IconButton
             label={`Due (${dueCount})`}
             aria-pressed={dueOpen}
@@ -613,7 +628,7 @@ export function Tree({ selected }: { selected?: string }) {
             <span className="font-bold">{trash.length}</span>
           </IconButton>
         )}
-        <SettingsDialog />
+        <SettingsDialog onExportNote={() => setExporting(true)} />
       </footer>
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[aboveFinger]}>
