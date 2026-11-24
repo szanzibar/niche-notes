@@ -29,7 +29,14 @@ cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
 ```
 
-Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one. The Mac app runs on Safari's engine, so the suite also runs with `-- --browser=webkit` before a desktop release.
+Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one. The Mac app runs on Safari's engine, so the suite also runs with `-- --browser=webkit` before a desktop release. On Linux, which lacks the libraries Playwright's WebKit is built against, the browser runs in Playwright's image:
+
+```bash
+cd client && v=$(node -p "require('@playwright/test/package.json').version") &&
+  docker run -d --rm --name playwright --network host --init --user pwuser mcr.microsoft.com/playwright:v$v-noble \
+    npx -y playwright@$v run-server --port 3000 --host 127.0.0.1
+PW_TEST_CONNECT_WS_ENDPOINT=ws://127.0.0.1:3000/ npm run e2e -- --browser=webkit
+```
 
 Steven keeps the running task list in a note on the prod server, shared by the guest link in `.env` as
 `PUBLIC_DEV_TASK_LIST`. Read it from the repo root with
