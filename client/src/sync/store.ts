@@ -134,7 +134,7 @@ export async function moveDue(id: string, items: string[], day: string) {
   doc.transact(() => {
     for (const line of doc.getXmlFragment('content').querySelectorAll('taskItem') as Y.XmlElement[]) {
       const due = line.getAttribute('due') as string | undefined
-      if (!due || !items.includes(itemOf(line))) continue
+      if (!due || line.getAttribute('checked') || !items.includes(itemOf(line))) continue
       const time = due.split('T')[1]
       line.setAttribute('due', time ? `${day}T${time}` : day)
       const repeat = ruleOn(line.getAttribute('repeat') as string | undefined, day)
@@ -364,10 +364,12 @@ async function pullBatch(ids: string[]) {
     const meta = doc.getMap('meta').toJSON()
     const copy = plain(doc.getXmlFragment('content'))
     await db.transaction('rw', db.updates, db.docs, async () => {
+      if (opening.has(id)) return
       await db.updates.bulkDelete(local.filter((row) => row.seq != null).map((row) => row.id))
       await db.updates.add({ doc: id, seq, update: Y.encodeStateAsUpdate(doc) })
       await db.docs.put({ id, seq, owner, meta, ...copy })
     })
+    if (opening.has(id)) continue
     redraw ||=
       owner !== store.owners.get(id) ||
       JSON.stringify(meta) !== JSON.stringify(store.meta.get(id)) ||
@@ -406,7 +408,10 @@ async function load(id: string): Promise<Y.Doc> {
   const doc = new Y.Doc()
   const awareness = new Awareness(doc)
   awarenesses.set(id, awareness)
-  const rows = await db.updates.where('doc').equals(id).toArray()
+  // Read rows and seq in one transaction so a concurrent pull can't advance `since` past the rows we read.
+  const [rows, saved] = await db.transaction('r', db.updates, db.docs, () =>
+    Promise.all([db.updates.where('doc').equals(id).toArray(), db.docs.get(id)]),
+  )
   const seen = new Set<number>()
   for (const row of rows) {
     Y.applyUpdate(doc, row.update, 'local')
@@ -430,7 +435,7 @@ async function load(id: string): Promise<Y.Doc> {
   let still: number | undefined
   store.texts.delete(id)
   let logged = rows.length
-  let since = (await db.docs.get(id))?.seq ?? 0
+  let since = saved?.seq ?? 0
   const inflight = new Set<Promise<number>>()
   const channel = socket.channel(`doc:${id}`, () => ({ since }))
   channels.set(id, channel)

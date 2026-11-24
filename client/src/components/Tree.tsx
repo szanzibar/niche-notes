@@ -34,6 +34,7 @@ import {
   ownerName,
   people,
   purgeNote,
+  readOnly,
   removeFromTree,
   restoreNote,
   settings,
@@ -306,9 +307,11 @@ export function Tree({ selected }: { selected?: string }) {
   const searching = useRef(false)
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || (e.key !== 'k' && e.key !== 'n')) return
+      const k = e.key.toLowerCase()
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || (k !== 'k' && k !== 'n')) return
+      if (picking || document.querySelector('[role="dialog"]')) return
       e.preventDefault()
-      if (e.key === 'n') return newNote()
+      if (k === 'n') return newNote()
       if (!searchField.current!.offsetParent) {
         searching.current = true
         return navigate(-1)
@@ -511,11 +514,13 @@ export function Tree({ selected }: { selected?: string }) {
                         {name}
                         <span>{[...notes.values()].flat().length}</span>
                       </button>
-                      {name === 'Past due' && (
+                      {name === 'Past due' && [...notes.keys()].some((id) => !readOnly(id)) && (
                         <Button
                           className="text-sm"
                           onClick={() => {
-                            for (const [id, lines] of notes) void moveDue(id, lines.map((line) => line.item), today)
+                            for (const [id, lines] of notes) {
+                              if (!readOnly(id)) void moveDue(id, lines.map((line) => line.item), today)
+                            }
                           }}
                         >
                           Move all to today
@@ -547,7 +552,7 @@ export function Tree({ selected }: { selected?: string }) {
                                     {dueLabel(line.due)}
                                   </span>
                                 </button>
-                                {name === 'Past due' && (
+                                {name === 'Past due' && !readOnly(id) && (
                                   <div className="flex gap-3">
                                     <Button className="text-sm" onClick={() => void moveDue(id, [line.item], today)}>
                                       Today
@@ -628,7 +633,12 @@ export function Tree({ selected }: { selected?: string }) {
             <span className="font-bold">{trash.length}</span>
           </IconButton>
         )}
-        <SettingsDialog onExportNote={() => setExporting(true)} />
+        <SettingsDialog
+          onExportNote={() => {
+            setDueOpen(false)
+            setExporting(true)
+          }}
+        />
       </footer>
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[aboveFinger]}>

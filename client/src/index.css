@@ -58,7 +58,7 @@ body {
   outline: none;
   min-height: 100%;
   /* The left side leaves room for a line's chevron and grip. */
-  padding: 1rem 1.25rem 4rem 2.5rem;
+  padding: 1rem 1.25rem 4rem 2.75rem;
   font-size: 1.05rem;
   line-height: 1.6;
 }
@@ -75,9 +75,10 @@ body {
 .editor-body ul[data-type="taskList"] > li > div { flex: 1 1 auto; min-width: 0; }
 .editor-body ul[data-type="taskList"] > li[data-checked="true"] > div > p { text-decoration: line-through; color: var(--ink-muted); }
 /* A checked line hides once every line under it is checked too, and not while it or one of them lingers.
-   It folds away rather than vanishing, so the lines below slide up. */
-.editor-body li { interpolate-size: allow-keywords; transition: height 0.2s, opacity 0.2s, display 0.2s allow-discrete; }
-[data-hide-checked] .editor-body li[data-checked="true"]:not([data-lingering]):not(:has(li[data-checked="false"], [data-lingering])) { display: none; height: 0; opacity: 0; overflow: hidden; }
+   It folds away rather than vanishing, so the lines below slide up. Only hiding waits for display, since a line
+   that turns into a grid would otherwise show its nested lines beside its text for half the transition. */
+.editor-body li { interpolate-size: allow-keywords; transition: height 0.2s, opacity 0.2s, display 0.2s; }
+[data-hide-checked] .editor-body li[data-checked="true"]:not([data-lingering]):not(:has(li[data-checked="false"], [data-lingering])) { display: none; height: 0; opacity: 0; overflow: hidden; transition-behavior: allow-discrete; }
 /* A checkbox line's date, person and then count follow its text. The words come from the label attribute. */
 /* Checkbox, text, date, person and count share the first row, and what is nested under the line goes below, so they
    stay beside the line's own text however wide the nested lines are. */
@@ -104,18 +105,18 @@ body {
    margin beside a nested line finds that line, and it shows on a touch screen or for the line under the pointer.
    The floating handle covers everything else. */
 .editor-body li { position: relative; }
-.line-grip { position: absolute; top: 0; left: -1.75rem; width: 1.75rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; user-select: none; }
+.line-grip { position: absolute; top: 0; left: -1.5rem; width: 1.5rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; user-select: none; }
 .line-grip svg { width: 1.25rem; height: 1.25rem; }
 .line-grip:hover { color: var(--accent-ink); }
 .editor-body li:hover:not(:has(li:hover)) > :is(.line-grip, .line-fold), .editor-body li:hover:not(:has(li:hover)) > div > :is(.line-grip, .line-fold) { opacity: 1; }
-.editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 1.75rem); }
+.editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 1.5rem); }
 .editor-body[contenteditable="false"] .line-grip { display: none; }
 /* A line's chevron sits left of its grip, over the part of the margin a finger's grip reaches into, so a thumb that
    misses a checkbox still lands on the grip. A folded line always shows its chevron. */
-.line-fold { position: absolute; top: 0; left: -2.5rem; z-index: 1; width: 1.25rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink); cursor: pointer; opacity: 0; user-select: none; }
+.line-fold { position: absolute; top: 0; left: -2.75rem; z-index: 1; width: 1.25rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink); cursor: pointer; opacity: 0; user-select: none; }
 .line-fold svg { width: 1rem; height: 1rem; }
 .line-fold:hover { color: var(--accent-ink); }
-.editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-fold { left: calc(-1.5rem - 2.5rem); }
+.editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-fold { left: calc(-1.5rem - 2.75rem); }
 .editor-body li[data-folded] > .line-fold, .editor-body li[data-folded] > div > .line-fold { opacity: 1; }
 .editor-body li[data-folded] > :is(ul, ol), .editor-body li[data-folded] > div > :is(ul, ol) { display: none; }
 /* Where a dragged line will land, indented the way it will be, like the tree's drop line. */
@@ -130,8 +131,8 @@ body {
 /* A finger needs a wider grip, reaching left into the margin. */
 @media (pointer: coarse) {
   .line-fold { opacity: 1; }
-  .line-grip { opacity: 1; left: -2.5rem; width: 2.5rem; justify-content: flex-end; padding-right: 0.25rem; }
-  .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.5rem); }
+  .line-grip { opacity: 1; left: -2.75rem; width: 2.75rem; justify-content: flex-end; padding-right: 0.125rem; }
+  .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.75rem); }
   /* A thumb that lands beside a box, short of its line's text, still ticks it. */
   .editor-body ul[data-type="taskList"] > li > label::before { content: ''; position: absolute; top: 0; left: 0; width: calc(1.15rem + 0.6rem); height: calc(0.3rem + 1.6em); }
 }

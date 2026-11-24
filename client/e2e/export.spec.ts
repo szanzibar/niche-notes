@@ -68,3 +68,21 @@ test('Export downloads a picked note as Markdown, and every note as a zip of fol
     'Ideas- (2).md': '',
   })
 })
+
+test('Export note leaves the Due list so a note can be picked from the tree', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores')
+  await page.locator('.editor-body').click()
+  await tool(page, 'Task list').click()
+  await page.keyboard.type('pay rent today')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: /^Due \(/ }).click()
+  await expect(page.getByRole('list', { name: 'Today', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Export note' }).click()
+  await expect(page.getByText('Tap a note to export it')).toBeVisible()
+  const picked = page.waitForEvent('download')
+  await row(page, 'Chores').click()
+  expect((await picked).suggestedFilename()).toBe('Chores.md')
+})

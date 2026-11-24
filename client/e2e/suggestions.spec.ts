@@ -54,6 +54,16 @@ test('typing on a task offers the ones checked before, and a pick makes the line
   await expect(box(page)).toBeHidden()
   await page.keyboard.type('t')
   await expect(box(page)).toBeHidden()
+
+  // Picking a task whose words contain a date keeps them as words.
+  await newLine(page, 'Sunday roast')
+  await page.keyboard.press('Escape')
+  await check(page, 'Sunday roast')
+  await newLine(page, 'ro')
+  await box(page).getByRole('button', { name: 'Sunday roast' }).click()
+  await page.keyboard.press('Enter')
+  await expect(body(page).locator('li[data-due]')).toHaveCount(0)
+  await expect(body(page).locator('li p').getByText('Sunday roast', { exact: true })).toHaveCount(2)
 })
 
 test('a task Delete checked removed is still offered, most recently checked first, and one still to do is not', async ({

@@ -63,6 +63,7 @@ import {
   Assignees,
   deleteChecked,
   dragByTouch,
+  foldedLines,
   FoldLines,
   HideChecked,
   inList,
@@ -275,6 +276,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       if (end == null && line && node.isTextblock && node.textContent === line) end = pos + node.nodeSize - 1
       return end == null
     })
+    const linked = end != null
     if (end == null && titleRef.current && !titleRef.current.value) {
       titleRef.current.focus()
       return
@@ -286,7 +288,14 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         ? relativePositionToAbsolutePosition(doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
         : null
     }
-    editor.commands.setTextSelection(end ?? editor.state.doc.content.size)
+    editor
+      .chain()
+      .setTextSelection(end ?? editor.state.doc.content.size)
+      .command(({ tr }) => {
+        if (linked) tr.setMeta(foldedLines, 'reveal')
+        return true
+      })
+      .run()
     // ProseMirror's own focus puts the cursor in the page at once. TipTap's leaves the browser's caret at the start on
     // Android for a moment, and the cursor jumps there if anything on the page changes meanwhile.
     editor.view.focus()

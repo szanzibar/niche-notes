@@ -75,6 +75,7 @@ export const ListKeys = (hiding: () => boolean) =>
         return true
       }
       const tick = () => {
+        if (!this.editor.isEditable) return false
         const { item, depth } = listPosition(this.editor)
         if (item !== 'taskItem') return false
         const li = this.editor.view.nodeDOM(this.editor.state.selection.$from.before(depth)) as HTMLElement
@@ -82,6 +83,7 @@ export const ListKeys = (hiding: () => boolean) =>
         return true
       }
       const move = (dir: -1 | 1) => {
+        if (!this.editor.isEditable) return false
         const { item, depth } = listPosition(this.editor)
         if (!item) return false
         const { view, state } = this.editor
@@ -97,7 +99,7 @@ export const ListKeys = (hiding: () => boolean) =>
         const pos = $from.posAtIndex(at, depth! - 1)
         const start = dir < 0 ? pos : pos + beside.nodeSize - $from.node(depth).nodeSize
         dropLine(view, from, { pos, zone: dir < 0 ? 'before' : 'after' })
-        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, start + $from.pos - from)))
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, start + $from.pos - from)).scrollIntoView())
         return true
       }
       return {
@@ -919,10 +921,10 @@ function suggest(doc: Node, record: Y.Map<Checked>, line: string) {
     .map(([, { text }]) => text)
 }
 
-// The line's text becomes the suggestion, with the cursor at its end.
+// The line's text becomes the suggestion, with the cursor at its end. Date words in the picked task stay as words.
 export function pickSuggestion(view: EditorView, text: string) {
   const { from, to } = suggestions.getState(view.state)!
-  view.dispatch(view.state.tr.insertText(text, from, to).setMeta(suggestions, 'close'))
+  view.dispatch(view.state.tr.insertText(text, from, to).setMeta(suggestions, 'close').setMeta(typedWords, 'keep'))
 }
 
 export const Suggestions = Extension.create({
@@ -953,6 +955,7 @@ export const Suggestions = Extension.create({
       },
       props: {
         handleKeyDown: (view, e) => {
+          if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return false
           const at = suggestions.getState(view.state)
           if (!at?.matches.length) return false
           const send = (meta: 'close' | number) => view.dispatch(view.state.tr.setMeta(suggestions, meta))
@@ -988,13 +991,23 @@ function doneDepth($pos: ResolvedPos) {
   return 0
 }
 
-// The nearest place to type from `pos` in direction `dir`, skipping hidden lines.
+// The nearest place to type from `pos` in direction `dir`, skipping hidden and folded lines.
 function visibleFrom(state: EditorState, pos: number, dir: -1 | 1) {
+  const folded = foldedLines.getState(state)
   let found = Selection.findFrom(state.doc.resolve(pos), dir, true)
   while (found) {
-    const depth = doneDepth(found.$from)
-    if (!depth) return found
-    found = Selection.findFrom(state.doc.resolve(dir < 0 ? found.$from.before(depth) : found.$from.after(depth)), dir, true)
+    const doneAt = doneDepth(found.$from)
+    if (doneAt) {
+      found = Selection.findFrom(state.doc.resolve(dir < 0 ? found.$from.before(doneAt) : found.$from.after(doneAt)), dir, true)
+      continue
+    }
+    const foldAt = folded ? foldsHolding(found.$from, folded)[0] : 0
+    if (!foldAt) return found
+    found = Selection.findFrom(
+      state.doc.resolve(dir < 0 ? found.$from.before(foldAt) + found.$from.node(foldAt).firstChild!.nodeSize : found.$from.after(foldAt)),
+      dir,
+      true,
+    )
   }
   return null
 }
@@ -1049,36 +1062,53 @@ export function foldsHolding($pos: ResolvedPos, folded: Set<string>) {
   return depths
 }
 
+const hasNested = (node: Node) => node.content.content.some((child) => child.type.name in ITEM)
+
 // A list line with lines nested under it has a chevron in the margin beside its grip, which folds them away for
 // this person on every device of theirs. It shows like the grip, and always on a folded line. Folding a line first
 // gives it an id, so in a note this person can't edit, only a line that already has one folds.
 export const FoldLines = (note: string) =>
   Extension.create({
     name: 'foldLines',
-    // Enter at the end of a folded line starts the next line below the lines it hides, instead of taking them along.
+    // At the end of a folded line, Enter starts the next line below what it hides and ArrowRight steps over it
+    // (WebKit otherwise steps into the hidden nested list and snaps back).
     addKeyboardShortcuts() {
+      const atFoldedEnd = () => {
+        const { state } = this.editor
+        const { $from, empty } = state.selection
+        if (!empty || $from.depth < 2 || $from.parentOffset < $from.parent.content.size || $from.index(-1) > 0) return null
+        const line = $from.node(-1)
+        if (!isLine(line) || !hasNested(line) || !foldedLines.getState(state)!.has(line.attrs.id)) return null
+        return { state, $from, line }
+      }
       return {
         Enter: () => {
-          const { state, view } = this.editor
-          const { $from, empty } = state.selection
-          const line = $from.node(-1)
-          if (!empty || $from.parentOffset < $from.parent.content.size || !isLine(line) || $from.index(-1) > 0) return false
-          if (!foldedLines.getState(state)!.has(line.attrs.id)) return false
-          const after = $from.after(-1)
-          const tr = state.tr.insert(after, line.type.create(null, state.schema.nodes.paragraph.create()))
-          view.dispatch(tr.setSelection(TextSelection.create(tr.doc, after + 2)).scrollIntoView())
+          if (!this.editor.isEditable) return false
+          const hit = atFoldedEnd()
+          if (!hit) return false
+          const after = hit.$from.after(-1)
+          const tr = hit.state.tr.insert(after, hit.line.type.create(null, hit.state.schema.nodes.paragraph.create()))
+          this.editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, after + 2)).scrollIntoView())
+          return true
+        },
+        ArrowRight: () => {
+          const hit = atFoldedEnd()
+          if (!hit) return false
+          const next = Selection.findFrom(hit.state.doc.resolve(hit.$from.after(-1)), 1, true)
+          if (next) this.editor.view.dispatch(hit.state.tr.setSelection(next).scrollIntoView())
           return true
         },
       }
     },
     addProseMirrorPlugins() {
       const { editor } = this
+      const writeFolds = (ids: string[]) => (ids.length ? folds().set(note, ids) : folds().delete(note))
       const toggle = (view: EditorView, at: number) => {
         const line = view.state.doc.nodeAt(at)!
         const id = line.attrs.id ?? crypto.randomUUID()
         if (!line.attrs.id) view.dispatch(view.state.tr.setNodeMarkup(at, undefined, { ...line.attrs, id }).setMeta('addToHistory', false))
         const folded = [...foldedLines.getState(view.state)!]
-        folds().set(note, folded.includes(id) ? folded.filter((other) => other !== id) : [...folded, id])
+        writeFolds(folded.includes(id) ? folded.filter((other) => other !== id) : [...folded, id])
       }
       const chevron = (open: boolean) => (view: EditorView, getPos: () => number | undefined) => {
         const el = document.createElement('span')
@@ -1101,20 +1131,23 @@ export const FoldLines = (note: string) =>
           key: foldedLines,
           state: {
             init: () => new Set(folds().get(note)),
-            apply: (tr, was) => tr.getMeta(foldedLines) ?? was,
+            apply: (tr, was) => {
+              const meta = tr.getMeta(foldedLines)
+              return meta instanceof Set ? meta : was
+            },
           },
-          // Our own edit that takes the cursor into folded lines, such as Tab, unfolds them. Anything else, such as
-          // opening the note or a fold on another device, moves the cursor to the end of the folded line.
+          // Our own edit that takes the cursor into folded lines, such as Tab, or opening the note at a folded line,
+          // unfolds them. Anything else, such as a fold on another device, moves the cursor to the end of the folded line.
           appendTransaction: (transactions, _old, state) => {
             const folded = foldedLines.getState(state)!
             const { $from } = state.selection
             const depths = foldsHolding($from, folded)
             if (!depths.length) return null
-            if (transactions.some((tr) => tr.docChanged && !tr.getMeta(ySyncPluginKey))) {
+            if (transactions.some((tr) => (tr.docChanged && !tr.getMeta(ySyncPluginKey)) || tr.getMeta(foldedLines) === 'reveal')) {
               const holding = depths.map((depth) => $from.node(depth).attrs.id)
               const open = [...folded].filter((id) => !holding.includes(id))
               // Writing the tree now would redraw the note while this transaction is still being applied.
-              queueMicrotask(() => folds().set(note, open))
+              queueMicrotask(() => writeFolds(open))
               return state.tr.setMeta(foldedLines, new Set(open))
             }
             const [depth] = depths
@@ -1132,7 +1165,7 @@ export const FoldLines = (note: string) =>
               const folded = foldedLines.getState(state)!
               const found: Decoration[] = []
               state.doc.descendants((node, pos) => {
-                if (!isLine(node) || !node.content.content.some((child) => child.type.name in ITEM)) return
+                if (!isLine(node) || !hasNested(node)) return
                 if (!node.attrs.id && !editor.isEditable) return
                 const open = !folded.has(node.attrs.id)
                 found.push(

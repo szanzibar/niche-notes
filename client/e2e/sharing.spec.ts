@@ -123,6 +123,7 @@ test('a read link shows the note and its edits without letting its guest change 
   const editor = await (await browser.newContext()).newPage()
   await editor.goto(`/s/${token(false)}`)
   await expect(editor.locator('.editor-body')).toHaveAttribute('contenteditable', 'true')
+  await expect(editor.locator('.editor-body')).toContainText('Milk and eggs')
 
   await alice.getByRole('button', { name: 'Shared with 2' }).click()
   const viewLink = alice.getByRole('listitem').filter({ hasText: 'Can read' })

@@ -82,7 +82,13 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
     // line folding away ends hidden, which cancels its transition rather than ending it.
     const settled = (e: TransitionEvent) =>
       e.propertyName === 'height' &&
-      editor.view.dispatch(editor.state.tr.setMeta('personBox', 'updatePosition').setMeta('suggestionBox', 'updatePosition'))
+      !editor.isDestroyed &&
+      editor.view.dispatch(
+        editor.state.tr
+          .setMeta('linkBox', 'updatePosition')
+          .setMeta('personBox', 'updatePosition')
+          .setMeta('suggestionBox', 'updatePosition'),
+      )
     const dom = editor.view.dom
     editor.on('transaction', force)
     dom.addEventListener('due-date', due)

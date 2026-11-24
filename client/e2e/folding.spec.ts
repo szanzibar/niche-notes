@@ -184,3 +184,29 @@ for (const [width, height] of [
     await expect(line(page, 'EggsHardware')).toBeVisible()
     await expect(line(page, 'Milk')).toBeVisible()
   })
+
+test('ticking a sibling below a folded line keeps it folded, and opening a folded line via Due unfolds it', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await groceries(page)
+  await line(page, 'Milk').click()
+  await tool(page, 'Date').click()
+  await tool(page, 'Today').click()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
+  await page.keyboard.press('Escape')
+
+  await chevron(page, 'Groceries').click()
+  await expect(line(page, 'Milk')).toBeHidden()
+  await line(page, 'Hardware').click()
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Hardware' }).check()
+  await expect(line(page, 'Milk')).toBeHidden()
+  await expect.poll(() => caret(page)).toBe('Groceries@9')
+
+  await page.getByRole('button', { name: /^Due \(/ }).click()
+  await page.getByRole('list', { name: 'Today', exact: true }).getByRole('button', { name: /Milk/ }).click()
+  await expect(line(page, 'Milk')).toBeVisible()
+  await expect.poll(() => caret(page)).toBe('Milk@4')
+})
