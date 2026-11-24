@@ -68,6 +68,7 @@ import {
   JoinLists,
   LineGrips,
   ListKeys,
+  Suggestions,
   uncheckAll,
 } from './lists'
 import { TableEnter } from './tables'
@@ -191,6 +192,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         Placeholder.configure({ placeholder: 'Write…' }),
         HideChecked(hidingChecked),
         Assignees(() => people(id)),
+        Suggestions,
         FindInNote(hidingChecked),
         Collaboration.configure({
           document: doc,

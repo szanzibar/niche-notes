@@ -1,10 +1,11 @@
 import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
 import type { Node, ResolvedPos } from '@tiptap/pm/model'
-import { type EditorState, NodeSelection, Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state'
+import { type EditorState, NodeSelection, Plugin, PluginKey, Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { Mapping } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { Extension, type Editor } from '@tiptap/react'
 import { yUndoPluginKey, ySyncPluginKey } from '@tiptap/y-tiptap'
+import type * as Y from 'yjs'
 import { enableAlerts } from '../lib/alerts'
 import type { User } from '../lib/types'
 import { store } from '../sync/store'
@@ -482,6 +483,19 @@ interface TypedWords extends Typed {
 }
 const typedWords = new PluginKey<TypedWords | null>('typedWords')
 
+// What a transaction changed, if it only changed the text of `$from`'s line, as typing does. A tick, an indent or a
+// new date isn't typing.
+function typedOn(tr: Transaction, $from: ResolvedPos) {
+  const changed: [number, number][] = []
+  tr.mapping.maps.forEach((map, i) =>
+    map.forEach((_from, _to, from, to) => {
+      const later = tr.mapping.slice(i + 1)
+      changed.push([later.map(from, -1), later.map(to)])
+    }),
+  )
+  return changed.length > 0 && changed.every(([from, to]) => from >= $from.start() && to <= $from.end()) ? changed : null
+}
+
 // The dates typed into `$pos`'s line, when it is a checkbox line's own text.
 function typedIn($pos: ResolvedPos): TypedWords[] {
   if ($pos.depth < 2 || $pos.node(-1).type.name !== 'taskItem' || $pos.index(-1) !== 0) return []
@@ -495,6 +509,15 @@ function typedIn($pos: ResolvedPos): TypedWords[] {
     alone: !(text.slice(0, typed.from) + text.slice(typed.to)).trim(),
   }))
 }
+
+// The text of each task checked in the note, so typing can offer it again, keyed without case or extra spaces. It
+// only grows, which stays small for the few hundred different tasks a family's list checks over the years.
+interface Checked {
+  text: string
+  at: number
+}
+const checkedTasks = (state: EditorState) => ySyncPluginKey.getState(state)!.doc.getMap<Checked>('checked')
+const keyOf = (text: string) => text.trim().replace(/\s+/g, ' ').toLowerCase()
 
 const chipLabel = (due: string, repeat: string | null) => `${parseRule(repeat) ? '↻ ' : ''}${dueLabel(due)}`
 
@@ -660,6 +683,8 @@ export const TaskItem = TipTapTaskItem.extend({
               return true
             })
             .run()
+          const text = line.firstChild!.textContent.trim()
+          if (checked && !repeats && text) checkedTasks(editor.state).set(keyOf(text), { text, at: Date.now() })
           if (!repeats) return
           // A repeating line shows its tick for a moment, then moves to its next date, unticked.
           setTimeout(() => {
@@ -695,17 +720,9 @@ export const TaskItem = TipTapTaskItem.extend({
             const found = typedIn($from)
             // Someone else's edit redraws the whole note, so the words are found again by what they say.
             if (tr.getMeta(ySyncPluginKey)) return found.find((words) => words.text === was?.text) ?? null
-            const changed: [number, number][] = []
-            tr.mapping.maps.forEach((map, i) =>
-              map.forEach((_from, _to, from, to) => {
-                const later = tr.mapping.slice(i + 1)
-                changed.push([later.map(from, -1), later.map(to)])
-              }),
-            )
-            // Typing changes the line's text and nothing else. A tick, an indent or a new date isn't typing.
-            const typing = changed.length > 0 && changed.every(([from, to]) => from >= $from.start() && to <= $from.end())
+            const changed = typedOn(tr, $from)
             const typed =
-              typing &&
+              changed &&
               found.find((words) =>
                 changed.some(([from, to]) => (from === to ? from >= words.from && from <= words.to : from < words.to && to > words.from)),
               )
@@ -862,6 +879,93 @@ export const Assignees = (people: () => User[]) =>
     },
   })
 
+// While someone types on a task line, the tasks checked in the note before that have a word starting with what the
+// line says, most recently checked first. Escape or a pick closes the box until the cursor leaves the line.
+interface Suggesting {
+  from: number
+  to: number
+  matches: string[]
+  // The one Enter picks, chosen with the arrows.
+  chosen: number
+  closed: boolean
+}
+export const suggestions = new PluginKey<Suggesting | null>('suggestions')
+
+function suggest(doc: Node, record: Y.Map<Checked>, line: string) {
+  const typed = keyOf(line)
+  if (typed.length < 2) return []
+  const startsWord = (text: string) => {
+    for (let at = text.indexOf(typed); at >= 0; at = text.indexOf(typed, at + 1)) {
+      if (at === 0 || !/[\p{L}\p{N}]/u.test(text[at - 1])) return true
+    }
+    return false
+  }
+  // Tasks still to do are on the list already, and so is the line itself.
+  const open = new Set([typed])
+  const found = new Map<string, Checked>()
+  doc.descendants((node) => {
+    if (node.type.name !== 'taskItem') return
+    const text = node.firstChild!.textContent.trim()
+    if (node.attrs.checked) found.set(keyOf(text), { text, at: 0 })
+    else open.add(keyOf(text))
+  })
+  for (const [key, checked] of record) found.set(key, checked)
+  return [...found]
+    .filter(([key]) => !open.has(key) && startsWord(key))
+    .sort(([, a], [, b]) => b.at - a.at)
+    .slice(0, 5)
+    .map(([, { text }]) => text)
+}
+
+// The line's text becomes the suggestion, with the cursor at its end.
+export function pickSuggestion(view: EditorView, text: string) {
+  const { from, to } = suggestions.getState(view.state)!
+  view.dispatch(view.state.tr.insertText(text, from, to).setMeta(suggestions, 'close'))
+}
+
+export const Suggestions = Extension.create({
+  name: 'suggestions',
+  // Ahead of the list's Enter and the arrows.
+  priority: 101,
+  addProseMirrorPlugins: () => [
+    new Plugin<Suggesting | null>({
+      key: suggestions,
+      state: {
+        init: () => null,
+        apply: (tr, was, old, state) => {
+          const { $from, empty } = state.selection
+          if (!empty || $from.depth < 2 || $from.node(-1).type.name !== 'taskItem' || $from.index(-1) !== 0) return null
+          // Someone else's edit redraws the whole note, and the cursor stays on its line.
+          const stayed = was != null && (tr.getMeta(ySyncPluginKey) != null || tr.mapping.map(was.from, -1) === $from.start())
+          if (!stayed && !typedOn(tr, $from)) return null
+          const meta = tr.getMeta(suggestions) as 'close' | number | undefined
+          const closed = meta === 'close' || (stayed && was!.closed)
+          return {
+            from: $from.start(),
+            to: $from.end(),
+            matches: closed ? [] : suggest(state.doc, checkedTasks(old), $from.parent.textContent),
+            chosen: typeof meta === 'number' ? meta : stayed && !tr.docChanged ? was!.chosen : -1,
+            closed,
+          }
+        },
+      },
+      props: {
+        handleKeyDown: (view, e) => {
+          const at = suggestions.getState(view.state)
+          if (!at?.matches.length) return false
+          const send = (meta: 'close' | number) => view.dispatch(view.state.tr.setMeta(suggestions, meta))
+          if (e.key === 'Escape') send('close')
+          else if (e.key === 'ArrowDown') send(Math.min(at.chosen + 1, at.matches.length - 1))
+          else if (e.key === 'ArrowUp') send(Math.max(at.chosen - 1, -1))
+          else if (e.key === 'Enter' && at.chosen >= 0) pickSuggestion(view, at.matches[at.chosen])
+          else return false
+          return true
+        },
+      },
+    }),
+  ],
+})
+
 // A line is done once it and every line nested under it are checked. Only a done line hides, with what is
 // nested under it, and only done lines are deleted. The server's widget lines follow the same rule.
 export function done(node: Node) {
@@ -931,13 +1035,25 @@ export const HideChecked = (hiding: () => boolean) =>
   })
 
 // One step, so Undo brings them all back. Going from the end keeps the earlier positions valid, and
-// deleteRange takes a list along with its last line.
+// deleteRange takes a list along with its last line. A task no device saw checked, such as one an alert ticked, is
+// remembered as checked now.
 export function deleteChecked(editor: Editor) {
   const lines: [number, number][] = []
+  const texts: string[] = []
   editor.state.doc.descendants((node, pos) => {
     if (!done(node)) return
     lines.push([pos, pos + node.nodeSize])
+    texts.push(node.firstChild!.textContent.trim())
+    node.descendants((task) => {
+      if (task.type.name === 'taskItem') texts.push(task.firstChild!.textContent.trim())
+    })
     return false
+  })
+  const record = checkedTasks(editor.state)
+  record.doc!.transact(() => {
+    for (const text of texts) {
+      if (text && !record.has(keyOf(text))) record.set(keyOf(text), { text, at: Date.now() })
+    }
   })
   editor
     .chain()

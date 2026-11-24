@@ -1,0 +1,90 @@
+import { expect, type Page } from '@playwright/test'
+import { lineEnd, newNote, row, shareWith, signIn, test, uid } from './helpers'
+
+const body = (page: Page) => page.locator('.editor-body')
+const box = (page: Page) => page.getByRole('group', { name: 'Suggestions' })
+const check = (page: Page, text: string) => page.getByRole('checkbox', { name: `Task item checkbox for ${text}` }).check()
+
+async function checklist(page: Page, first: string, ...rest: string[]) {
+  await newNote(page, 'Shopping', first)
+  await page.getByRole('button', { name: 'Task list', exact: true }).click()
+  for (const line of rest) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(line)
+  }
+}
+
+// Chromium tells ProseMirror of a click on the next frame, so a key sent at once would act where the caret was.
+async function newLine(page: Page, text: string) {
+  await body(page).locator('li p').last().click()
+  await page.waitForTimeout(60)
+  await page.keyboard.press(lineEnd)
+  await page.keyboard.press('Enter')
+  await page.keyboard.type(text)
+}
+
+test('typing on a task offers the ones checked before, and a pick makes the line that task', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Oat milk', 'Eggs')
+  await check(page, 'Oat milk')
+
+  await newLine(page, 'm')
+  await expect(box(page)).toBeHidden()
+  await page.keyboard.type('i')
+  await expect(box(page).getByRole('button')).toHaveText(['Oat milk'])
+  await box(page).getByRole('button', { name: 'Oat milk' }).click()
+  await page.keyboard.type(', 1l')
+  await expect(body(page).locator('li p')).toHaveText(['Oat milk', 'Eggs', 'Oat milk, 1l'])
+  await expect(box(page)).toBeHidden()
+
+  // Enter alone starts a new line, as it always does.
+  await newLine(page, 'oa')
+  await expect(box(page)).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(box(page)).toBeHidden()
+  await page.keyboard.type('oa')
+  await page.keyboard.press('ArrowDown')
+  await expect(box(page).getByRole('button', { name: 'Oat milk' })).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Enter')
+  await expect(body(page).locator('li p')).toHaveText(['Oat milk', 'Eggs', 'Oat milk, 1l', 'oa', 'Oat milk'])
+
+  // Escape closes the box until the cursor leaves the line.
+  await newLine(page, 'oa')
+  await page.keyboard.press('Escape')
+  await expect(box(page)).toBeHidden()
+  await page.keyboard.type('t')
+  await expect(box(page)).toBeHidden()
+})
+
+test('a task Delete checked removed is still offered, most recently checked first, and one still to do is not', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Brown bread', 'Brown sugar', 'Jam')
+  await check(page, 'Brown bread')
+  await check(page, 'Brown sugar')
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete checked' }).click()
+  await expect(body(page).locator('li p')).toHaveText(['Jam'])
+
+  await newLine(page, 'br')
+  await expect(box(page).getByRole('button')).toHaveText(['Brown sugar', 'Brown bread'])
+  await box(page).getByRole('button', { name: 'Brown sugar' }).click()
+  await newLine(page, 'br')
+  await expect(box(page).getByRole('button')).toHaveText(['Brown bread'])
+})
+
+test('everyone on the note gets the same suggestions', async ({ browser }) => {
+  const a = `alice-${uid()}`
+  const b = `bob-${uid()}`
+  const bob = await signIn(browser, b)
+  const alice = await signIn(browser, a)
+  await checklist(alice, 'Coffee beans', 'Tea')
+  await check(alice, 'Coffee beans')
+  await shareWith(alice, b)
+
+  await row(bob, 'Shopping').click()
+  await expect(body(bob).locator('li p')).toHaveText(['Coffee beans', 'Tea'])
+  await newLine(bob, 'be')
+  await expect(box(bob).getByRole('button')).toHaveText(['Coffee beans'])
+})

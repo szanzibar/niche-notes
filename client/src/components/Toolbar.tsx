@@ -40,7 +40,7 @@ import {
   UndoIcon,
   UnlinkIcon,
 } from './icons'
-import { assign, listPosition, toggleList, typedPerson } from './lists'
+import { assign, listPosition, pickSuggestion, suggestions, toggleList, typedPerson } from './lists'
 import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
@@ -60,6 +60,8 @@ const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:
 const LINK_BOX = { placement: 'bottom-start', offset: 6, shift: { padding: 8 } } as const
 const inLink: BubbleMenuProps['shouldShow'] = ({ editor, view }) => view.hasFocus() && editor.isActive('link')
 const typingPerson: BubbleMenuProps['shouldShow'] = ({ view, state }) => view.hasFocus() && Boolean(typedPerson.getState(state)?.at)
+const suggesting: BubbleMenuProps['shouldShow'] = ({ view, state }) =>
+  view.hasFocus() && Boolean(suggestions.getState(state)?.matches.length)
 
 // `people` are who a task on the note can be assigned to.
 export function Toolbar({ editor, people }: { editor: Editor | null; people: User[] }) {
@@ -178,6 +180,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
   const daily = everyDay && !weekly
   const assignee = people.find((u) => u.id === line?.attrs.assignee)?.id ?? null
   const typed = typedPerson.getState(editor.state)?.at
+  const suggested = suggestions.getState(editor.state)
 
   const applyLink = () => {
     close()
@@ -224,6 +227,19 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
               onClick={() => assign(editor.view, typed.line, user.id, typed)}
             >
               {user.name.split(' ')[0]}
+            </Tool>
+          ))}
+        </div>
+      </BubbleMenu>
+      <BubbleMenu editor={editor} pluginKey="suggestionBox" shouldShow={suggesting} options={LINK_BOX} className="z-10 w-max">
+        <div
+          role="group"
+          aria-label="Suggestions"
+          className="flex max-w-[min(24rem,calc(100vw-2rem))] flex-col border-2 border-border bg-surface p-1 [&>button]:justify-start"
+        >
+          {suggested?.matches.map((text, i) => (
+            <Tool key={text} label={text} active={i === suggested.chosen} onClick={() => pickSuggestion(editor.view, text)}>
+              <span className="truncate">{text}</span>
             </Tool>
           ))}
         </div>
