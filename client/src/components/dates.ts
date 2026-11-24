@@ -105,12 +105,10 @@ export function nextDue(due: string, repeat: string, today = new Date()) {
   return rule ? withTime(after(rule, start, from > start ? from : start), due) : due
 }
 
-// A line given a repeat moves to the rule's first day from today, or from its own date when that is earlier,
-// so its date is always one of the rule's days.
-export function onRule(due: string, repeat: string, today = new Date()) {
+// A line given a repeat moves to the rule's first day from its own date, so its date is always one of the rule's days.
+export function onRule(due: string, repeat: string) {
   const start = parseDay(due.split('T')[0])
-  const now = parseDay(dayOf(today))
-  const from = new Date(now < start ? now : start)
+  const from = new Date(start)
   from.setDate(from.getDate() - 1)
   return withTime(after(parseRule(repeat)!, start, from), due)
 }
@@ -215,7 +213,7 @@ export function withTyped(line: { due?: string | null; repeat?: string | null },
     if (rule.freq === 'MONTHLY' && !rule.weeks.length) rule.monthDay ??= start.getDate()
     repeat = formatRule(rule)
     // Every other week counts from the first of its days, not from this week.
-    due = onRule(due, formatRule({ ...rule, interval: 1 }), now)
+    due = onRule(due, formatRule({ ...rule, interval: 1 }))
   }
   // With no day said, a time that has gone by today means the next one.
   if (!typed.day && !lineDay && time && new Date(due) < now) due = repeat ? nextDue(due, repeat, now) : at(inDays(1, now))

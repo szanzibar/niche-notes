@@ -138,6 +138,12 @@ test('Daily repeats every day in one tap, and Weekly after it starts with all se
   await tool(page, 'Date').click()
   await expect(tool(page, 'Daily')).toHaveAttribute('aria-pressed', 'true')
   await expect(days).toHaveCount(0)
+
+  // A line set for tomorrow starts repeating tomorrow.
+  await tool(page, 'Once').click()
+  await tool(page, 'Tomorrow').click()
+  await tool(page, 'Daily').click()
+  await expect(line(page, 'Brush teeth')).toHaveAttribute('data-due', inDays(1))
 })
 
 test("a calendar event's link opens its note with the cursor at the end of its line", async ({ browser }) => {
