@@ -1,15 +1,24 @@
 import { MarkdownManager } from '@tiptap/markdown'
+import type { JSONContent } from '@tiptap/react'
 import { yDocToProsemirrorJSON } from '@tiptap/y-tiptap'
 import { strToU8, zipSync, type Zippable } from 'fflate'
 import { readDoc } from '../sync/store'
-import { children, titleOf } from '../sync/tree'
+import { children, people, titleOf } from '../sync/tree'
 import { contentExtensions } from './content'
 
 const markdown = new MarkdownManager({ extensions: contentExtensions })
 
-// A note ends in an empty line the editor keeps for the cursor.
-const markdownOf = async (id: string) =>
-  markdown.serialize(yDocToProsemirrorJSON(await readDoc(id), 'content')).trimEnd()
+// A note ends in an empty line the editor keeps for the cursor. Tasks assigned to someone no longer on the note
+// export as unassigned, matching how the app shows them.
+const markdownOf = async (id: string) => {
+  const on = new Set(people(id).map((u) => u.id))
+  const clean = (node: JSONContent): JSONContent => ({
+    ...node,
+    attrs: node.attrs?.assignee && !on.has(node.attrs.assignee) ? { ...node.attrs, assignee: null } : node.attrs,
+    content: node.content?.map(clean),
+  })
+  return markdown.serialize(clean(yDocToProsemirrorJSON(await readDoc(id), 'content'))).trimEnd()
+}
 
 // Windows refuses these characters in a file name, and dots or spaces at its end. A cut title stays under every
 // system's length limit.

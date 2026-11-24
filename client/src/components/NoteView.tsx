@@ -128,8 +128,8 @@ const Carets = (awareness: Awareness, user: { name: string; color: string }) =>
         new Plugin({
           view: (view) => {
             const redraw = () => view.isDestroyed || view.dispatch(view.state.tr.setMeta(yCursorPluginKey, { awarenessUpdated: true }))
-            const moved = ({ updated }: { updated: number[] }) => {
-              const others = updated.filter((client) => client !== awareness.clientID)
+            const show = (clients: number[]) => {
+              const others = clients.filter((client) => client !== awareness.clientID)
               for (const client of others) {
                 clearTimeout(moving.get(client))
                 const timer = window.setTimeout(() => {
@@ -140,11 +140,23 @@ const Carets = (awareness: Awareness, user: { name: string; color: string }) =>
               }
               if (others.length > 0) redraw()
             }
-            awareness.setLocalStateField('user', user)
+            const moved = ({ updated }: { updated: number[] }) => show(updated)
+            // A peer's first edit arrives as `added` in awareness rather than `updated`, so remote edits count as movement too.
+            const edited = (tr: Y.Transaction) => {
+              if (tr.origin !== 'remote') return
+              const authors: number[] = []
+              for (const [client, clock] of tr.afterState) {
+                if (clock > (tr.beforeState.get(client) ?? 0)) authors.push(client)
+              }
+              show(authors)
+            }
+            awareness.setLocalState({ ...awareness.getLocalState(), user })
             awareness.on('change', moved)
+            awareness.doc.on('afterTransaction', edited)
             return {
               destroy: () => {
                 awareness.off('change', moved)
+                awareness.doc.off('afterTransaction', edited)
                 for (const timer of moving.values()) clearTimeout(timer)
               },
             }

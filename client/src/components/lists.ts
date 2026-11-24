@@ -37,7 +37,7 @@ export function convertList(editor: Editor, depth: number, type: ListType) {
   const pos = $from.before(depth - 1)
   const { nodes } = editor.schema
   const items: Node[] = []
-  list.forEach((item) => items.push(nodes[ITEM[type]].create(null, item.content)))
+  list.forEach((item) => items.push(nodes[ITEM[type]].create(item.attrs.id ? { id: item.attrs.id } : null, item.content)))
   editor
     .chain()
     .focus()
@@ -312,7 +312,7 @@ function dropLine(view: EditorView, from: number, { pos, zone }: Pick<Drop, 'pos
         : pos + 1 + target.firstChild!.nodeSize + (nested ? 1 : 0)
   if (at === from || at === from + line.nodeSize) return
   const kind = list && schema.nodes[ITEM[list.name as ListType]]
-  const item = !kind || kind === line.type ? line : kind.create(null, line.content)
+  const item = !kind || kind === line.type ? line : kind.create(line.attrs.id ? { id: line.attrs.id } : null, line.content)
   // A first child goes in a new list of the line's own kind.
   tr.insert(at, list ? item : doc.resolve(from).parent.type.create(null, item))
   tr.deleteRange(tr.mapping.map(from), tr.mapping.map(from + line.nodeSize, -1))
@@ -860,6 +860,7 @@ export const Assignees = (people: () => User[]) =>
           },
           props: {
             handleKeyDown: (view, e) => {
+              if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return false
               const { at } = typedPerson.getState(view.state)!
               if (!at || (e.key !== 'Escape' && e.key !== 'Enter')) return false
               if (e.key === 'Escape') view.dispatch(view.state.tr.setMeta(typedPerson, 'keep'))
@@ -1032,7 +1033,16 @@ export const HideChecked = (hiding: () => boolean) =>
           const wait = () => {
             clearTimeout(timer)
             timer = window.setTimeout(() => {
-              for (const li of view.dom.querySelectorAll('[data-lingering]')) li.removeAttribute('data-lingering')
+              const lingering = view.dom.querySelectorAll('[data-lingering]')
+              for (const li of lingering) li.removeAttribute('data-lingering')
+              if (lingering.length && !view.isDestroyed) {
+                view.dispatch(
+                  view.state.tr
+                    .setMeta('linkBox', 'updatePosition')
+                    .setMeta('personBox', 'updatePosition')
+                    .setMeta('suggestionBox', 'updatePosition'),
+                )
+              }
             }, STILL_MS)
           }
           const events = ['pointerdown', 'keydown', 'scroll']

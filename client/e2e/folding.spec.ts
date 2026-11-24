@@ -209,4 +209,10 @@ test('ticking a sibling below a folded line keeps it folded, and opening a folde
   await page.getByRole('list', { name: 'Today', exact: true }).getByRole('button', { name: /Milk/ }).click()
   await expect(line(page, 'Milk')).toBeVisible()
   await expect.poll(() => caret(page)).toBe('Milk@4')
+
+  // Switching the list kind keeps a folded line folded.
+  await chevron(page, 'Groceries').click()
+  await expect(line(page, 'Milk')).toBeHidden()
+  await tool(page, 'Bullet list').click()
+  await expect(line(page, 'Milk')).toBeHidden()
 })

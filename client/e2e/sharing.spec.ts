@@ -101,7 +101,8 @@ test('an edit link lets someone without an account edit the note under a made-up
 test('a read link shows the note and its edits without letting its guest change it, and turns off on its own', async ({
   browser,
 }) => {
-  const alice = await signIn(browser, `alice-${uid()}`)
+  const a = `alice-${uid()}`
+  const alice = await signIn(browser, a)
   await newNote(alice, 'Groceries', 'Milk')
   const note = alice.url().split('/n/')[1]
   await alice.getByRole('button', { name: 'Share', exact: true }).click()
@@ -119,6 +120,7 @@ test('a read link shows the note and its edits without letting its guest change 
   await expect(viewer.getByRole('button', { name: 'Task list' })).toHaveCount(0)
   await typeAtEnd(alice, ' and eggs')
   await expect(viewer.locator('.editor-body')).toContainText('Milk and eggs')
+  await expect(viewer.locator('.collaboration-carets__label')).toHaveText(display(a))
 
   const editor = await (await browser.newContext()).newPage()
   await editor.goto(`/s/${token(false)}`)

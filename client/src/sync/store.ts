@@ -504,7 +504,8 @@ async function load(id: string): Promise<Y.Doc> {
   awareness.on(
     'update',
     ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
-      if (origin === 'remote' || channel.state !== 'joined') return
+      // Only push our own awareness changes, never remote echoes or local 30 s timeouts of other peers.
+      if ((origin !== 'local' && origin !== 'unload') || channel.state !== 'joined') return
       const update = encodeAwarenessUpdate(awareness, [...added, ...updated, ...removed])
       channel.push('awareness', { update: toBase64(update) })
     },

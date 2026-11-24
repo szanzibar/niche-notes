@@ -67,6 +67,16 @@ test('Export downloads a picked note as Markdown, and every note as a zip of fol
     'Ideas-.md': '',
     'Ideas- (2).md': '',
   })
+
+  // Someone taken off the note no longer appears on its exported tasks.
+  await page.getByRole('button', { name: 'Close' }).click()
+  await row(page, 'Groceries').click()
+  await shareWith(page, b)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Export note' }).click()
+  const unshared = page.waitForEvent('download')
+  await row(page, 'Groceries').click()
+  expect((await read(await unshared)).toString()).toBe(groceries.replace(` @${display(b)}`, ''))
 })
 
 test('Export note leaves the Due list so a note can be picked from the tree', async ({ browser }) => {

@@ -282,6 +282,7 @@ export async function purgeNote(id: string) {
       await api.deleteDoc(note)
     } else await api.unshare(note, store.me!.id)
     nodes().delete(note)
+    folds().delete(note)
     await purgeLocal(note)
   }
 }
