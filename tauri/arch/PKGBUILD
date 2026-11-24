@@ -1,0 +1,13 @@
+# The Arch package, made in CI from the .deb that Ubuntu built. openssl-3, since that OpenSSL is a major behind Arch's.
+pkgname=niche-notes
+pkgver=${PKGVER:?}
+pkgrel=1
+arch=(x86_64)
+options=(!debug)
+depends=(webkit2gtk-4.1 gtk3 libappindicator openssl-3)
+source=(niche-notes-linux.deb)
+sha256sums=(SKIP)
+
+package() {
+  bsdtar -xf data.tar.gz -C "$pkgdir"
+}

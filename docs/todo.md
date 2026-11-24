@@ -153,12 +153,11 @@ All five held, so Android moved to Tauri (ADR 002 amendment, 2026-11-18):
 
 Linux, for Kathrin's Fedora KDE laptop and Steven's CachyOS one (2026-11-23):
 
-- [x] An AppImage, since it runs on Fedora and Arch alike and the updater replaces it in place without a password. An RPM would update through a `pkexec` password prompt
-- [x] The tray menu has Open, since Linux never reports a click on the icon. Each start claims `nichenotes://` links, since an AppImage has no installed launcher entry
+- [x] A pacman package, since an AppImage carries its own WebKit at 117 MB and the package is 5 MB. CI repackages the .deb Ubuntu builds, and the `desktop` release serves it as the repo `nichenotes`, so `pacman -Syu` updates it. Kathrin uses the site in her browser, since she'll rarely open it
+- [x] The tray menu has Open, since Linux never reports a click on the icon. Each start claims `nichenotes://` links, since the package's launcher entry drops the link it opens
 - [x] `./dev.sh` builds and opens the dev app on Linux. There the window draws properly on the NVIDIA laptop, signs in to the dev server, the tray joins the alerts channel, and the service worker registers and precaches on prod
-- [ ] The first workflow run publishes `niche-notes-linux.AppImage` and its line in `latest.json`. The AppImage only bundles in CI, since linuxdeploy trips over Insync's own `libgio` on Steven's machine
-- [ ] Steven: login against production, an alert from the tray with a click that opens its line, and an update that arrives by itself
-- [ ] Kathrin's laptop: the AppImage runs on Fedora KDE and Gear Lever adds it to the launcher
+- [ ] The first workflow run publishes the package and `nichenotes.db`, and the Ubuntu-built binary runs on Steven's laptop. Then the release's old AppImage files go
+- [ ] Steven: login against production, an alert from the tray with a click that opens its line, and an update through `pacman -Syu`
 
 ## Later
 

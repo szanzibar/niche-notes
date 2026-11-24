@@ -85,7 +85,10 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
     // A dev build would start at login too, and replace itself with the release.
     if !cfg!(debug_assertions) {
         let _ = app.autolaunch().enable();
-        tauri::async_runtime::spawn(update(app.handle().clone()));
+        // pacman updates the Linux app.
+        if !cfg!(target_os = "linux") {
+            tauri::async_runtime::spawn(update(app.handle().clone()));
+        }
     }
 
     if std::env::args().any(|arg| arg == IN_TRAY) {

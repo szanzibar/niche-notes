@@ -43,11 +43,9 @@ jobs:
             collect: |
               mv nsis/*-setup.exe niche-notes-windows-setup.exe
               mv nsis/*-setup.exe.sig niche-notes-windows-setup.exe.sig
-          # An AppImage, since it runs on Fedora and Arch alike and updates itself without a password.
+          # A .deb for the arch job to repackage, since an AppImage carries its own WebKit at 117 MB.
           - os: ubuntu-24.04
-            collect: |
-              mv appimage/*.AppImage niche-notes-linux.AppImage
-              mv appimage/*.AppImage.sig niche-notes-linux.AppImage.sig
+            collect: mv deb/*.deb niche-notes-linux.deb
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -78,6 +76,34 @@ jobs:
           ${{ matrix.collect }}
           gh release upload desktop --clobber niche-notes-*
 
+  # The release doubles as the pacman repo `nichenotes`, so `pacman -Syu` updates the Arch app with the system.
+  arch:
+    needs: build
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      # Before checkout, which without git fetches no history to count.
+      - run: pacman -Syu --noconfirm git github-cli
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # makepkg refuses to run as root.
+      - working-directory: tauri/arch
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          version=$(git rev-list --count HEAD)
+          gh release download desktop --pattern niche-notes-linux.deb
+          useradd build && chown -R build .
+          su build -c "PKGVER=$version makepkg --nodeps"
+          package=niche-notes-$version-1-x86_64.pkg.tar.zst
+          repo-add nichenotes.db.tar.gz "$package"
+          mv -f nichenotes.db.tar.gz nichenotes.db
+          gh release upload desktop --clobber "$package" nichenotes.db
+          gh release view desktop --json assets -q '.assets[].name' | grep '\.pkg\.tar\.zst$' | grep -vx "$package" |
+            xargs -rn1 gh release delete-asset desktop -y
+
   # Last, so an installed app hears of the new version only once both downloads are there.
   updates:
     needs: build
@@ -92,13 +118,11 @@ jobs:
           download=https://github.com/$GH_REPO/releases/download/desktop
           gh release download desktop --pattern "*.sig"
           jq -n --arg version "$version" --arg download "$download" \
-            --rawfile mac niche-notes-mac.app.tar.gz.sig --rawfile windows niche-notes-windows-setup.exe.sig \
-            --rawfile linux niche-notes-linux.AppImage.sig '{
+            --rawfile mac niche-notes-mac.app.tar.gz.sig --rawfile windows niche-notes-windows-setup.exe.sig '{
               version: $version,
               platforms: {
                 "darwin-aarch64": {signature: $mac, url: "\($download)/niche-notes-mac.app.tar.gz"},
-                "windows-x86_64": {signature: $windows, url: "\($download)/niche-notes-windows-setup.exe"},
-                "linux-x86_64": {signature: $linux, url: "\($download)/niche-notes-linux.AppImage"}
+                "windows-x86_64": {signature: $windows, url: "\($download)/niche-notes-windows-setup.exe"}
               }
             }' > latest.json
           gh release upload desktop --clobber latest.json

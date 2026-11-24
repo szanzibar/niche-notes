@@ -128,7 +128,7 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            // An AppImage has no installed launcher entry to claim `nichenotes://` links, so it claims them at each start.
+            // The package's launcher entry drops the link it opens, so each start claims `nichenotes://` links itself.
             #[cfg(target_os = "linux")]
             app.deep_link().register_all()?;
             let handle = app.handle().clone();

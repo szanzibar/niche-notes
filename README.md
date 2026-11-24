@@ -86,12 +86,22 @@ usually have.
   and offer it on their next launch. The first update asks to allow installing unknown apps. The server's
   `FIREBASE_SERVICE_ACCOUNT` sends its alerts.
 - **Desktop.** A Tauri app for macOS on Apple silicon, Windows and Linux: the site in its own window, which stays
-  in the tray for alerts, starts at login and updates itself. Install `niche-notes-mac.dmg`,
-  `niche-notes-windows-setup.exe` or `niche-notes-linux.AppImage` from the repository's `desktop` release. None
-  carries a paid certificate, so a Mac asks for Open Anyway in System Settings once, and Windows shows SmartScreen
-  once and needs Smart App Control off. The AppImage goes in a folder the user can write to, such as
-  `~/Applications`, since it updates by replacing itself, and Gear Lever adds it to the launcher. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
-  push to `main` that touches `tauri/` builds both for the `PHX_HOST` repository variable and publishes them,
+  in the tray for alerts, starts at login and updates itself. Install `niche-notes-mac.dmg` or
+  `niche-notes-windows-setup.exe` from the repository's `desktop` release. Neither carries a paid certificate, so a
+  Mac asks for Open Anyway in System Settings once, and Windows shows SmartScreen once and needs Smart App Control
+  off. On Arch the same release is the pacman repo `nichenotes`, so `pacman -Syu` updates the app with the system.
+  Add it last in `/etc/pacman.conf`, so Arch's own repos win any clash of names, then run
+  `sudo pacman -Sy niche-notes`:
+
+  ```ini
+  [nichenotes]
+  SigLevel = Never
+  Server = https://github.com/szanzibar/niche-notes/releases/download/desktop
+  ```
+
+  It is unsigned because a key in CI would sit beside the code it signs, and `SigLevel` applies to this repo
+  alone. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
+  push to `main` that touches `tauri/` builds them for the `PHX_HOST` repository variable and publishes them,
   signed for updates with the `TAURI_SIGNING_PRIVATE_KEY` secret. `tauri/build.sh` builds the same on the machine
   it runs on, with the key in `tauri/updater.key`. Keep that key safe, because an installed app only takes
   updates signed with it.
