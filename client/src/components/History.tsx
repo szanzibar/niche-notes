@@ -1,6 +1,7 @@
 import Collaboration from '@tiptap/extension-collaboration'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { useEffect, useMemo, useState } from 'react'
+import { relativePositionToAbsolutePosition, ySyncPluginKey } from '@tiptap/y-tiptap'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Y from 'yjs'
 import { api } from '../lib/api'
 import { useStore } from '../sync/hooks'
@@ -73,6 +74,32 @@ export function History({
     [version],
   )
 
+  // A version opens at this device's cursor, or at the end when the cursor was written after it. While History is open,
+  // a version you go back to opens where you left it.
+  const scroller = useRef<HTMLDivElement>(null)
+  const scrolls = useRef(new Map<number, number>())
+  useEffect(() => {
+    // For one render after a version is chosen, the editor is still the last version's, already destroyed.
+    if (!editor || editor.isDestroyed || chosen == null) return
+    const scroll = scroller.current!
+    const back = scrolls.current.get(chosen)
+    if (back != null) {
+      scroll.scrollTop = back
+      return
+    }
+    const { binding } = ySyncPluginKey.getState(editor.state)!
+    const saved = localStorage.getItem(`cursor:${id}`)
+    const pos = saved
+      ? relativePositionToAbsolutePosition(binding.doc, binding.type, Y.createRelativePositionFromJSON(JSON.parse(saved)), binding.mapping)
+      : null
+    if (pos == null) {
+      scroll.scrollTop = scroll.scrollHeight
+      return
+    }
+    const { node } = editor.view.domAtPos(pos)
+    ;(node instanceof Element ? node : node.parentElement)?.scrollIntoView({ block: 'center' })
+  }, [editor, chosen, id])
+
   const restore = () => {
     doc.transact(() => {
       doc.getMap('meta').set('title', version.getMap('meta').get('title') ?? '')
@@ -105,13 +132,20 @@ export function History({
         <>
           <div role="group" aria-label="Versions" className="flex shrink-0 overflow-x-auto border-b-2 border-border bg-surface">
             {versions.map((v) => (
-              <Button key={v.seq} aria-pressed={v.seq === chosen} onClick={() => setSeq(v.seq)}>
+              <Button
+                key={v.seq}
+                aria-pressed={v.seq === chosen}
+                onClick={() => {
+                  scrolls.current.set(chosen!, scroller.current!.scrollTop)
+                  setSeq(v.seq)
+                }}
+              >
                 {label(v.at)}
               </Button>
             ))}
           </div>
           {/* Sunken and muted, as a note in the trash: readable, clearly not for writing. */}
-          <EditorContent editor={editor} className="flex-1 overflow-y-auto bg-sunken text-ink-muted" />
+          <EditorContent ref={scroller} editor={editor} className="flex-1 overflow-y-auto bg-sunken text-ink-muted" />
         </>
       ) : (
         (failed || !online) && <p className="m-auto text-ink-muted">History needs a connection.</p>
