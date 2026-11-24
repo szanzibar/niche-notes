@@ -4,6 +4,7 @@ import { appTheme } from './components/themes'
 import { Tree } from './components/Tree'
 import { registerAlerts } from './lib/alerts'
 import { api } from './lib/api'
+import { notePath } from './lib/links'
 import type { User } from './lib/types'
 
 interface Session {
@@ -63,16 +64,12 @@ function Shell() {
   // instead of loading a page over it. So a note always sits right over the list, and back from the list leaves.
   useEffect(() => {
     const open = (link: string) => {
-      const url = new URL(link, location.origin)
-      const n = url.searchParams.get('n')
-      url.searchParams.delete('n')
-      // A widget names its note as /?n=<id>, so Chrome hands it to this page instead of loading a new one.
-      const pathname = n ? `/n/${n}` : url.pathname
-      const search = url.search
+      const onNote = location.pathname.startsWith('/n/')
+      const note = notePath(link)
+      if (note) return navigate(note, { replace: onNote })
+      const { pathname, search } = new URL(link, location.origin)
       // A note's share link signs in on the server.
       if (pathname.startsWith('/s/')) return location.assign(link)
-      const onNote = location.pathname.startsWith('/n/')
-      if (pathname.startsWith('/n/')) return navigate(pathname + search, { replace: onNote })
       // Anything else, such as the widget picker, takes the list's place, so an open note closes first.
       if (!onNote) return navigate(pathname + search, { replace: true })
       addEventListener('popstate', () => navigate(pathname + search, { replace: true }), { once: true })

@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { lineEnd, newNote, signIn, test, uid } from './helpers'
+import { lineEnd, newNote, row, signIn, test, uid } from './helpers'
 
 const tool = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const body = (page: Page) => page.locator('.editor-body')
@@ -80,6 +80,35 @@ test('Link adds, changes and removes a link, and a click on a link edits it whil
   await page.keyboard.type('X')
   await expect(links).toContainText('X')
   expect(await popup).toBeNull()
+})
+
+test('a link to one of our notes opens it in place, from /n/ or /?n= and with its line', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Target', 'alpha')
+  const target = page.url()
+  await newNote(page, 'Source', 'one\ntwo')
+  const address = page.getByLabel('Link address')
+  const open = page.getByTitle('Open link')
+  const follow = async (word: string, href: string) => {
+    await body(page).getByText(word, { exact: true }).dblclick({ position: { x: 5, y: 5 } })
+    await tool(page, 'Link').click()
+    await address.fill(href)
+    await page.keyboard.press('Enter')
+    await body(page).locator('a', { hasText: word }).click()
+    const popup = page.waitForEvent('popup', { timeout: 1000 }).catch(() => null)
+    await open.click()
+    await expect(page.getByPlaceholder('Title')).toHaveValue('Target')
+    expect(await popup).toBeNull()
+  }
+
+  await follow('one', `${target}?line=alpha`)
+  expect(page.url()).toBe(`${target}?line=alpha`)
+  await page.goBack()
+  await expect(page.getByPlaceholder('Title')).toHaveCount(0)
+  await page.goForward()
+  await row(page, 'Source').click()
+  await follow('two', `${new URL(target).origin}/?n=${target.split('/n/')[1]}`)
+  expect(page.url()).toBe(target)
 })
 
 test('Highlight marks the selection', async ({ browser }) => {

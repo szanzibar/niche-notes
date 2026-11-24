@@ -1,7 +1,9 @@
 import type { Editor } from '@tiptap/react'
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus'
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { enableAlerts } from '../lib/alerts'
+import { notePath } from '../lib/links'
 import type { User } from '../lib/types'
 import { settings } from '../sync/tree'
 import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
@@ -65,6 +67,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
   // One box opens above the bar at a time: text styles, the address of a link, a checkbox line's date or its person.
   const [row, setRow] = useState<'styles' | 'link' | 'due' | 'person' | null>(null)
   const [href, setHref] = useState('')
+  const navigate = useNavigate()
   useEffect(() => {
     if (!editor) return
     // A tap on a line's date or person opens its box too.
@@ -197,6 +200,13 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
           target="_blank"
           rel="noopener noreferrer"
           title="Open link"
+          // A link to one of our notes opens it in place, over the list like any note.
+          onClick={(e) => {
+            const note = notePath(link!)
+            if (!note) return
+            e.preventDefault()
+            navigate(note, { replace: true })
+          }}
           className="flex h-9 max-w-[min(24rem,calc(100vw-2rem))] items-center gap-2 border-2 border-border bg-surface px-2 font-bold"
         >
           <OpenLinkIcon className={`${ICON} shrink-0`} />
