@@ -27,7 +27,10 @@ Versions live in `mise.toml`, `server/mix.exs` and `client/package.json`, not he
 cd server && mix test        # also mix compile --warnings-as-errors, mix format
 cd client && npm run build   # tsc then vite, writes to server/priv/static
 cd client && npm run e2e     # Playwright against its own Phoenix (:4199) and Vite (:5199)
+cd client && npm run e2e:app # the same servers with the desktop app over WebDriver, in Docker
 ```
+
+The browsers in `client/e2e` never load the apps' shell, so `client/e2e-app` covers what the shell does to the page and runs before an app release.
 
 Every major user flow has an e2e test in `client/e2e`. A change to a flow updates or adds one. The Mac app runs on Safari's engine, so the suite also runs with `-- --browser=webkit` before a desktop release. On Linux, which lacks the libraries Playwright's WebKit is built against, the browser runs in Playwright's image:
 
