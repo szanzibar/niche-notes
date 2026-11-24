@@ -22,7 +22,7 @@ const saved = LINK && existsSync(GUEST) ? readFileSync(GUEST, 'utf8') : undefine
 const login = await fetch(LINK ?? `${BASE}/auth/login?as=${AS}`, { redirect: 'manual', headers: saved ? { cookie: saved } : {} })
 const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? saved
 if (LINK) writeFileSync(GUEST, cookie)
-const linked = LINK && login.headers.get('location').split('/n/')[1]
+const linked = LINK && login.headers.get('location').split('/n/')[1].split('#')[0]
 const { user, token } = await (await fetch(`${BASE}/api/me`, { headers: { cookie } })).json()
 
 const socket = new Socket(BASE.replace(/^http/, 'ws') + '/socket', { params: { token } })
