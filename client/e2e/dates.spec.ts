@@ -706,15 +706,14 @@ test('a dated line keeps its date beside its own text when a longer line is nest
   await tool(page, 'Task list').click()
   await tool(page, 'Date').click()
   await tool(page, 'Tomorrow').click()
-  const office = page.locator('.editor-body p').getByText('Clean office', { exact: true })
-  await office.click()
-  await page.keyboard.press(lineEnd)
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Enter')
   await tool(page, 'Indent').click()
   await page.keyboard.type('and vacuum the whole bathroom too')
   await expect(line(page, 'and vacuum the whole bathroom too').last()).toBeVisible()
 
   // Where the words end, since the paragraph's box spans whatever holds it.
+  const office = page.locator('.editor-body p').getByText('Clean office', { exact: true })
   const end = await office.evaluate((p) => {
     const words = document.createRange()
     words.selectNodeContents(p)

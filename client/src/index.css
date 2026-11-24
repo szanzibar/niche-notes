@@ -78,18 +78,23 @@ body {
    It folds away rather than vanishing, so the lines below slide up. */
 .editor-body li { interpolate-size: allow-keywords; transition: height 0.2s, opacity 0.2s, display 0.2s allow-discrete; }
 [data-hide-checked] .editor-body li[data-checked="true"]:not([data-lingering]):not(:has(li[data-checked="false"], [data-lingering])) { display: none; height: 0; opacity: 0; overflow: hidden; }
-/* A checkbox line's date and then its person follow its text. The words come from the label attribute. */
-/* Checkbox, text, date and person share the first row, and what is nested under the line goes below, so they stay
-   beside the line's own text however wide the nested lines are. */
-.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee]) { display: grid; grid-template-columns: auto minmax(0, max-content) auto auto 1fr; gap: 0 0.6rem; }
-.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee]) > div { display: contents; }
-.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee]) > div > p:first-of-type { grid-area: 1 / 2; }
-.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee]) > :is(.due-chip, .person-chip) { grid-area: 1 / 3; }
+/* A checkbox line's date, person and then count follow its text. The words come from the label attribute. */
+/* Checkbox, text, date, person and count share the first row, and what is nested under the line goes below, so they
+   stay beside the line's own text however wide the nested lines are. */
+.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) { display: grid; grid-template-columns: auto minmax(0, max-content) auto auto 1fr; gap: 0 0.6rem; }
+.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > div { display: contents; }
+.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > div > p:first-of-type { grid-area: 1 / 2; }
+.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > :is(.due-chip, .person-chip) { grid-area: 1 / 3; }
 .editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed]) > .person-chip { grid-area: 1 / 4; }
-.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee]) > div > :not(p:first-of-type, .line-grip) { grid-column: 2 / -1; }
+/* The count takes the first free cell after the date and person, so the checkbox claims its cell first. */
+.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > label { grid-area: 1 / 1; }
+.editor-body ul[data-type="taskList"] > li[data-count] > .task-count { grid-row: 1; }
+.editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > div > :not(p:first-of-type, .line-grip) { grid-column: 2 / -1; }
 .editor-body :is(.due-chip, .person-chip) { flex: none; margin-top: 0.15rem; border: 2px solid var(--border); padding: 0 0.3rem; font-size: 0.8rem; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; user-select: none; }
-.editor-body :is(.due-chip, .person-chip)::after { content: attr(data-label); }
-.editor-body :is(.due-chip, .person-chip):not([data-label]) { display: none; }
+.editor-body :is(.due-chip, .person-chip, .task-count)::after { content: attr(data-label); }
+.editor-body :is(.due-chip, .person-chip, .task-count):not([data-label]) { display: none; }
+/* The count sits on the chips' text line without their border, and a tap on it lands on the line. */
+.editor-body .task-count { margin-top: calc(0.15rem + 2px); font-size: 0.8rem; font-weight: 700; line-height: 1.4; color: var(--ink-muted); white-space: nowrap; pointer-events: none; }
 .editor-body .due-chip[data-overdue] { color: var(--accent-ink); border-color: var(--accent-ink); }
 .editor-body li[data-checked="true"] > :is(.due-chip, .person-chip) { color: var(--ink-muted); border-color: var(--ink-muted); }
 /* Words typed as a date and the date they are about to become wear the same fill, so one reads as the other. */

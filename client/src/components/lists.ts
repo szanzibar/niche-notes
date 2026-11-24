@@ -574,7 +574,11 @@ export const TaskItem = TipTapTaskItem.extend({
       const person = document.createElement('span')
       person.className = 'person-chip'
       person.contentEditable = 'false'
-      li.append(chip, person)
+      // How many of the tasks directly under the line are checked.
+      const count = document.createElement('span')
+      count.className = 'task-count'
+      count.contentEditable = 'false'
+      li.append(chip, person, count)
       // While typed words wait to become the date, the chip shows the date they make, and a tap keeps the words.
       const showChips = (node: Node, decorations: readonly Decoration[]) => {
         const { due, repeat, checked } = node.attrs
@@ -587,6 +591,18 @@ export const TaskItem = TipTapTaskItem.extend({
         const name = decorations.find((d) => d.spec.person)?.spec.person as string | undefined
         if (name) person.dataset.label = name
         else delete person.dataset.label
+        let tasks = 0
+        let done = 0
+        node.forEach((child) => {
+          if (child.type.name !== 'taskList') return
+          tasks += child.childCount
+          child.forEach((task) => {
+            if (task.attrs.checked) done++
+          })
+        })
+        if (tasks) count.dataset.label = `${done}/${tasks}`
+        else delete count.dataset.label
+        li.toggleAttribute('data-count', tasks > 0)
       }
       showChips(props.node, props.decorations)
       const openBox = (event: string) => {

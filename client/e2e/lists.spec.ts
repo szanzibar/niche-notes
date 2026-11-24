@@ -168,6 +168,25 @@ test('a checked line hides only once every line under it is checked, and only th
   await expect(shown).toHaveCount(0)
 })
 
+test('a task with tasks under it counts the checked ones, hidden ones included', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Trip', 'Socks')
+  await tool(page, 'Indent').click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Charger')
+  const count = body(page).locator('.task-count[data-label]')
+  await expect(count).toHaveAttribute('data-label', '0/2')
+  await expect(count).toBeVisible()
+
+  await page.getByRole('checkbox', { name: 'Task item checkbox for Socks' }).check()
+  await expect(count).toHaveAttribute('data-label', '1/2')
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
+  await expect(body(page).locator('li p:visible')).toHaveText(['Trip', 'Charger'])
+  await expect(count).toHaveAttribute('data-label', '1/2')
+  await expect(count).toHaveCount(1)
+})
+
 test('the menu opens over the note and closes on a tap back in the note', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Milk', 'Eggs')
