@@ -42,7 +42,7 @@ defmodule NicheNotesWeb.LinkController do
       link ->
         user_id = get_session(conn, :user_id) || guest_id()
         :ok = Docs.join(link, user_id)
-        shares_changed([link.doc.owner_id, user_id])
+        shares_changed(Docs.member_ids(link.doc_id))
 
         # `#link` keeps the note in this browser, since the desktop app here may have no access to it.
         conn |> put_session(:user_id, user_id) |> redirect(to: "/n/#{link.doc_id}#link")

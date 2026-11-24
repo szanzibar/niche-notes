@@ -43,6 +43,7 @@ export function ShareDialog({ id }: { id: string }) {
   // Whoever shares the most notes with us comes first, so the usual person is one tap away and a field finds the rest.
   const together = new Map<string, number>()
   for (const x of s.shares) {
+    if (x.owner_id !== s.me!.id && x.user_id !== s.me!.id) continue
     const other = x.owner_id === s.me!.id ? x.user_id : x.owner_id
     together.set(other, (together.get(other) ?? 0) + 1)
   }

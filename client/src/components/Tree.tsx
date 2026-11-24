@@ -32,6 +32,7 @@ import {
   moveNotes,
   nodes,
   ownerName,
+  people,
   purgeNote,
   removeFromTree,
   restoreNote,
@@ -178,15 +179,20 @@ export function Tree({ selected }: { selected?: string }) {
       ...(unfolded.has(path + id) ? listed(children(id), depth + 1, `${path}${id}/`) : []),
     ])
   const results = listed(hits.map((hit) => hit.id), 0, '')
-  // Every dated line, in a section for when it is due, under its note. The note with the oldest line comes first.
-  // The count is what needs doing by today.
+  // Every dated line that isn't assigned to someone else on its note, in a section for when it is due, under its
+  // note. The note with the oldest line comes first. The count is what needs doing by today.
   const [dueOpen, setDueOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const today = dayOf(new Date())
   const tomorrow = inDays(1)
   const dated = [...nodes().keys()]
     .filter((id) => !inTrash(id))
-    .flatMap((id) => textOf(id).dated.map((line) => ({ id, ...line })))
+    .flatMap((id) => {
+      const on = people(id).map((u) => u.id)
+      return textOf(id)
+        .dated.filter((line) => !line.assignee || line.assignee === s.me!.id || !on.includes(line.assignee))
+        .map((line) => ({ id, ...line }))
+    })
     .sort((a, b) => a.due.localeCompare(b.due))
   const dueCount = dated.filter((line) => line.due.split('T')[0] <= today).length
   const sections = new Map<string, Map<string, typeof dated>>(DUE_SECTIONS.map((name) => [name, new Map()]))

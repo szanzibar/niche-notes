@@ -140,6 +140,112 @@ defmodule NicheNotes.RemindersTest do
     refute_received :push
   end
 
+  test "a line assigned to someone on its note alerts only them, and everyone again once they're off it" do
+    me = user!("me")
+    other = user!("other")
+    note = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(note, me.id)
+    {:ok, _} = Docs.share(note, me.id, other.id)
+
+    for {user, place} <- [{me, "mine"}, {other, "theirs"}] do
+      {public, _} = :crypto.generate_key(:ecdh, :prime256v1)
+
+      keys = %{
+        "p256dh" => Base.url_encode64(public, padding: false),
+        "auth" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+      }
+
+      {:ok, _} =
+        Push.subscribe(
+          user.id,
+          %{"endpoint" => "https://push.example/#{place}", "keys" => keys},
+          "Europe/Amsterdam"
+        )
+    end
+
+    edit!(note, fn doc ->
+      paragraph = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from("Pay rent")])
+      attrs = %{"checked" => false, "due" => "2026-11-14", "assignee" => other.id}
+
+      Yex.XmlFragment.push(
+        Yex.Doc.get_xml_fragment(doc, "content"),
+        Yex.XmlElementPrelim.new("taskList", [
+          Yex.XmlElementPrelim.new("taskItem", [paragraph], attrs)
+        ])
+      )
+    end)
+
+    test = self()
+
+    Req.Test.stub(Push, fn conn ->
+      send(test, {:push, conn.request_path})
+      Plug.Conn.send_resp(conn, 201, "")
+    end)
+
+    # 9:00 in Amsterdam is 8:00 UTC.
+    state = %{notes: %{}, seen: 0, at: ~U[2026-11-14 07:00:00Z]}
+    state = Reminders.pass(state, ~U[2026-11-14 08:30:00Z])
+    assert_received {:push, "/theirs"}
+    refute_received {:push, _}
+
+    {:ok, _} = Docs.unshare(note, me.id, other.id)
+    Reminders.pass(%{state | at: ~U[2026-11-14 07:00:00Z]}, ~U[2026-11-14 08:30:00Z])
+    assert_received {:push, "/mine"}
+    refute_received {:push, _}
+  end
+
+  test "assigning someone a task alerts them once, saying who assigned which task in which note" do
+    me = user!("me")
+    other = user!("other")
+    note = Ecto.UUID.generate()
+    {:ok, _} = Docs.open(note, me.id)
+    {:ok, _} = Docs.share(note, me.id, other.id)
+
+    edit!(note, fn doc ->
+      Yex.Map.set(Yex.Doc.get_map(doc, "meta"), "title", "Groceries")
+
+      items =
+        for {text, attrs} <- [
+              {"Buy milk", %{"assignee" => other.id, "assignedBy" => me.id}},
+              {"Call mum", %{"assignee" => me.id}}
+            ] do
+          paragraph = Yex.XmlElementPrelim.new("paragraph", [Yex.XmlTextPrelim.from(text)])
+          Yex.XmlElementPrelim.new("taskItem", [paragraph], Map.put(attrs, "checked", false))
+        end
+
+      Yex.XmlFragment.push(
+        Yex.Doc.get_xml_fragment(doc, "content"),
+        Yex.XmlElementPrelim.new("taskList", items)
+      )
+    end)
+
+    # Desktop apps, whose alerts arrive as they are, in the clear.
+    :ok = Push.listen(me.id, "Europe/Amsterdam")
+    :ok = Push.listen(other.id, "Europe/Amsterdam")
+    NicheNotesWeb.Endpoint.subscribe("doc:#{note}")
+
+    state =
+      Reminders.pass(
+        %{notes: %{}, seen: 0, at: ~U[2026-11-14 07:00:00Z]},
+        ~U[2026-11-14 08:30:00Z]
+      )
+
+    assert_received {:alert,
+                     %{
+                       title: "me assigned you a task in Groceries",
+                       body: "Buy milk",
+                       text: "Buy milk",
+                       note: ^note
+                     }}
+
+    refute_received {:alert, _}
+    assert_received %Phoenix.Socket.Broadcast{event: "update"}
+
+    Reminders.pass(state, ~U[2026-11-14 08:31:00Z])
+    refute_received {:alert, _}
+    assert Docs.take_assignments(note) == []
+  end
+
   test "the server reads repeat rules the way the app does" do
     # The app's own cases in dates.spec.ts, from Monday 16 November 2026: the rule's first day after today, or
     # after the line's date when that is later.

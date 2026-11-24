@@ -273,7 +273,8 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     end
 
     dated.(groceries, "Groceries", [
-      {"eggs", %{"due" => "2026-11-22T09:00"}},
+      # Assigned to someone who isn't on the note, so it is everyone's.
+      {"eggs", %{"due" => "2026-11-22T09:00", "assignee" => other.id}},
       {String.duplicate("a", 250), %{"due" => "2026-11-20"}},
       {"no date", %{}}
     ])
@@ -281,7 +282,11 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     house = Ecto.UUID.generate()
     {:ok, _} = Docs.open(house, other.id)
     {:ok, _} = Docs.share(house, other.id, me.id)
-    dated.(house, "House", [{"bins", %{"due" => "2026-11-18", "repeat" => "FREQ=WEEKLY"}}])
+
+    dated.(house, "House", [
+      {"bins", %{"due" => "2026-11-18", "repeat" => "FREQ=WEEKLY"}},
+      {"theirs to do", %{"due" => "2026-11-18", "assignee" => other.id}}
+    ])
 
     left = Ecto.UUID.generate()
     {:ok, _} = Docs.open(left, other.id)

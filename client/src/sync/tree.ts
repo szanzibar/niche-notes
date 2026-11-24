@@ -58,6 +58,13 @@ export function ownerName(id: string) {
   return store.users.find((u) => u.id === ownerOf(id))?.name.split(' ')[0] ?? 'shared with me'
 }
 
+// Who a task on this note can be assigned to: its owner and everyone it is shared with who isn't a guest. A guest
+// knows only the owner.
+export function people(id: string) {
+  const on = [ownerOf(id), ...store.shares.filter((s) => s.doc_id === id).map((s) => s.user_id)]
+  return store.users.filter((u) => on.includes(u.id) && !u.guest)
+}
+
 export function shareCount(id: string) {
   return store.shares.filter((s) => s.doc_id === id).length
 }

@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/react'
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus'
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { enableAlerts } from '../lib/alerts'
+import type { User } from '../lib/types'
 import { settings } from '../sync/tree'
 import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
 import {
@@ -28,6 +29,7 @@ import {
   NumberedListIcon,
   OpenLinkIcon,
   OutdentIcon,
+  PersonIcon,
   QuoteIcon,
   RedoIcon,
   StrikeIcon,
@@ -36,7 +38,7 @@ import {
   UndoIcon,
   UnlinkIcon,
 } from './icons'
-import { listPosition, toggleList } from './lists'
+import { assign, listPosition, toggleList, typedPerson } from './lists'
 import { Popover } from './Popover'
 
 const ICON = 'h-5 w-5'
@@ -55,22 +57,27 @@ const FIELD = 'h-9 min-w-0 border-2 border-border bg-bg px-2 outline-none focus:
 // The box sits under the link, or over it when the keyboard leaves no room below.
 const LINK_BOX = { placement: 'bottom-start', offset: 6, shift: { padding: 8 } } as const
 const inLink: BubbleMenuProps['shouldShow'] = ({ editor, view }) => view.hasFocus() && editor.isActive('link')
+const typingPerson: BubbleMenuProps['shouldShow'] = ({ view, state }) => view.hasFocus() && Boolean(typedPerson.getState(state)?.at)
 
-export function Toolbar({ editor }: { editor: Editor | null }) {
+// `people` are who a task on the note can be assigned to.
+export function Toolbar({ editor, people }: { editor: Editor | null; people: User[] }) {
   const [, force] = useReducer((x: number) => x + 1, 0)
-  // One box opens above the bar at a time: text styles, the address of a link, or a checkbox line's date.
-  const [row, setRow] = useState<'styles' | 'link' | 'due' | null>(null)
+  // One box opens above the bar at a time: text styles, the address of a link, a checkbox line's date or its person.
+  const [row, setRow] = useState<'styles' | 'link' | 'due' | 'person' | null>(null)
   const [href, setHref] = useState('')
   useEffect(() => {
     if (!editor) return
-    // A tap on a line's date opens its box too.
+    // A tap on a line's date or person opens its box too.
     const due = () => setRow('due')
+    const person = () => setRow('person')
     const dom = editor.view.dom
     editor.on('transaction', force)
     dom.addEventListener('due-date', due)
+    dom.addEventListener('assign', person)
     return () => {
       editor.off('transaction', force)
       dom.removeEventListener('due-date', due)
+      dom.removeEventListener('assign', person)
     }
   }, [editor])
   // Moving into a table brings its tools into view on a narrow bar.
@@ -165,6 +172,8 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
   }
   const start = parseDay(day || inDays(0))
   const weekday = DAYS[start.getDay()]
+  const assignee = people.find((u) => u.id === line?.attrs.assignee)?.id ?? null
+  const typed = typedPerson.getState(editor.state)?.at
 
   const applyLink = () => {
     close()
@@ -193,6 +202,20 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
           <OpenLinkIcon className={`${ICON} shrink-0`} />
           <span className="truncate">{link?.replace(/^https?:\/\//, '')}</span>
         </a>
+      </BubbleMenu>
+      <BubbleMenu editor={editor} pluginKey="personBox" shouldShow={typingPerson} options={LINK_BOX} className="z-10 w-max">
+        <div className="flex border-2 border-border bg-surface p-1">
+          {typed?.matches.map((user, i) => (
+            <Tool
+              key={user.id}
+              label={user.name.split(' ')[0]}
+              active={i === 0}
+              onClick={() => assign(editor.view, typed.line, user.id, typed)}
+            >
+              {user.name.split(' ')[0]}
+            </Tool>
+          ))}
+        </div>
       </BubbleMenu>
       <div className="relative m-2">
         {moreLeft && (
@@ -410,6 +433,32 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                 )}
               </div>
             </Popover>
+            {people.length > 1 && (
+              <Popover
+                side="top"
+                open={row === 'person'}
+                onOpenChange={(open) => setRow(open ? 'person' : null)}
+                trigger={
+                  <Tool label="Assign" disabled={!line} active={row === 'person' || assignee != null}>
+                    <PersonIcon className={ICON} />
+                  </Tool>
+                }
+              >
+                {[null, ...people].map((user) => (
+                  <Tool
+                    key={user?.id ?? ''}
+                    label={user ? user.name.split(' ')[0] : 'Nobody'}
+                    active={assignee === (user?.id ?? null)}
+                    onClick={() => {
+                      setRow(null)
+                      assign(editor.view, linePos!, user?.id ?? null)
+                    }}
+                  >
+                    {user ? user.name.split(' ')[0] : 'Nobody'}
+                  </Tool>
+                ))}
+              </Popover>
+            )}
           </Group>
           <Group>
             <Tool label="Outdent" disabled={inTable} onClick={() => chain().liftListItem(listItem).run()}>

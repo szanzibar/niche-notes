@@ -25,6 +25,26 @@ defmodule NicheNotesWeb.ShareControllerTest do
     refute Docs.can_access?(note, other.id)
   end
 
+  test "everyone on a note sees who else it is shared with, and hears when that changes", %{
+    conn: conn,
+    other: other,
+    note: note
+  } do
+    third = NicheNotesWeb.ChannelCase.user!("third")
+    assert conn |> post("/api/docs/#{note}/shares", %{user_id: other.id}) |> response(201)
+    NicheNotesWeb.Endpoint.subscribe("user:#{other.id}")
+    assert conn |> post("/api/docs/#{note}/shares", %{user_id: third.id}) |> response(201)
+    assert_received %Phoenix.Socket.Broadcast{event: "shares_changed"}
+
+    as_other = build_conn() |> Plug.Test.init_test_session(%{user_id: other.id})
+
+    assert as_other |> get("/api/shares") |> json_keys() |> Enum.map(& &1.user_id) |> Enum.sort() ==
+             Enum.sort([other.id, third.id])
+
+    assert conn |> delete("/api/docs/#{note}/shares/#{third.id}") |> response(204)
+    assert_received %Phoenix.Socket.Broadcast{event: "shares_changed"}
+  end
+
   test "the person a note is shared with hears about it on each device with alerts on", %{
     conn: conn,
     me: me,

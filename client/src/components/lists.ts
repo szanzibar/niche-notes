@@ -6,6 +6,8 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { Extension, type Editor } from '@tiptap/react'
 import { yUndoPluginKey, ySyncPluginKey } from '@tiptap/y-tiptap'
 import { enableAlerts } from '../lib/alerts'
+import type { User } from '../lib/types'
+import { store } from '../sync/store'
 import { settings } from '../sync/tree'
 import { dueLabel, nextDue, overdue, parseRule, type Typed, typedDates, withTyped } from './dates'
 import { GRIP } from './icons'
@@ -489,6 +491,20 @@ export const TaskItem = TipTapTaskItem.extend({
         parseHTML: (el) => Number(el.getAttribute('data-duration')) || null,
         renderHTML: ({ duration }) => (duration ? { 'data-duration': duration } : {}),
       },
+      // A user id.
+      assignee: {
+        default: null,
+        keepOnSplit: false,
+        parseHTML: (el) => el.getAttribute('data-assignee'),
+        renderHTML: ({ assignee }) => (assignee ? { 'data-assignee': assignee } : {}),
+      },
+      // Who assigned the line to someone else, until the server has told them. A pasted copy tells nobody.
+      assignedBy: {
+        default: null,
+        keepOnSplit: false,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
+      },
     }
   },
   addNodeView() {
@@ -504,9 +520,13 @@ export const TaskItem = TipTapTaskItem.extend({
       const chip = document.createElement('span')
       chip.className = 'due-chip'
       chip.contentEditable = 'false'
-      li.append(chip)
+      // The person's first name follows the date and opens the box that assigns the line.
+      const person = document.createElement('span')
+      person.className = 'person-chip'
+      person.contentEditable = 'false'
+      li.append(chip, person)
       // While typed words wait to become the date, the chip shows the date they make, and a tap keeps the words.
-      const showDue = (node: Node, decorations: readonly Decoration[]) => {
+      const showChips = (node: Node, decorations: readonly Decoration[]) => {
         const { due, repeat, checked } = node.attrs
         const typed = decorations.find((d) => d.spec.typed)?.spec.typed as string | undefined
         if (typed) chip.dataset.label = `${typed} ✕`
@@ -514,16 +534,26 @@ export const TaskItem = TipTapTaskItem.extend({
         else delete chip.dataset.label
         chip.toggleAttribute('data-typed', typed != null)
         chip.toggleAttribute('data-overdue', Boolean(due) && !checked && overdue(due))
+        const name = decorations.find((d) => d.spec.person)?.spec.person as string | undefined
+        if (name) person.dataset.label = name
+        else delete person.dataset.label
       }
-      showDue(props.node, props.decorations)
-      chip.addEventListener('mousedown', (e) => e.preventDefault())
-      chip.addEventListener('click', () => {
+      showChips(props.node, props.decorations)
+      const openBox = (event: string) => {
         const pos = getPos()
         if (!editor.isEditable || pos == null) return
-        if (chip.hasAttribute('data-typed')) return editor.view.dispatch(editor.state.tr.setMeta(typedWords, 'keep'))
         editor.commands.setTextSelection(pos + editor.state.doc.nodeAt(pos)!.firstChild!.nodeSize)
-        editor.view.dom.dispatchEvent(new Event('due-date'))
+        editor.view.dom.dispatchEvent(new Event(event))
+      }
+      chip.addEventListener('mousedown', (e) => e.preventDefault())
+      chip.addEventListener('click', () => {
+        if (editor.isEditable && chip.hasAttribute('data-typed')) {
+          return editor.view.dispatch(editor.state.tr.setMeta(typedWords, 'keep'))
+        }
+        openBox('due-date')
       })
+      person.addEventListener('mousedown', (e) => e.preventDefault())
+      person.addEventListener('click', () => openBox('assign'))
       // The space after the date belongs to the line, not its text, and a phone puts the cursor on the next
       // line for a tap there. It goes to the end of the tapped row instead.
       li.addEventListener('click', (e) => {
@@ -539,7 +569,7 @@ export const TaskItem = TipTapTaskItem.extend({
         const was = li.dataset.checked === 'true'
         if (!update(node, decorations, inner)) return false
         if (node.attrs.checked !== was) li.toggleAttribute('data-lingering', node.attrs.checked)
-        showDue(node, decorations)
+        showChips(node, decorations)
         return true
       }
       // The editor would read the lingering mark as an edit to the line.
@@ -686,6 +716,85 @@ export const TaskItem = TipTapTaskItem.extend({
     ]
   },
 })
+
+// Assigns the checkbox line at `pos` to someone on the note, or to nobody, and takes out the `@` and name that picked
+// them. The server tells them, unless they assigned it to themselves.
+export function assign(view: EditorView, pos: number, user: string | null, words?: { from: number; to: number }) {
+  const me = store.me!.id
+  const tr = view.state.tr.setNodeMarkup(pos, undefined, {
+    ...view.state.doc.nodeAt(pos)!.attrs,
+    assignee: user,
+    assignedBy: user && user !== me ? me : null,
+  })
+  // The words take the space before them along.
+  if (words) tr.delete(/\s/.test(tr.doc.textBetween(words.from - 1, words.from)) ? words.from - 1 : words.from, words.to)
+  view.dispatch(tr)
+}
+
+// `@` and the start of a name, typed right before the cursor on a checkbox line's own text, and the people on the note
+// it could be. Escape keeps it as text.
+interface TypedPerson {
+  from: number
+  to: number
+  line: number
+  matches: User[]
+}
+type People = { at: TypedPerson | null; kept: number | null }
+export const typedPerson = new PluginKey<People>('typedPerson')
+
+// Each assigned line names its person while they are on the note, and `@` and a name assigns a line on a note shared
+// with someone.
+export const Assignees = (people: () => User[]) =>
+  Extension.create({
+    name: 'assignees',
+    // Ahead of the list's Enter, which would split the line instead of picking the person.
+    priority: 101,
+    addProseMirrorPlugins() {
+      return [
+        new Plugin<People>({
+          key: typedPerson,
+          state: {
+            init: () => ({ at: null, kept: null }),
+            apply: (tr, was, _old, state) => {
+              const kept =
+                tr.getMeta(typedPerson) === 'keep' ? (was.at?.from ?? null) : was.kept == null ? null : tr.mapping.map(was.kept)
+              const { $from, empty } = state.selection
+              const onLine = empty && $from.depth >= 2 && $from.node(-1).type.name === 'taskItem' && $from.index(-1) === 0
+              const before = onLine ? $from.parent.textBetween(0, $from.parentOffset, undefined, '\ufffc') : ''
+              const typed = /(?:^|\s)@([\p{L}\p{N}]*)$/u.exec(before)
+              if (!typed) return { at: null, kept: null }
+              const from = $from.pos - typed[1].length - 1
+              if (from === kept) return { at: null, kept }
+              const all = people()
+              const query = typed[1].toLowerCase()
+              const matches = all.length > 1 ? all.filter((u) => u.name.toLowerCase().startsWith(query)) : []
+              return { at: matches.length ? { from, to: $from.pos, line: $from.before(-1), matches } : null, kept: null }
+            },
+          },
+          props: {
+            handleKeyDown: (view, e) => {
+              const { at } = typedPerson.getState(view.state)!
+              if (!at || (e.key !== 'Escape' && e.key !== 'Enter')) return false
+              if (e.key === 'Escape') view.dispatch(view.state.tr.setMeta(typedPerson, 'keep'))
+              else assign(view, at.line, at.matches[0].id, at)
+              return true
+            },
+            decorations: (state) => {
+              const named = people()
+              const found: Decoration[] = []
+              state.doc.descendants((node, pos) => {
+                const person = node.attrs.assignee && named.find((u) => u.id === node.attrs.assignee)
+                if (node.type.name === 'taskItem' && person) {
+                  found.push(Decoration.node(pos, pos + node.nodeSize, {}, { person: person.name.split(' ')[0] }))
+                }
+              })
+              return DecorationSet.create(state.doc, found)
+            },
+          },
+        }),
+      ]
+    },
+  })
 
 // A line is done once it and every line nested under it are checked. Only a done line hides, with what is
 // nested under it, and only done lines are deleted. The server's widget lines follow the same rule.

@@ -12,7 +12,7 @@ defmodule NicheNotesWeb.ShareController do
 
     case Docs.share(doc_id, me, user_id) do
       {:ok, _share} ->
-        shares_changed([me, user_id])
+        shares_changed(Docs.member_ids(doc_id))
         tell_recipient(doc_id, me, user_id)
         send_resp(conn, :created, "")
 
@@ -28,9 +28,9 @@ defmodule NicheNotesWeb.ShareController do
     me = conn.assigns.current_user_id
 
     case Docs.unshare(doc_id, me, user_id) do
-      {:ok, owner_id} ->
+      {:ok, _owner_id} ->
         NicheNotesWeb.DocChannel.close(doc_id, [user_id])
-        shares_changed([owner_id, user_id])
+        shares_changed([user_id | Docs.member_ids(doc_id)])
         send_resp(conn, :no_content, "")
 
       {:error, :forbidden} ->
@@ -52,6 +52,7 @@ defmodule NicheNotesWeb.ShareController do
     for subscription <- Push.subscriptions([user_id]), do: Push.send(subscription, message)
   end
 
+  # Everyone on the note, since each of them can assign a task to the others.
   defp shares_changed(user_ids) do
     for id <- user_ids, do: NicheNotesWeb.Endpoint.broadcast("user:#{id}", "shares_changed", %{})
   end

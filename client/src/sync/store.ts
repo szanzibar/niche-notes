@@ -94,6 +94,7 @@ export function getAwareness(id: string) {
 export interface Dated {
   due: string
   text: string
+  assignee?: string | null
 }
 // Search leaves out checked lines unless asked, so their text sits apart. The lines nested under one stay in.
 export type Text = { text: string; checked: string; dated: Dated[] }
@@ -115,7 +116,7 @@ function plain(content: Y.XmlFragment): Text {
     if (!due) return []
     const words: string[] = []
     walk(item.get(0), words)
-    return [{ due, text: words.join('') }]
+    return [{ due, text: words.join(''), assignee: (item.getAttribute('assignee') as string | undefined) ?? null }]
   })
   return { text: text.join(' '), checked: checked.join(' '), dated }
 }

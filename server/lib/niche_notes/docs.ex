@@ -193,7 +193,7 @@ defmodule NicheNotes.Docs do
     {nodes, settings} = tree = tree(user_id)
 
     rows =
-      for {id, {title, lines}} <- Map.take(Reminders.notes(), note_ids(user_id)),
+      for {id, {title, lines}} <- Reminders.notes_for(user_id),
           nodes[id]["leftAt"] == nil,
           line <- lines do
         %{
@@ -322,6 +322,45 @@ defmodule NicheNotes.Docs do
     end
   end
 
+  # The tasks someone assigned to another person, each once, since reading them removes `assignedBy`. One assigned
+  # offline arrives with it. Known and accepted: reassigning on a device that hasn't heard of the removal writes no
+  # new `assignedBy`, so that assignee isn't alerted.
+  def take_assignments(doc_id) do
+    with {doc, title, _meta, content} <- load(doc_id),
+         [_ | _] = found <- Enum.flat_map(content, &assigned/1),
+         {:ok, before} <- Yex.encode_state_vector(doc) do
+      for {line, _assignment} <- found, do: Yex.XmlElement.remove_attribute(line, "assignedBy")
+      {:ok, update} = Yex.encode_state_as_update(doc, before)
+      stored = append_update(doc_id, update)
+
+      NicheNotesWeb.Endpoint.broadcast!("doc:#{doc_id}", "update", %{
+        seq: stored.id,
+        update: Base.encode64(update)
+      })
+
+      for {_line, assignment} <- found, do: Map.put(assignment, :title, title)
+    else
+      _ -> []
+    end
+  end
+
+  defp assigned(%Yex.XmlElement{} = element) do
+    children = Enum.to_list(Yex.XmlElement.children(element))
+    nested = Enum.flat_map(children, &assigned/1)
+    attribute = &Yex.XmlElement.get_attribute(element, &1)
+
+    with "taskItem" <- Yex.XmlElement.get_tag(element),
+         [%Yex.XmlElement{} = first | _] <- children,
+         by when is_binary(by) <- attribute.("assignedBy"),
+         assignee when is_binary(assignee) <- attribute.("assignee") do
+      [{element, %{assignee: assignee, by: by, text: text(first)}} | nested]
+    else
+      _ -> nested
+    end
+  end
+
+  defp assigned(_text), do: []
+
   # Alerts carry a line's text cut to 200 letters.
   defp find_line(%Yex.XmlElement{} = element, due, text) do
     children = Enum.to_list(Yex.XmlElement.children(element))
@@ -449,8 +488,18 @@ defmodule NicheNotes.Docs do
              do: round(minutes),
              else: (_ -> nil)
 
+      assignee = if is_binary(attribute.("assignee")), do: attribute.("assignee")
+
       [
-        %{text: text(first), due: due, date: date, time: time, repeat: repeat, duration: duration}
+        %{
+          text: text(first),
+          due: due,
+          date: date,
+          time: time,
+          repeat: repeat,
+          duration: duration,
+          assignee: assignee
+        }
         | nested
       ]
     else
@@ -572,11 +621,14 @@ defmodule NicheNotes.Docs do
     stored
   end
 
+  # Everyone on each note, so anyone on it can assign a task to the others.
   def list_shares(user_id) do
     Repo.all(
       from s in DocShare,
         join: d in assoc(s, :doc),
-        where: d.owner_id == ^user_id or s.user_id == ^user_id,
+        left_join: mine in DocShare,
+        on: mine.doc_id == s.doc_id and mine.user_id == ^user_id,
+        where: d.owner_id == ^user_id or not is_nil(mine.user_id),
         select: %{
           doc_id: s.doc_id,
           user_id: s.user_id,

@@ -24,6 +24,7 @@ import {
   isPinned,
   nodes,
   ownerName,
+  people,
   purgeNote,
   readOnly,
   removeNote,
@@ -59,6 +60,7 @@ import { OfflineIcon } from './OfflineIcon'
 import { Popover } from './Popover'
 import { ShareDialog } from './ShareDialog'
 import {
+  Assignees,
   deleteChecked,
   dragByTouch,
   HideChecked,
@@ -188,6 +190,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         LineGrips,
         Placeholder.configure({ placeholder: 'Write…' }),
         HideChecked(hidingChecked),
+        Assignees(() => people(id)),
         FindInNote(hidingChecked),
         Collaboration.configure({
           document: doc,
@@ -559,7 +562,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           </span>
         </DragHandle>
       )}
-      {!reading && <Toolbar editor={editor} />}
+      {!reading && <Toolbar editor={editor} people={people(id)} />}
     </>
   )
 }
