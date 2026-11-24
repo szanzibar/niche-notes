@@ -137,6 +137,11 @@ body {
 .editor-body .selectedCell { background: color-mix(in srgb, var(--accent) 35%, var(--bg)); }
 /* Tints mixed with the page color, since the design has no transparency. */
 .editor-body mark { background: color-mix(in srgb, var(--accent) 30%, var(--bg)); color: inherit; padding: 0 0.1em; }
+.editor-body .find-match { background: color-mix(in srgb, var(--accent) 30%, var(--bg)); }
+.editor-body .find-current { background: var(--accent); color: var(--on-accent); }
+/* The find box floats over the top of the note, so the note makes room under it. */
+[data-finding] { scroll-padding-top: 4.5rem; }
+[data-finding] .editor-body { padding-top: 4.5rem; }
 .editor-body ::selection, input::selection { background: color-mix(in srgb, var(--accent) 35%, var(--bg)); }
 .editor-body, input { caret-color: var(--accent-ink); }
 .editor-body a { color: var(--accent-ink); text-decoration: underline; }

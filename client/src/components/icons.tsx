@@ -53,6 +53,7 @@ export const CheckedIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 
 export const ChevronLeftIcon = icon('M15 18l-6-6 6-6')
 export const ChevronRightIcon = icon('M9 18l6-6-6-6')
 export const ChevronDownIcon = icon('M6 9l6 6 6-6')
+export const ChevronUpIcon = icon('M18 15l-6-6-6 6')
 export function MoreIcon({ className = SIZE }: { className?: string }) {
   return (
     <svg {...base} strokeWidth={3.5} className={className} fill="none" aria-hidden>
@@ -61,6 +62,7 @@ export function MoreIcon({ className = SIZE }: { className?: string }) {
   )
 }
 export const UncheckAllIcon = icon('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M9 9h6v6H9z')
+export const SearchIcon = icon('M19 11a8 8 0 1 1-16 0a8 8 0 1 1 16 0M21 21l-4.3-4.3')
 export const SettingsIcon = icon('M20 7h-9M14 17H5M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M10 7a3 3 0 1 1-6 0a3 3 0 1 1 6 0')
 
 // The editor's toolbar.

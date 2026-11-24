@@ -689,7 +689,7 @@ export const TaskItem = TipTapTaskItem.extend({
 
 // A line is done once it and every line nested under it are checked. Only a done line hides, with what is
 // nested under it, and only done lines are deleted. The server's widget lines follow the same rule.
-function done(node: Node) {
+export function done(node: Node) {
   if (node.type.name !== 'taskItem' || !node.attrs.checked) return false
   let open = false
   node.descendants((child) => {

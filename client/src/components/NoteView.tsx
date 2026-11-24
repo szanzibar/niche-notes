@@ -2,7 +2,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { Placeholder } from '@tiptap/extensions'
 import { Plugin } from '@tiptap/pm/state'
-import { EditorContent, Extension, useEditor, useEditorState } from '@tiptap/react'
+import { EditorContent, Extension, type Editor as TipTapEditor, useEditor, useEditorState } from '@tiptap/react'
 import {
   absolutePositionToRelativePosition,
   relativePositionToAbsolutePosition,
@@ -34,7 +34,10 @@ import {
 } from '../sync/tree'
 import { Button, IconButton, MenuItem } from './Button'
 import {
+  ChevronDownIcon,
   ChevronLeftIcon,
+  ChevronUpIcon,
+  CloseIcon,
   GripIcon,
   LeaveIcon,
   MoreIcon,
@@ -42,12 +45,14 @@ import {
   PinIcon,
   RemoveNoteIcon,
   RemoveWithNotesIcon,
+  SearchIcon,
   TrashIcon,
   UncheckAllIcon,
   UsersIcon,
   ViewIcon,
 } from './icons'
 import { contentExtensions } from './content'
+import { find, FindInNote } from './find'
 import { OfflineIcon } from './OfflineIcon'
 import { Popover } from './Popover'
 import { ShareDialog } from './ShareDialog'
@@ -165,8 +170,10 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       meta.set('hideChecked', on && mode === 'hideChecked')
       meta.set('deleteChecked', on && mode === 'deleteChecked')
     })
-  // The menu, opened on its own, on the note's colors, or on whether the notes under this one go with it.
-  const [panel, setPanel] = useState<'menu' | 'color' | 'remove' | null>(null)
+  // The menu, opened on its own, on the note's colors, on whether the notes under this one go with it, or as the
+  // find box.
+  const [panel, setPanel] = useState<'menu' | 'color' | 'remove' | 'find' | null>(null)
+  const hidingChecked = () => meta.get('hideChecked') === true || meta.get('deleteChecked') === true
 
   const editor = useEditor(
     {
@@ -177,7 +184,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         JoinLists,
         LineGrips,
         Placeholder.configure({ placeholder: 'Write…' }),
-        HideChecked(() => meta.get('hideChecked') === true || meta.get('deleteChecked') === true),
+        HideChecked(hidingChecked),
+        FindInNote(hidingChecked),
         Collaboration.configure({
           document: doc,
           field: 'content',
@@ -300,6 +308,21 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
   }, [editor, id])
 
+  // Ctrl or ⌘ and F find in the note rather than the page.
+  const findField = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (guest || deleted) return
+    const open = (e: KeyboardEvent) => {
+      if (e.key !== 'f' || !(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      setPanel('find')
+      findField.current?.focus()
+      findField.current?.select()
+    }
+    addEventListener('keydown', open)
+    return () => removeEventListener('keydown', open)
+  }, [guest, deleted])
+
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
 
   const mine = isMine(id)
@@ -378,13 +401,18 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       side="bottom"
       open={panel != null}
       onOpenChange={(open) => setPanel(open ? 'menu' : null)}
+      className={panel === 'find' ? 'w-[min(calc(100vw-1rem),24rem)]' : ''}
       trigger={
         <IconButton label="More" className="-mr-1">
           <MoreIcon />
         </IconButton>
       }
     >
-      <div className="flex w-64 flex-col">
+      {panel === 'find' && editor && <FindBox editor={editor} field={findField} onClose={() => setPanel(null)} />}
+      <div hidden={panel === 'find'} className="flex w-64 flex-col">
+        <MenuItem icon={<SearchIcon />} onClick={() => setPanel('find')}>
+          Find in note
+        </MenuItem>
         <MenuItem icon={<PaletteIcon />} aria-expanded={panel === 'color'} onClick={() => setPanel(panel === 'color' ? 'menu' : 'color')}>
           Color
         </MenuItem>
@@ -499,6 +527,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         editor={editor}
         className="relative flex-1 overflow-y-auto bg-surface"
         data-hide-checked={(hiding && !clearing) || undefined}
+        data-finding={panel === 'find' || undefined}
       />
       {editor && !reading && (
         // Pointing at a heading or paragraph shows its handle, and dragging the handle moves it. List lines have
@@ -516,5 +545,57 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       )}
       {!reading && <Toolbar editor={editor} />}
     </>
+  )
+}
+
+function FindBox({
+  editor,
+  field,
+  onClose,
+}: {
+  editor: TipTapEditor
+  field: React.RefObject<HTMLInputElement | null>
+  onClose: () => void
+}) {
+  const { query, current, matches } = useEditorState({ editor, selector: ({ editor }) => find.getState(editor.state)! })
+  const send = (meta: { query: string } | { step: 1 | -1 }) => editor.view.dispatch(editor.state.tr.setMeta(find, meta))
+  // Closing the box, however it closes, clears its marks.
+  useEffect(
+    () => () => {
+      if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(find, { query: '' }))
+    },
+    [editor],
+  )
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1">
+      <input
+        ref={field}
+        aria-label="Find in note"
+        autoFocus
+        value={query}
+        onChange={(e) => send({ query: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return
+          e.preventDefault()
+          send({ step: e.shiftKey ? -1 : 1 })
+        }}
+        className="h-9 min-w-0 flex-1 border-2 border-border bg-bg px-2 outline-none focus:border-accent-ink"
+      />
+      {query && (
+        <span className="shrink-0 px-1 text-sm whitespace-nowrap text-ink-muted">
+          {matches.length ? `${current + 1} of ${matches.length}` : 'No matches.'}
+        </span>
+      )}
+      {/* The buttons leave the field focused, so the phone's keyboard stays up. */}
+      <IconButton label="Previous match" onMouseDown={(e) => e.preventDefault()} onClick={() => send({ step: -1 })}>
+        <ChevronUpIcon />
+      </IconButton>
+      <IconButton label="Next match" onMouseDown={(e) => e.preventDefault()} onClick={() => send({ step: 1 })}>
+        <ChevronDownIcon />
+      </IconButton>
+      <IconButton label="Close" onClick={onClose}>
+        <CloseIcon />
+      </IconButton>
+    </div>
   )
 }
