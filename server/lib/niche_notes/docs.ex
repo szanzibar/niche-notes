@@ -76,29 +76,43 @@ defmodule NicheNotes.Docs do
     )
   end
 
-  # The last 20 minutes keep every edit, the month before one row per 10 minutes, and anything older one row. An active
-  # note keeps at most 6 rows an hour plus the last 20 minutes of keystrokes, about 500 rows for a month of 3 hours a day.
+  # By a row's age: one row per minute for 20 minutes, per 10 minutes to a day, per hour to two days, per UTC day to
+  # two weeks, and one row before that. An active note keeps at most about 20 + 144 + 24 + 12 + 1 ≈ 200 rows.
   # A row takes its bucket's last id and newest time, so a device's `since` keeps meaning "I hold everything up to here"
   # and the row stays in its bucket. A plain merge, since rebuilding the doc drops an edit that waits on a row the log
   # lacks. Deleted text stays.
-  defp fold(doc_id) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-    month = DateTime.add(now, -30, :day)
+  def fold(doc_id, now \\ DateTime.utc_now()) do
+    now = DateTime.to_unix(now)
 
     rows =
       from u in DocUpdate,
-        where:
-          u.doc_id == ^doc_id and
-            (is_nil(u.inserted_at) or u.inserted_at < ^DateTime.add(now, -20, :minute)),
+        where: u.doc_id == ^doc_id,
         select: %{
           id: u.id,
           at: u.inserted_at,
           update: u.update,
           bucket:
             fragment(
-              "CASE WHEN ? >= ? THEN unixepoch(?) / 600 ELSE 0 END",
+              """
+              CASE
+                WHEN ? - unixepoch(?) < 1200 THEN 'minute ' || (unixepoch(?) / 60)
+                WHEN ? - unixepoch(?) < 86400 THEN '10 minutes ' || (unixepoch(?) / 600)
+                WHEN ? - unixepoch(?) < 172800 THEN 'hour ' || (unixepoch(?) / 3600)
+                WHEN ? - unixepoch(?) < 1209600 THEN 'day ' || (unixepoch(?) / 86400)
+                ELSE 'base'
+              END
+              """,
+              ^now,
               u.inserted_at,
-              type(^month, :utc_datetime),
+              u.inserted_at,
+              ^now,
+              u.inserted_at,
+              u.inserted_at,
+              ^now,
+              u.inserted_at,
+              u.inserted_at,
+              ^now,
+              u.inserted_at,
               u.inserted_at
             )
         }
