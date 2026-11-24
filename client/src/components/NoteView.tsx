@@ -200,7 +200,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
           color: caretColor(s.me!.id),
         }),
       ],
-      editorProps: { attributes: { class: 'editor-body' } },
+      // Android's WebView checks spelling only where the page asks for it.
+      editorProps: { attributes: { class: 'editor-body', spellcheck: 'true' } },
     },
     [doc],
   )

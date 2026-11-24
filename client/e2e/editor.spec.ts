@@ -119,3 +119,9 @@ test('Find in note marks each match outside hidden tasks and steps through them'
   await page.keyboard.press('ControlOrMeta+f')
   await expect(field).toBeFocused()
 })
+
+test("a note's text asks for spell checking, which Android checks only where asked", async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Spelling', 'Thiss')
+  await expect(body(page)).toHaveAttribute('spellcheck', 'true')
+})

@@ -97,6 +97,17 @@ impl ksni::Tray for Tray {
 }
 
 pub fn setup(app: &mut App) -> tauri::Result<()> {
+    // WebKit checks spelling only when the app's defaults say so. A registered default still lets the
+    // context menu's Check Spelling While Typing turn it off for good.
+    #[cfg(target_os = "macos")]
+    unsafe {
+        use objc2::runtime::AnyObject;
+        use objc2_foundation::{ns_string, NSDictionary, NSNumber, NSUserDefaults};
+        let on: &AnyObject = &NSNumber::new_bool(true);
+        let defaults =
+            NSDictionary::from_slices(&[ns_string!("WebContinuousSpellCheckingEnabled")], &[on]);
+        NSUserDefaults::standardUserDefaults().registerDefaults(&defaults);
+    }
     #[cfg(target_os = "linux")]
     {
         use ksni::TrayMethods;

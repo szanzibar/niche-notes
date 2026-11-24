@@ -2415,6 +2415,8 @@ dependencies = [
  "futures-util",
  "iana-time-zone",
  "ksni",
+ "objc2",
+ "objc2-foundation",
  "reqwest",
  "serde_json",
  "tauri",
@@ -2428,6 +2430,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tokio",
  "tokio-tungstenite",
+ "webkit2gtk",
 ]
 
 [[package]]

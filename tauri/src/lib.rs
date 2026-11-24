@@ -109,7 +109,21 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
                 }
             }
         });
+        #[cfg(not(target_os = "linux"))]
         let _ = window.build();
+        // WebKitGTK checks spelling only once the app turns it on and names the languages.
+        #[cfg(target_os = "linux")]
+        if let Ok(window) = window.build() {
+            let _ = window.with_webview(|webview| {
+                use webkit2gtk::{glib, WebContextExt, WebViewExt};
+                let context = webview.inner().context().unwrap();
+                let languages = glib::language_names();
+                context.set_spell_checking_languages(
+                    &languages.iter().map(|l| l.as_str()).collect::<Vec<_>>(),
+                );
+                context.set_spell_checking_enabled(true);
+            });
+        }
     });
 }
 
