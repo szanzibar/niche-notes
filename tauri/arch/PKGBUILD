@@ -12,4 +12,6 @@ sha256sums=(SKIP)
 
 package() {
   bsdtar -xf data.tar.gz -C "$pkgdir"
+  # KWin finds a window's icon by the launcher named after its app_id, which is the binary's name.
+  mv "$pkgdir/usr/share/applications/Niche Notes.desktop" "$pkgdir/usr/share/applications/niche-notes.desktop"
 }
