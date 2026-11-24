@@ -102,6 +102,7 @@ export const ShareIcon = icon(
   'M21 5a3 3 0 1 1-6 0a3 3 0 1 1 6 0M9 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0M21 19a3 3 0 1 1-6 0a3 3 0 1 1 6 0M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98',
 )
 export const ClockIcon = icon('M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0M12 6v6l4 2')
+export const HistoryIcon = icon('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2')
 export const InfoIcon = icon('M12 16v-4M12 8h.01M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0')
 export const GRIP = 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01'
 export const GripIcon = icon(GRIP)

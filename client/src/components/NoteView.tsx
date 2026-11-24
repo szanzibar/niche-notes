@@ -39,6 +39,7 @@ import {
   ChevronUpIcon,
   CloseIcon,
   GripIcon,
+  HistoryIcon,
   LeaveIcon,
   MoreIcon,
   PaletteIcon,
@@ -53,6 +54,7 @@ import {
 } from './icons'
 import { contentExtensions } from './content'
 import { find, FindInNote } from './find'
+import { History } from './History'
 import { OfflineIcon } from './OfflineIcon'
 import { Popover } from './Popover'
 import { ShareDialog } from './ShareDialog'
@@ -174,6 +176,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   // find box.
   const [panel, setPanel] = useState<'menu' | 'color' | 'remove' | 'find' | null>(null)
   const hidingChecked = () => meta.get('hideChecked') === true || meta.get('deleteChecked') === true
+  const [history, setHistory] = useState(false)
 
   const editor = useEditor(
     {
@@ -311,7 +314,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   // Ctrl or ⌘ and F find in the note rather than the page.
   const findField = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    if (guest || deleted) return
+    if (guest || deleted || history) return
     const open = (e: KeyboardEvent) => {
       if (e.key !== 'f' || !(e.ctrlKey || e.metaKey)) return
       e.preventDefault()
@@ -321,7 +324,7 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
     addEventListener('keydown', open)
     return () => removeEventListener('keydown', open)
-  }, [guest, deleted])
+  }, [guest, deleted, history])
 
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
 
@@ -447,6 +450,11 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
         <MenuItem icon={<PinIcon filled={isPinned(id)} />} onClick={() => close(() => togglePin(id))}>
           {isPinned(id) ? 'Unpin' : 'Pin'}
         </MenuItem>
+        {!reading && (
+          <MenuItem icon={<HistoryIcon />} onClick={() => close(() => setHistory(true))}>
+            History
+          </MenuItem>
+        )}
         {tasks?.any && editor && !reading && (
           <section className="mt-1 border-t-2 border-border pt-2">
             <p className="px-2 text-xs font-bold uppercase tracking-wide text-ink-muted">Checked tasks</p>
@@ -498,6 +506,13 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       </div>
     </Popover>
   )
+
+  if (history)
+    return (
+      <History id={id} doc={doc} onClose={() => setHistory(false)}>
+        {back}
+      </History>
+    )
 
   return (
     <>

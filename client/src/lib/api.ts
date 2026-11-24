@@ -28,6 +28,7 @@ export const api = {
   deleteDoc: (docId: string) => request<void>(`/docs/${docId}`, { method: 'DELETE' }),
   unshare: (docId: string, userId: string) =>
     request<void>(`/docs/${docId}/shares/${userId}`, { method: 'DELETE' }),
+  history: (docId: string) => request<{ rows: [number, string | null, string][] }>(`/docs/${docId}/history`),
   widgetToken: (docId: string) => request<{ token: string }>(`/docs/${docId}/widget_token`),
   links: (docId: string) => request<{ links: Link[] }>(`/docs/${docId}/links`),
   createLink: (docId: string, token: string, readOnly: boolean) =>
