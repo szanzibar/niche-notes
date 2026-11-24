@@ -4,7 +4,9 @@ pkgver=${PKGVER:?}
 pkgrel=1
 arch=(x86_64)
 options=(!debug)
-depends=(webkit2gtk-4.1 gtk3 openssl-3)
+# WebKitGTK checks spelling only with a dictionary for one of the system's languages.
+depends=(webkit2gtk-4.1 gtk3 openssl-3 hunspell-en_us)
+optdepends=('hunspell-de: German spell checking, with German in the system languages')
 source=(niche-notes-linux.deb)
 sha256sums=(SKIP)
 

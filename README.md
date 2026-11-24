@@ -68,8 +68,8 @@ Dev sign-in needs no Pocket ID: `/auth/login` signs you in, `/auth/login?as=wife
 
 The desktop app that `./dev.sh` builds and starts is `Niche Notes Dev`, with its own identifier, so it runs beside
 the installed app. In WSL it is the Windows app, built with `cargo-xwin`, which needs
-`sudo apt install clang lld llvm` once. On Linux it needs WebKitGTK 4.1 and libappindicator, which KDE desktops
-usually have.
+`sudo apt install clang lld llvm` once. On Linux it needs WebKitGTK 4.1, and a hunspell dictionary such as
+`hunspell-en_us` for spell check.
 
 `./private-files.sh save` zips what git leaves out, such as `.env`, the signing keys and the dev database, and
 `restore` puts it in place in another clone.
@@ -100,7 +100,8 @@ usually have.
   ```
 
   It is unsigned because a key in CI would sit beside the code it signs, and `SigLevel` applies to this repo
-  alone. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
+  alone. Spell check uses the system's languages, so German also needs `hunspell-de` and German in the desktop's
+  language list. Login opens Pocket ID in the default browser, since a passkey can't work in the app's window. A
   push to `main` that touches `tauri/` builds them for the `PHX_HOST` repository variable and publishes them,
   signed for updates with the `TAURI_SIGNING_PRIVATE_KEY` secret. `tauri/build.sh` builds the same on the machine
   it runs on, with the key in `tauri/updater.key`. Keep that key safe, because an installed app only takes
