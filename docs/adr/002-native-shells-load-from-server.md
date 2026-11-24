@@ -34,3 +34,6 @@ The Android app is now the Tauri project's, because a day on Steven's phone show
 
 It keeps the TWA's package name and signing key, so it installs over the TWA as an update and placed widgets keep their notes. Each phone signs in once more, since Chrome's cookie stays in Chrome. Chrome also keeps its Web Push subscription for the site, so each person blocks the site's notifications in Chrome once, or every alert shows twice. `/.well-known/assetlinks.json` stays, since Android opens the server's links in the app only once that file names it.
 
+## Amendment 2026-11-24: note links reach the desktop app through the browser
+
+No desktop OS lets an app claim its site's https links, so a note's link from another app, such as a calendar event, opens in the default browser. The login's hand-off gives that browser an `app` cookie, and a note's link loaded there goes on to the app as `nichenotes://open/n/<id>?…`, which the shell opens in its window. The browser asks once, and the note stays open in the tab. A share link's note stays in the browser, since the app's person may have no access to it.

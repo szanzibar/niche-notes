@@ -17,7 +17,7 @@ defmodule NicheNotesWeb.LinkControllerTest do
     link = create(conn, note, false)
 
     visitor = get(build_conn(), "/s/#{link}")
-    assert redirected_to(visitor) == "/n/#{note}"
+    assert redirected_to(visitor) == "/n/#{note}#link"
     guest = Accounts.get_user(get_session(visitor, :user_id))
     assert guest.name =~ ~r/^[A-Z][a-z]+ [A-Z][a-z]+$/
     assert Docs.can_edit?(note, guest.id)
@@ -113,7 +113,7 @@ defmodule NicheNotesWeb.LinkControllerTest do
     opened =
       build_conn() |> Plug.Test.init_test_session(%{user_id: other.id}) |> get("/s/#{link}")
 
-    assert redirected_to(opened) == "/n/#{note}"
+    assert redirected_to(opened) == "/n/#{note}#link"
     assert conn |> delete("/api/docs/#{note}/links/#{link}") |> response(204)
     assert Docs.can_edit?(note, other.id)
   end

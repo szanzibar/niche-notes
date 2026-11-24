@@ -6,18 +6,24 @@ defmodule NicheNotesWeb.Plugs.HandOff do
   link, and the app loads the same callback in its window with `app=1`.
 
   With `app=1` nothing is handed on, so a link the window never asked for only reloads the notes.
+
+  With `app_cookie: true` the hand-off also gives that browser the `app` cookie, so the page there passes note
+  links on to the app as well.
   """
   import Plug.Conn
   import Phoenix.Controller, only: [html: 2, redirect: 2]
 
-  # `state` is where the flow keeps its state in the session.
-  def init(state: path), do: path
+  # A year, like the session, and readable by the page.
+  @app_cookie [max_age: 365 * 24 * 60 * 60, http_only: false, same_site: "Lax"]
 
-  def call(conn, path) do
+  # `state` is where the flow keeps its state in the session.
+  def init(opts), do: opts
+
+  def call(conn, opts) do
     state = conn.params["state"]
 
     cond do
-      state != nil and state == get_in(get_session(conn), path) ->
+      state != nil and state == get_in(get_session(conn), opts[:state]) ->
         conn
 
       conn.params["app"] == "1" ->
@@ -26,6 +32,9 @@ defmodule NicheNotesWeb.Plugs.HandOff do
       true ->
         "/auth/" <> callback = conn.request_path
         link = Plug.HTML.html_escape("nichenotes://#{callback}?#{conn.query_string}")
+
+        conn =
+          if opts[:app_cookie], do: put_resp_cookie(conn, "app", "1", @app_cookie), else: conn
 
         conn
         |> html("""

@@ -46,6 +46,8 @@ defmodule NicheNotesWeb.AuthControllerTest do
     assert html_response(browser, 200) =~
              ~s(href="nichenotes://callback?#{String.replace(query, "&", "&amp;")}")
 
+    assert %{value: "1", http_only: false, same_site: "Lax"} = browser.resp_cookies["app"]
+
     # The window that started it runs the callback, which fails here for want of a Pocket ID.
     assert window |> recycle() |> get("/auth/callback?#{query}&app=1") |> json_response(400)
 

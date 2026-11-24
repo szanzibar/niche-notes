@@ -139,9 +139,16 @@ pub fn run() {
                         show_window(&handle, Some(link));
                         continue;
                     }
-                    // Pocket ID's or Google's answer to a login the window started, handed on by the browser
-                    // that got it. Windows hands `nichenotes://callback?…` over as `nichenotes://callback/?…`.
+                    // Windows hands `nichenotes://callback?…` over as `nichenotes://callback/?…`.
                     let path = link.path().trim_end_matches('/');
+                    // A note's link opened in the browser this app signed in through.
+                    if link.host_str() == Some("open") && path.starts_with("/n/") {
+                        let query = link.query().map(|q| format!("?{q}")).unwrap_or_default();
+                        show_window(&handle, Some(page(&format!("{path}{query}"))));
+                        continue;
+                    }
+                    // Pocket ID's or Google's answer to a login the window started, handed on by the browser
+                    // that got it.
                     let callback = format!("{}{path}", link.host_str().unwrap_or_default());
                     if ["callback", "google/callback"].contains(&callback.as_str()) {
                         let query = link.query().unwrap_or_default();

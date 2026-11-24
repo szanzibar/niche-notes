@@ -82,6 +82,8 @@ defmodule NicheNotesWeb.GoogleCalendarControllerTest do
 
       assert html_response(browser, 200) =~
                ~s(href="nichenotes://google/callback?code=code&amp;state=state")
+
+      refute browser.resp_cookies["app"]
     end
 
     assert Repo.all(Connection) == []

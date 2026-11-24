@@ -136,6 +136,30 @@ test("a calendar event's link opens its note with the cursor at the end of its l
   await expect(page).toHaveURL(/\/$/)
 })
 
+test("a browser that signed in this computer's desktop app passes a note's link on to it, but not a share link", async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Rent')
+  const id = page.url().split('/n/')[1]
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('button', { name: 'New edit link' }).click()
+  await expect(page.getByText('Nobody yet')).toBeVisible()
+  const { links } = await (await page.request.get(`/api/docs/${id}/links`)).json()
+  const handedOn: string[] = []
+  page.on('request', (request) => void (request.url().startsWith('nichenotes:') && handedOn.push(request.url())))
+
+  await page.goto(`/n/${id}?line=Rent`)
+  await page.context().addCookies([{ name: 'app', value: '1', domain: 'localhost', path: '/' }])
+  await page.goto(`/s/${links[0].token}`)
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Chores')
+  const handOff = page.waitForRequest(/^nichenotes:/)
+  await page.goto(`/?n=${id}&line=Rent`)
+  await handOff
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Chores')
+  expect(handedOn).toEqual([`nichenotes://open/n/${id}?line=Rent`])
+})
+
 test('a monthly repeat can be the nth or last weekday, several at once', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Clean filters')

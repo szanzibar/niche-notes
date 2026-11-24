@@ -4,7 +4,7 @@ defmodule NicheNotesWeb.AuthController do
   alias NicheNotes.Accounts
 
   plug NicheNotesWeb.Plugs.HandOff,
-       [state: ["oidc_session_params", :state]] when action == :callback
+       [state: ["oidc_session_params", :state], app_cookie: true] when action == :callback
 
   def login(conn, _params) do
     # Pocket ID signs the same person straight back in while its own session lasts, so after Sign out it asks.
