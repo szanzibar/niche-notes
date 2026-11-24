@@ -3,7 +3,9 @@
 
 use crate::{alerts, show_window};
 use std::time::Duration;
+#[cfg(not(target_os = "linux"))]
 use tauri::menu::{Menu, MenuItem};
+#[cfg(not(target_os = "linux"))]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::webview::PageLoadEvent;
 use tauri::{App, AppHandle, Builder, Manager, RunEvent, WebviewWindowBuilder, WindowEvent, Wry};
@@ -50,35 +52,93 @@ pub fn window<'a>(
         })
 }
 
+/// A click on the tray icon closes the window when it is on screen, and opens it otherwise.
+fn toggle_window(app: &AppHandle) {
+    match app.get_webview_window("main") {
+        Some(window)
+            if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(true) =>
+        {
+            let _ = window.close();
+        }
+        _ => show_window(app, None),
+    }
+}
+
+/// Tauri's tray never reports a click on Linux, and Plasma sends this one its clicks over D-Bus.
+#[cfg(target_os = "linux")]
+struct Tray(AppHandle, ksni::Icon);
+
+#[cfg(target_os = "linux")]
+impl ksni::Tray for Tray {
+    fn id(&self) -> String {
+        self.0.config().identifier.clone()
+    }
+
+    fn title(&self) -> String {
+        self.0.package_info().name.clone()
+    }
+
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        vec![self.1.clone()]
+    }
+
+    fn activate(&mut self, _x: i32, _y: i32) {
+        toggle_window(&self.0);
+    }
+
+    fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        vec![ksni::menu::StandardItem {
+            label: "Quit".into(),
+            activate: Box::new(|tray: &mut Self| tray.0.exit(0)),
+            ..Default::default()
+        }
+        .into()]
+    }
+}
+
 pub fn setup(app: &mut App) -> tauri::Result<()> {
-    #[cfg(target_os = "macos")]
-    let icon = tauri::include_image!("icons/tray.png");
-    #[cfg(not(target_os = "macos"))]
-    let icon = app.default_window_icon().unwrap().clone();
-    // Linux never reports a click on the icon, so its menu opens the window.
-    let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    TrayIconBuilder::new()
-        .icon(icon)
-        .icon_as_template(true)
-        .tooltip(&app.package_info().name)
-        .menu(&Menu::with_items(app, &[&open, &quit])?)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "open" => show_window(app, None),
-            _ => app.exit(0),
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                show_window(tray.app_handle(), None);
-            }
-        })
-        .build(app)?;
+    #[cfg(target_os = "linux")]
+    {
+        use ksni::TrayMethods;
+        let icon = app.default_window_icon().unwrap();
+        let argb = icon.rgba().chunks(4).flat_map(|p| [p[3], p[0], p[1], p[2]]);
+        let icon = ksni::Icon {
+            width: icon.width() as i32,
+            height: icon.height() as i32,
+            data: argb.collect(),
+        };
+        let tray = Tray(app.handle().clone(), icon);
+        // A desktop without a tray host just has no tray.
+        tauri::async_runtime::spawn(async move {
+            let _ = tray.spawn().await;
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        #[cfg(target_os = "macos")]
+        let icon = tauri::include_image!("icons/tray.png");
+        #[cfg(not(target_os = "macos"))]
+        let icon = app.default_window_icon().unwrap().clone();
+        let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+        TrayIconBuilder::new()
+            .icon(icon)
+            .icon_as_template(true)
+            .tooltip(&app.package_info().name)
+            .menu(&Menu::with_items(app, &[&quit])?)
+            .show_menu_on_left_click(false)
+            .on_menu_event(|app, _| app.exit(0))
+            .on_tray_icon_event(|tray, event| {
+                if let TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } = event
+                {
+                    toggle_window(tray.app_handle());
+                }
+            })
+            .build(app)?;
+    }
 
     alerts::start(app.handle());
 

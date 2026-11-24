@@ -101,7 +101,7 @@ The app, in `tauri/`, tested on macOS against a local server and compiled for Wi
 
 - [x] The window on the server, one instance, remembering its size and place. Other hosts and links that ask for a new window open in the default browser
 - [x] `nichenotes://callback` and `nichenotes://google/callback` finish a login in the window. On Windows the link arrives as an argument to a second process
-- [x] Closing the window leaves the tray icon and, on a Mac, takes the app out of the Dock. A click on the icon or opening the app again shows the window, the tray's menu has Quit, ⌘Q quits too, and the app starts at login
+- [x] Closing the window leaves the tray icon and, on a Mac, takes the app out of the Dock. A click on the icon shows the window or closes it, opening the app again shows it, the tray's right-click menu has Quit, ⌘Q quits too, and the app starts at login
 - [x] A connected tray is one more subscription. It joins `alerts:<user id>` with its time zone, `Push.subscriptions/1` returns it beside the Web Push ones, and `Push.send/2` sends its alert down the socket. `Reminders`, sharing and the other senders stay as they are
 - [x] The tray connects with a token from `/api/me`, which it fetches with the window's session cookie, so there is no second credential. It reads the cookie when the app starts and whenever the window loads a page, since signing in and out both load one, so alerts work right after the first login
 - [x] The tray reconnects after a sleep or a lost network, and shows each alert as a notification
@@ -154,7 +154,7 @@ All five held, so Android moved to Tauri (ADR 002 amendment, 2026-11-18):
 Linux, for Kathrin's Fedora KDE laptop and Steven's CachyOS one (2026-11-23):
 
 - [x] A pacman package, since an AppImage carries its own WebKit at 117 MB and the package is 5 MB. CI repackages the .deb Ubuntu builds, and the `desktop` release serves it as the repo `nichenotes`, so `pacman -Syu` updates it. Kathrin uses the site in her browser, since she'll rarely open it
-- [x] The tray menu has Open, since Linux never reports a click on the icon. Each start claims `nichenotes://` links, since the package's launcher entry drops the link it opens
+- [x] The tray is a StatusNotifierItem of our own, since Tauri's tray never reports a click on Linux, so a click opens or closes the window there too (2026-11-24). Each start claims `nichenotes://` links, since the package's launcher entry drops the link it opens
 - [x] `./dev.sh` builds and opens the dev app on Linux. There the window draws properly on the NVIDIA laptop, signs in to the dev server, the tray joins the alerts channel, and the service worker registers and precaches on prod
 - [ ] The first workflow run publishes the package and `nichenotes.db`, and the Ubuntu-built binary runs on Steven's laptop. Then the release's old AppImage files go
 - [ ] Steven: login against production, an alert from the tray with a click that opens its line, and an update through `pacman -Syu`

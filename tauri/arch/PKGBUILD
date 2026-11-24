@@ -4,7 +4,7 @@ pkgver=${PKGVER:?}
 pkgrel=1
 arch=(x86_64)
 options=(!debug)
-depends=(webkit2gtk-4.1 gtk3 libappindicator openssl-3)
+depends=(webkit2gtk-4.1 gtk3 openssl-3)
 source=(niche-notes-linux.deb)
 sha256sums=(SKIP)
 
