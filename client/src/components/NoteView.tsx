@@ -208,6 +208,13 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     },
     [doc],
   )
+  // A line's name redraws once the note's people arrive or change, not only on the next edit.
+  const named = people(id)
+    .map((u) => u.id + u.name)
+    .join()
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr)
+  }, [editor, named])
 
   const tasks = useEditorState({
     editor,
