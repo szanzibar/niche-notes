@@ -30,6 +30,7 @@ class MainActivity : TauriActivity() {
     const val LINE = "line"
     private const val UPDATES = "updates"
     private const val OFFERED = "updateOffered"
+    private const val OFFERED_VERSION = "updateOfferedVersion"
     private const val DAY_MS = 24 * 60 * 60 * 1000L
   }
 
@@ -61,9 +62,9 @@ class MainActivity : TauriActivity() {
     update()
   }
 
-  // Each start looks for a newer release. One an earlier start downloaded waits in a quiet notification, at most once
-  // a day, and a tap installs it, so an update never interrupts someone using the app. With notifications off, none
-  // is offered.
+  // Each start looks for a newer release. One an earlier start downloaded waits in a quiet notification, and a tap
+  // installs it, so an update never interrupts someone using the app. A dismissed offer comes back a day later, and a
+  // newer release is offered at once. With notifications off, none is offered.
   private fun update() {
     val apk = File(cacheDir, "update.apk")
     // Zero when nothing usable was downloaded.
@@ -74,8 +75,8 @@ class MainActivity : TauriActivity() {
     BuildConfig.RELEASES?.let { releases -> Thread { download(releases, apk, maxOf(ready, have)) }.start() }
     val offered = getPreferences(MODE_PRIVATE)
     val now = System.currentTimeMillis()
-    if (ready <= have || now - offered.getLong(OFFERED, 0) < DAY_MS) return
-    offered.edit().putLong(OFFERED, now).apply()
+    if (ready <= have || ready == offered.getLong(OFFERED_VERSION, 0) && now - offered.getLong(OFFERED, 0) < DAY_MS) return
+    offered.edit().putLong(OFFERED, now).putLong(OFFERED_VERSION, ready).apply()
     val install = Intent(Intent.ACTION_VIEW)
       .setDataAndType(
         FileProvider.getUriForFile(this, "$packageName.fileprovider", apk),
