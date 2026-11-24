@@ -67,6 +67,9 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
   // One box opens above the bar at a time: text styles, the address of a link, a checkbox line's date or its person.
   const [row, setRow] = useState<'styles' | 'link' | 'due' | 'person' | null>(null)
   const [href, setHref] = useState('')
+  // Daily is Weekly on all seven days, so the date box remembers which was tapped until it closes.
+  const [weekly, setWeekly] = useState(false)
+  useEffect(() => setWeekly(false), [row])
   const navigate = useNavigate()
   useEffect(() => {
     if (!editor) return
@@ -175,6 +178,8 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
   }
   const start = parseDay(day || inDays(0))
   const weekday = DAYS[start.getDay()]
+  const everyDay = rule?.freq === 'WEEKLY' && rule.interval === 1 && rule.days.length === 7
+  const daily = everyDay && !weekly
   const assignee = people.find((u) => u.id === line?.attrs.assignee)?.id ?? null
   const typed = typedPerson.getState(editor.state)?.at
 
@@ -290,7 +295,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
               side="top"
               open={row === 'due'}
               onOpenChange={(open) => setRow(open ? 'due' : null)}
-              className="w-[min(calc(100vw-1rem),19rem)]"
+              className="w-[min(calc(100vw-1rem),22rem)]"
               trigger={
                 <Tool label="Date" disabled={!line} active={row === 'due' || Boolean(due)}>
                   <CalendarIcon className={ICON} />
@@ -351,20 +356,29 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
                   {(
                     [
                       ['Once', null],
+                      ['Daily', { freq: 'WEEKLY', interval: 1, days: WEEK, weeks: [], monthDay: null }],
                       ['Weekly', { freq: 'WEEKLY', interval: 1, days: [weekday], weeks: [], monthDay: null }],
                       ['Monthly', { freq: 'MONTHLY', interval: 1, days: [], weeks: [], monthDay: start.getDate() }],
                       ['Yearly', { freq: 'YEARLY', interval: 1, days: [], weeks: [], monthDay: null }],
                     ] satisfies [string, Rule | null][]
-                  ).map(([label, fresh]) => (
-                    <Tool
-                      key={label}
-                      label={label}
-                      active={(rule?.freq ?? null) === (fresh?.freq ?? null)}
-                      onClick={() => (rule?.freq ?? null) !== (fresh?.freq ?? null) && setRule(fresh)}
-                    >
-                      {label}
-                    </Tool>
-                  ))}
+                  ).map(([label, fresh]) => {
+                    const active = label === 'Daily' ? daily : !daily && (rule?.freq ?? null) === (fresh?.freq ?? null)
+                    return (
+                      <Tool
+                        key={label}
+                        label={label}
+                        active={active}
+                        onClick={() => {
+                          if (active) return
+                          setWeekly(label === 'Weekly')
+                          // Weekly from Daily starts with all seven days, for the person to untick some.
+                          if (!everyDay || fresh?.freq !== 'WEEKLY') setRule(fresh)
+                        }}
+                      >
+                        {label}
+                      </Tool>
+                    )
+                  })}
                 </Group>
                 {rule?.freq === 'MONTHLY' && (
                   <Group className="[&>*]:flex-1">
@@ -394,7 +408,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
                     ))}
                   </Group>
                 )}
-                {(rule?.freq === 'WEEKLY' || (rule?.freq === 'MONTHLY' && rule.weeks.length > 0)) && (
+                {((rule?.freq === 'WEEKLY' && !daily) || (rule?.freq === 'MONTHLY' && rule.weeks.length > 0)) && (
                   <Group className="[&>*]:flex-1">
                     {WEEK.map((d: Day) => (
                       <Tool
@@ -414,18 +428,20 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
                 )}
                 {rule && (
                   <div className="flex items-center gap-2">
-                    <Group>
-                      <Tool
-                        label="Repeat more often"
-                        disabled={rule.interval === 1}
-                        onClick={() => setRule({ ...rule, interval: rule.interval - 1 })}
-                      >
-                        <span className="text-xl leading-none">−</span>
-                      </Tool>
-                      <Tool label="Repeat less often" onClick={() => setRule({ ...rule, interval: rule.interval + 1 })}>
-                        <span className="text-xl leading-none">+</span>
-                      </Tool>
-                    </Group>
+                    {!daily && (
+                      <Group>
+                        <Tool
+                          label="Repeat more often"
+                          disabled={rule.interval === 1}
+                          onClick={() => setRule({ ...rule, interval: rule.interval - 1 })}
+                        >
+                          <span className="text-xl leading-none">−</span>
+                        </Tool>
+                        <Tool label="Repeat less often" onClick={() => setRule({ ...rule, interval: rule.interval + 1 })}>
+                          <span className="text-xl leading-none">+</span>
+                        </Tool>
+                      </Group>
+                    )}
                     <span className="min-w-0 flex-1 text-sm font-bold">{describeRule(rule, start)}</span>
                   </div>
                 )}

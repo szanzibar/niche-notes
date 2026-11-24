@@ -111,6 +111,35 @@ test('ticking a repeating line moves it to its next date instead of checking it'
   await expect(line(page, 'Bins')).toHaveAttribute('data-checked', 'false')
 })
 
+test('Daily repeats every day in one tap, and Weekly after it starts with all seven days ticked', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Brush teeth')
+  await tool(page, 'Task list').click()
+  await tool(page, 'Date').click()
+  await tool(page, 'Daily').click()
+  await expect(line(page, 'Brush teeth')).toHaveAttribute('data-due', inDays(0))
+  await expect(line(page, 'Brush teeth')).toHaveAttribute('data-repeat', 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU')
+  await expect(page.getByText('Every day', { exact: true })).toBeVisible()
+  const days = page.getByRole('button', { name: /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day$/ })
+  await expect(days).toHaveCount(0)
+  await expect(tool(page, 'Repeat less often')).toBeHidden()
+
+  await tool(page, 'Weekly').click()
+  await expect(tool(page, 'Weekly')).toHaveAttribute('aria-pressed', 'true')
+  await expect(days).toHaveCount(7)
+  for (const day of await days.all()) await expect(day).toHaveAttribute('aria-pressed', 'true')
+  await tool(page, 'Sunday').click()
+  await expect(line(page, 'Brush teeth')).toHaveAttribute('data-repeat', 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA')
+  await tool(page, 'Sunday').click()
+  await expect(tool(page, 'Weekly')).toHaveAttribute('aria-pressed', 'true')
+
+  // Reopened, all seven days read as Daily again.
+  await page.keyboard.press('Escape')
+  await tool(page, 'Date').click()
+  await expect(tool(page, 'Daily')).toHaveAttribute('aria-pressed', 'true')
+  await expect(days).toHaveCount(0)
+})
+
 test("a calendar event's link opens its note with the cursor at the end of its line", async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Rent')
