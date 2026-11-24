@@ -13,6 +13,7 @@ test('dragging a note onto another nests it, stays folded across a reload, and o
   await drag(page, row(page, 'Child'), row(page, 'Parent'))
   await page.getByRole('button', { name: 'Collapse' }).click()
   await expect(row(page, 'Child')).toBeHidden()
+  await row(page, 'Parent').click()
   await page.reload()
   await page.getByRole('button', { name: 'Expand' }).click()
 
@@ -380,4 +381,29 @@ test('a drop on a device that is behind leaves a move made on another device alo
     await expect.poll(() => rowTitles(page)).toEqual(['P', 'X', 'Y'])
     expect(await depth(page, 'X')).toBe(1)
   }
+})
+
+test('a note opened from search or Recent unfolds the notes above it in the tree and scrolls its row into view', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Parent')
+  await newNote(page, 'Child')
+  await drag(page, row(page, 'Child'), row(page, 'Parent'))
+  await page.getByRole('button', { name: 'Collapse' }).click()
+  for (let n = 1; n <= 14; n++) await newNote(page, `Note ${n}`)
+  await expect(row(page, 'Parent')).not.toBeInViewport()
+
+  await page.getByPlaceholder('Search notes').fill('child')
+  await page.getByRole('option').filter({ hasText: 'Child' }).click()
+  await page.getByRole('button', { name: 'Clear search' }).click()
+  await expect(row(page, 'Child')).toBeInViewport()
+  await expect(row(page, 'Child')).toHaveAttribute('aria-current', 'page')
+
+  await row(page, 'Note 14').click()
+  await page.getByRole('button', { name: 'Collapse' }).click()
+  await page.locator('nav').evaluate((nav) => (nav.scrollTop = 0))
+  await page.getByRole('button', { name: 'Recent' }).click()
+  await page.getByRole('list', { name: 'Recent' }).getByRole('button', { name: /^Child/ }).click()
+  await expect(row(page, 'Child')).toBeInViewport()
 })

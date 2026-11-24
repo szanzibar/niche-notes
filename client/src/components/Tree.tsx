@@ -240,6 +240,12 @@ export function Tree({ selected }: { selected?: string }) {
     if (widget && allNotes && s.online) handOff(widget, store.me!.id)
   }, [widget, allNotes, s.online])
 
+  // However a note was opened, its row shows in the tree, unfolded as if by hand.
+  useEffect(() => {
+    if (!selected || inTrash(selected)) return
+    for (let p = nodes().get(selected)?.parent; p; p = nodes().get(p)?.parent) expand(p)
+  }, [selected])
+
   // A tree that is behind doesn't know every note under the one that goes.
   useEffect(() => {
     if (!s.treeCurrent) return
@@ -657,8 +663,11 @@ function Row({
   mark: Mark | null
 }) {
   const showNote = useShowNote()
-  const { setNodeRef: dragRef, listeners, attributes, isDragging } = useDraggable({ id })
+  const { setNodeRef: dragRef, listeners, attributes, isDragging, node } = useDraggable({ id })
   const { setNodeRef: dropRef } = useDroppable({ id, disabled: isDragging })
+  useEffect(() => {
+    if (selected === id) node.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected, id, node])
   if (inTrash(id)) return null
 
   const kids = children(id)

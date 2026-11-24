@@ -50,11 +50,16 @@ test('a result unfolds the notes under it one level at a time, apart from how th
   await newNote(page, 'Tomatoes')
   await drag(page, row(page, 'Seeds'), row(page, 'Garden'))
   await drag(page, row(page, 'Tomatoes'), row(page, 'Seeds'))
+  await row(page, 'Garden').click()
   await row(page, 'Garden').locator('..').getByRole('button', { name: 'Collapse' }).click()
   const box = page.getByPlaceholder('Search notes')
   const options = page.getByRole('option')
   const option = (title: string) => options.filter({ hasText: title })
   const indent = (title: string) => option(title).evaluate((el) => getComputedStyle(el).paddingLeft)
+
+  // A note that matches on its own is listed even while its parent is folded.
+  await box.fill('march')
+  await expect(options).toHaveText([/^Seeds.*order by march/])
 
   await box.fill('garden')
   await expect(options).toHaveText([/^Garden/])
@@ -70,13 +75,9 @@ test('a result unfolds the notes under it one level at a time, apart from how th
   await box.press('Enter')
   await expect(page.getByPlaceholder('Title')).toHaveValue('Tomatoes')
 
-  // A note that matches on its own is listed even while its parent is folded.
-  await box.fill('march')
-  await expect(options).toHaveText([/^Seeds.*order by march/])
-
+  // The tree unfolds to the open note, while the results start folded again.
   await page.getByRole('button', { name: 'Clear search' }).click()
-  await expect(row(page, 'Garden').locator('..').getByRole('button', { name: 'Expand' })).toBeVisible()
-  await expect(row(page, 'Seeds')).toBeHidden()
+  await expect(row(page, 'Tomatoes')).toBeVisible()
   await box.fill('garden')
   await expect(options).toHaveText([/^Garden/])
 })
