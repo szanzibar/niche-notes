@@ -19,7 +19,7 @@ import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
-import { store, textOf } from '../sync/store'
+import { moveDue, store, textOf } from '../sync/store'
 import {
   children,
   createNote,
@@ -450,21 +450,33 @@ export function Tree({ selected }: { selected?: string }) {
               ([name, notes]) =>
                 notes.size > 0 && (
                   <section key={name} className="border-t-2 border-border first:border-t-0">
-                    <button
-                      type="button"
-                      aria-expanded={!dueCollapsed.includes(name)}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-wide text-ink-muted"
-                      onClick={() =>
-                        prefs.set(
-                          'dueCollapsed',
-                          dueCollapsed.includes(name) ? dueCollapsed.filter((n) => n !== name) : [...dueCollapsed, name],
-                        )
-                      }
-                    >
-                      {dueCollapsed.includes(name) ? <ChevronRightIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
-                      {name}
-                      <span>{[...notes.values()].flat().length}</span>
-                    </button>
+                    <div className="flex items-center pr-4">
+                      <button
+                        type="button"
+                        aria-expanded={!dueCollapsed.includes(name)}
+                        className="flex flex-1 items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-wide text-ink-muted"
+                        onClick={() =>
+                          prefs.set(
+                            'dueCollapsed',
+                            dueCollapsed.includes(name) ? dueCollapsed.filter((n) => n !== name) : [...dueCollapsed, name],
+                          )
+                        }
+                      >
+                        {dueCollapsed.includes(name) ? <ChevronRightIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+                        {name}
+                        <span>{[...notes.values()].flat().length}</span>
+                      </button>
+                      {name === 'Past due' && (
+                        <Button
+                          className="text-sm"
+                          onClick={() => {
+                            for (const [id, lines] of notes) void moveDue(id, lines.map((line) => line.item), today)
+                          }}
+                        >
+                          Move all to today
+                        </Button>
+                      )}
+                    </div>
                     {!dueCollapsed.includes(name) && (
                       <ul aria-label={name} className="pb-2">
                         {[...notes].map(([id, lines]) => (
@@ -476,20 +488,31 @@ export function Tree({ selected }: { selected?: string }) {
                             >
                               <NoteTitle id={id} />
                             </button>
-                            {lines.map((line, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                className="flex w-full items-baseline gap-2 py-2 pr-4 pl-8 text-left hover:bg-bg"
-                                onClick={() => showNote(id, line.text)}
-                              >
-                                <span className="min-w-0 flex-1 truncate">{line.text}</span>
-                                <span
-                                  className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}
+                            {lines.map((line) => (
+                              <div key={line.item} className="flex flex-wrap items-center justify-end gap-x-3 pr-4 hover:bg-bg">
+                                <button
+                                  type="button"
+                                  className="flex min-w-0 flex-auto items-baseline gap-2 py-2 pl-8 text-left"
+                                  onClick={() => showNote(id, line.text)}
                                 >
-                                  {dueLabel(line.due)}
-                                </span>
-                              </button>
+                                  <span className="min-w-0 flex-1 truncate">{line.text}</span>
+                                  <span
+                                    className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}
+                                  >
+                                    {dueLabel(line.due)}
+                                  </span>
+                                </button>
+                                {name === 'Past due' && (
+                                  <div className="flex gap-3">
+                                    <Button className="text-sm" onClick={() => void moveDue(id, [line.item], today)}>
+                                      Today
+                                    </Button>
+                                    <Button className="text-sm" onClick={() => void moveDue(id, [line.item], tomorrow)}>
+                                      Tomorrow
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
                             ))}
                           </li>
                         ))}

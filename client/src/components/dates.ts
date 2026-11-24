@@ -113,6 +113,12 @@ export function onRule(due: string, repeat: string) {
   return withTime(after(parseRule(repeat)!, start, from), due)
 }
 
+// A monthly rule on a day of the month repeats on the day the line moves to.
+export function ruleOn(repeat: string | null | undefined, day: string) {
+  const rule = parseRule(repeat)
+  return rule && formatRule(rule.monthDay ? { ...rule, monthDay: Number(day.slice(8, 10)) } : rule)
+}
+
 // A date in the words of a line, the way Todoist reads one: "today", "friday at 5pm", "nov 20", "every other monday",
 // "every day at 9:00". `from` and `to` are where the words sit in the text. English, with weekdays spelled out,
 // since "sun" and "sat" are words of their own.

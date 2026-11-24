@@ -6,7 +6,7 @@ import { enableAlerts } from '../lib/alerts'
 import { notePath } from '../lib/links'
 import type { User } from '../lib/types'
 import { settings } from '../sync/tree'
-import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, WEEK } from './dates'
+import { DAYS, type Day, describeRule, formatRule, inDays, onRule, parseDay, parseRule, type Rule, ruleOn, WEEK } from './dates'
 import {
   AddColumnIcon,
   AddRowIcon,
@@ -159,11 +159,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
         return true
       })
       .run()
-  // A monthly rule on a day of the month repeats on the day picked.
-  const setDue = (
-    next: string | null,
-    repeat: string | null = rule && formatRule(rule.monthDay && next ? { ...rule, monthDay: Number(next.slice(8, 10)) } : rule),
-  ) => {
+  const setDue = (next: string | null, repeat = next && ruleOn(line?.attrs.repeat, next)) => {
     // A line that gets a time lasts as long as the last length this person picked.
     const picked = !time && next?.includes('T') ? settings().get('duration') : null
     setLine({ due: next, repeat: next ? repeat : null, duration: next ? (line!.attrs.duration ?? picked ?? null) : null })

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import { Socket, type Channel } from 'phoenix'
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness'
 import * as Y from 'yjs'
+import { ruleOn } from '../components/dates'
 import { api } from '../lib/api'
 import type { Share, User } from '../lib/types'
 
@@ -32,7 +33,7 @@ const db = new Dexie('niche-notes') as Dexie & {
 }
 db.version(2).stores({ updates: '++id, doc, seq', docs: 'id', kv: 'key' })
 // Copies from before they held what they hold now are redone from each note's rows, once.
-db.version(4).upgrade(async (tx) => {
+db.version(5).upgrade(async (tx) => {
   for (const row of await tx.table<DocRow>('docs').toArray()) {
     if (row.text == null) continue
     const doc = new Y.Doc()
@@ -90,14 +91,17 @@ export function getAwareness(id: string) {
   return awarenesses.get(id)!
 }
 
-// An unchecked checkbox line with a date.
+// An unchecked checkbox line with a date. `item` stays the same while its text and date change.
 export interface Dated {
+  item: string
   due: string
   text: string
   assignee?: string | null
 }
 // Search leaves out checked lines unless asked, so their text sits apart. The lines nested under one stay in.
 export type Text = { text: string; checked: string; dated: Dated[] }
+
+const itemOf = (line: Y.XmlElement) => `${line._item!.id.client}:${line._item!.id.clock}`
 
 function plain(content: Y.XmlFragment): Text {
   const text: string[] = []
@@ -116,9 +120,28 @@ function plain(content: Y.XmlFragment): Text {
     if (!due) return []
     const words: string[] = []
     walk(item.get(0), words)
-    return [{ due, text: words.join(''), assignee: (item.getAttribute('assignee') as string | undefined) ?? null }]
+    return [
+      { item: itemOf(item), due, text: words.join(''), assignee: (item.getAttribute('assignee') as string | undefined) ?? null },
+    ]
   })
   return { text: text.join(' '), checked: checked.join(' '), dated }
+}
+
+// Moves dated lines to another day, in notes that may not be on screen. A line keeps its time and its repeat, as
+// it does in the date box.
+export async function moveDue(id: string, items: string[], day: string) {
+  const doc = await openDoc(id)
+  doc.transact(() => {
+    for (const line of doc.getXmlFragment('content').querySelectorAll('taskItem') as Y.XmlElement[]) {
+      const due = line.getAttribute('due') as string | undefined
+      if (!due || !items.includes(itemOf(line))) continue
+      const time = due.split('T')[1]
+      line.setAttribute('due', time ? `${day}T${time}` : day)
+      const repeat = ruleOn(line.getAttribute('repeat') as string | undefined, day)
+      if (repeat) line.setAttribute('repeat', repeat)
+    }
+  })
+  notify()
 }
 
 // An open note's edits empty its entry, and the next lookup rebuilds it.

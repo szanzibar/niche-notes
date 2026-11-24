@@ -451,6 +451,105 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await expect(otherDue).toHaveAccessibleName('Due (0)')
 })
 
+test('Today and Tomorrow move a past due line without opening its note, keeping its time and repeat', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'pay rent')
+  await tool(page, 'Task list').click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('book dentist')
+  await tool(page, 'Date').click()
+  await page.getByLabel('Day', { exact: true }).fill(inDays(-1))
+  await page.keyboard.press('Escape')
+  await page.locator('.editor-body p').getByText('pay rent', { exact: true }).click()
+  await tool(page, 'Date').click()
+  await tool(page, 'Monthly').click()
+  await page.getByLabel('Day', { exact: true }).fill(inDays(-2))
+  await page.getByLabel('Time', { exact: true }).fill('08:00')
+  await page.keyboard.press('Escape')
+  const due = page.getByRole('button', { name: /^Due \(/ })
+  await expect(due).toHaveText('2')
+
+  await due.click()
+  const pastDue = page.getByRole('list', { name: 'Past due', exact: true })
+  const today = page.getByRole('list', { name: 'Today', exact: true })
+  await pastDue.locator('div').filter({ hasText: 'pay rent' }).getByRole('button', { name: 'Today', exact: true }).click()
+  await expect(today).toContainText('pay rent')
+  await expect(pastDue).not.toContainText('pay rent')
+  await expect(line(page, 'pay rent')).toHaveAttribute('data-due', `${inDays(0)}T08:00`)
+  // A monthly repeat on a day of the month repeats on the new day, as the date box has it.
+  await expect(line(page, 'pay rent')).toHaveAttribute('data-repeat', `FREQ=MONTHLY;BYMONTHDAY=${Number(inDays(0).slice(8))}`)
+
+  await pastDue.locator('div').filter({ hasText: 'book dentist' }).getByRole('button', { name: 'Tomorrow', exact: true }).click()
+  await expect(page.getByRole('list', { name: 'Tomorrow', exact: true })).toContainText('book dentist')
+  await expect(pastDue).toHaveCount(0)
+  await expect(line(page, 'book dentist')).toHaveAttribute('data-due', inDays(1))
+  await expect(due).toHaveText('1')
+  await expect(page).not.toHaveURL(/line=/)
+})
+
+test('Move all to today moves every past due line, in every note', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'pay rent')
+  await tool(page, 'Task list').click()
+  await tool(page, 'Date').click()
+  await page.getByLabel('Day', { exact: true }).fill(inDays(-3))
+  await page.keyboard.press('Escape')
+  await newNote(page, 'Garden', 'rake leaves')
+  await tool(page, 'Task list').click()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('plant bulbs tomorrow')
+  await page.keyboard.press('Enter')
+  await page.locator('.editor-body p').getByText('rake leaves', { exact: true }).click()
+  await tool(page, 'Date').click()
+  await page.getByLabel('Day', { exact: true }).fill(inDays(-1))
+  await page.keyboard.press('Escape')
+  const due = page.getByRole('button', { name: /^Due \(/ })
+  await expect(due).toHaveText('2')
+
+  await due.click()
+  await page.getByRole('button', { name: 'Move all to today' }).click()
+  await expect(page.getByRole('list', { name: 'Past due', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('list', { name: 'Today', exact: true }).getByRole('button')).toHaveText([
+    'Chores',
+    'pay rentToday',
+    'Garden',
+    'rake leavesToday',
+  ])
+  await expect(page.getByRole('list', { name: 'Tomorrow', exact: true })).toContainText('plant bulbs')
+  await expect(due).toHaveText('2')
+  await expect(line(page, 'rake leaves')).toHaveAttribute('data-due', inDays(0))
+})
+
+test('a device that never opened a note moves its line offline, and the move reaches the other device', async ({
+  browser,
+}) => {
+  const name = `alice-${uid()}`
+  const phone = await signIn(browser, name)
+  await newNote(phone, 'Garden', 'rake leaves')
+  await tool(phone, 'Task list').click()
+  await tool(phone, 'Date').click()
+  await phone.getByLabel('Day', { exact: true }).fill(inDays(-2))
+  await phone.keyboard.press('Escape')
+
+  const desk = await signIn(browser, name)
+  const due = desk.getByRole('button', { name: /^Due \(/ })
+  await due.click()
+  const pastDue = desk.getByRole('list', { name: 'Past due', exact: true })
+  await expect(pastDue).toContainText('rake leaves')
+  await desk.context().setOffline(true)
+  await pastDue.getByRole('button', { name: 'Today', exact: true }).click()
+  await expect(desk.getByRole('list', { name: 'Today', exact: true })).toContainText('rake leaves')
+  await expect(pastDue).toHaveCount(0)
+  await expect(desk).toHaveURL(/\/$/)
+  await expect(line(phone, 'rake leaves')).toHaveAttribute('data-due', inDays(-2))
+
+  await desk.context().setOffline(false)
+  await expect(line(phone, 'rake leaves')).toHaveAttribute('data-due', inDays(0))
+  await expect(phone.getByRole('button', { name: /^Due \(/ })).toHaveText('1')
+})
+
 test('a launch without the server lists the dates another device gave a note open here', async ({ browser }) => {
   const name = `alice-${uid()}`
   const phone = await signIn(browser, name)
