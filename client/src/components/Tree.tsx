@@ -168,6 +168,16 @@ export function Tree({ selected }: { selected?: string }) {
   const searchTrash = prefs.get('searchTrash') !== false
   const searchChecked = prefs.get('searchChecked') === true
   const hits = search(query, { trash: searchTrash, checked: searchChecked })
+  const matched = new Map(hits.map((hit) => [hit.id, hit.snippet]))
+  // A result unfolds on its own, apart from the tree and from the same note listed elsewhere in the results.
+  const [unfolded, setUnfolded] = useState(new Set<string>())
+  if (!query && unfolded.size > 0) setUnfolded(new Set())
+  const listed = (ids: string[], depth: number, path: string): { id: string; depth: number; path: string }[] =>
+    ids.flatMap((id) => [
+      { id, depth, path: path + id },
+      ...(unfolded.has(path + id) ? listed(children(id), depth + 1, `${path}${id}/`) : []),
+    ])
+  const results = listed(hits.map((hit) => hit.id), 0, '')
   // Every dated line, in a section for when it is due, under its note. The note with the oldest line comes first.
   // The count is what needs doing by today.
   const [dueOpen, setDueOpen] = useState(false)
@@ -270,9 +280,9 @@ export function Tree({ selected }: { selected?: string }) {
   }
 
   const onSearchKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') setCursor(Math.min(cursor + 1, hits.length - 1))
+    if (e.key === 'ArrowDown') setCursor(Math.min(cursor + 1, results.length - 1))
     else if (e.key === 'ArrowUp') setCursor(Math.max(cursor - 1, 0))
-    else if (e.key === 'Enter' && hits[cursor]) openNote(hits[cursor].id)
+    else if (e.key === 'Enter' && results[cursor]) openNote(results[cursor].id)
     else if (e.key === 'Escape') setQuery('')
     else return
     e.preventDefault()
@@ -370,27 +380,50 @@ export function Tree({ selected }: { selected?: string }) {
             <p className="p-6 text-ink-muted">No matches.</p>
           ) : (
             <ul role="listbox" aria-label="Search results">
-              {hits.map((hit, i) => {
+              {results.map((result, i) => {
                 // The open note is filled like its row in the tree, and the arrow keys' row is outlined.
-                const active = selected === hit.id
+                const active = selected === result.id
                 const muted = active ? 'text-on-accent/80' : 'text-ink-muted'
+                const open = unfolded.has(result.path)
+                const snippet = matched.get(result.id)
                 return (
-                  <li key={hit.id} role="option" aria-selected={i === cursor}>
+                  <li
+                    key={result.path}
+                    role="option"
+                    aria-selected={i === cursor}
+                    className={`relative flex items-start pr-4 ${active ? 'bg-accent text-on-accent' : i === cursor ? 'bg-bg' : 'hover:bg-bg'} ${i === cursor ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
+                    style={{ paddingLeft: 4 + result.depth * INDENT }}
+                  >
+                    {children(result.id).length > 0 ? (
+                      <button
+                        type="button"
+                        className="flex h-11 w-7 shrink-0 items-center justify-center"
+                        onClick={() => {
+                          const next = new Set(unfolded)
+                          if (!next.delete(result.path)) next.add(result.path)
+                          setUnfolded(next)
+                        }}
+                        aria-label={open ? 'Collapse' : 'Expand'}
+                      >
+                        {open ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
+                      </button>
+                    ) : (
+                      <span className="w-7 shrink-0" />
+                    )}
                     <button
                       type="button"
                       aria-current={active ? 'page' : undefined}
-                      className={`relative flex w-full flex-col px-4 py-2 text-left ${active ? 'bg-accent text-on-accent' : i === cursor ? 'bg-bg' : 'hover:bg-bg'} ${i === cursor ? 'outline-2 -outline-offset-2 outline-accent-ink' : ''}`}
-                      style={{ paddingLeft: 16 + hit.depth * INDENT }}
+                      className="flex min-w-0 flex-1 flex-col py-2 text-left"
                       onClick={() => {
                         setCursor(i)
-                        openNote(hit.id)
+                        openNote(result.id)
                       }}
                     >
                       <span className="flex w-full items-baseline gap-2">
-                        <NoteTitle id={hit.id} depth={hit.depth} active={active} />
-                        {inTrash(hit.id) && <span className={`shrink-0 text-xs ${muted}`}>trash</span>}
+                        <NoteTitle id={result.id} depth={result.depth} active={active} />
+                        {inTrash(result.id) && <span className={`shrink-0 text-xs ${muted}`}>trash</span>}
                       </span>
-                      {hit.snippet && <span className={`w-full truncate text-xs ${muted}`}>{hit.snippet}</span>}
+                      {snippet && <span className={`w-full truncate text-xs ${muted}`}>{snippet}</span>}
                     </button>
                   </li>
                 )
