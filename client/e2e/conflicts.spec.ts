@@ -25,7 +25,7 @@ async function sharedChecklist(browser: Browser, lines: string[]) {
   const bob = await signIn(browser, b)
   const alice = await signIn(browser, a)
   await newNote(alice, 'Shopping', lines[0])
-  await alice.getByRole('button', { name: 'Checklist' }).click()
+  await alice.getByRole('button', { name: 'Task list' }).click()
   for (const line of lines.slice(1)) {
     await alice.keyboard.press('Enter')
     await alice.keyboard.type(line)

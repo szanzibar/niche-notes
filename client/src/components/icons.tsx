@@ -45,20 +45,21 @@ export function UsersIcon({ filled, className = SIZE }: { filled?: boolean; clas
     </svg>
   )
 }
-// Phones mark an incoming call this way, and here a note someone else shared.
-export const ArrowDownLeftIcon = icon('M17 7L7 17M17 17H7V7')
 export const CloudOffIcon = icon(
   'M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78M2 2l20 20',
 )
 export const PlusIcon = icon('M5 12h14M12 5v14')
 export const CheckedIcon = icon('M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 12l3 3 5-6')
-export const HideCheckedIcon = icon(
-  'M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49M14.08 14.16a3 3 0 0 1-4.24-4.24M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14M2 2l20 20',
-)
-export const DeleteWhenCheckedIcon = icon('M4 7h16M6 7l1 13h10l1-13M9 7V4h6v3M9.5 13.5l2 2 3.5-4')
 export const ChevronLeftIcon = icon('M15 18l-6-6 6-6')
 export const ChevronRightIcon = icon('M9 18l6-6-6-6')
-export const ArrowRightIcon = icon('M5 12h14M13 6l6 6-6 6')
+export const ChevronDownIcon = icon('M6 9l6 6 6-6')
+export function MoreIcon({ className = SIZE }: { className?: string }) {
+  return (
+    <svg {...base} strokeWidth={3.5} className={className} fill="none" aria-hidden>
+      <path d="M5 12h.01M12 12h.01M19 12h.01" />
+    </svg>
+  )
+}
 export const UncheckAllIcon = icon('M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M9 9h6v6H9z')
 export const SettingsIcon = icon('M20 7h-9M14 17H5M20 17a3 3 0 1 1-6 0a3 3 0 1 1 6 0M10 7a3 3 0 1 1-6 0a3 3 0 1 1 6 0')
 

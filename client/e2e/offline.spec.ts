@@ -54,6 +54,7 @@ test('Sign out ends the session and takes the notes off the device', async ({ br
   await newNote(page, 'Alice only')
   // The dev login would sign someone in again at once.
   await page.route('**/auth/login', (route) => route.fulfill({ body: 'signed out' }))
+  await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByText('signed out')).toBeVisible()
   const left = () => Promise.all([fetch('/api/me').then((r) => r.status), localStorage.getItem('session'), indexedDB.databases()])
@@ -66,6 +67,7 @@ test('Sign out clears the screen when the login opens in another window, as the 
   // An answer without content leaves the browser on the page it has.
   await page.route('**/auth/login', (route) => route.fulfill({ status: 204 }))
   const login = page.waitForRequest('**/auth/login')
+  await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Sign out' }).click()
   await login
   await expect(page.getByText('Alice only')).toHaveCount(0)

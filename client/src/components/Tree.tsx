@@ -19,7 +19,7 @@ import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
-import { store, textOf, wipeLocal } from '../sync/store'
+import { store, textOf } from '../sync/store'
 import {
   children,
   createNote,
@@ -42,14 +42,17 @@ import {
   trashed,
   type Spot,
 } from '../sync/tree'
-import { Button, IconButton } from './Button'
+import { Button, IconButton, MenuItem } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
 import {
   CalendarIcon,
+  CheckedIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
   ClockIcon,
+  CloseIcon,
   FilterIcon,
   GripIcon,
-  LeaveIcon,
   PinIcon,
   PlusIcon,
   TrashIcon,
@@ -275,14 +278,6 @@ export function Tree({ selected }: { selected?: string }) {
     e.preventDefault()
   }
 
-  const signOut = async () => {
-    await api.logout()
-    await wipeLocal()
-    // The app starts again signed out and goes to the login from there. A login that opens in another window,
-    // as the desktop app's does, would leave the notes on this page.
-    window.location.reload()
-  }
-
   return (
     <DndContext
       sensors={sensors}
@@ -310,7 +305,7 @@ export function Tree({ selected }: { selected?: string }) {
             type="search"
             placeholder="Search notes"
             aria-label="Search notes"
-            className="w-full bg-transparent pr-8 text-lg font-bold outline-none placeholder:text-ink-muted"
+            className="w-full bg-transparent pr-9 text-lg font-bold outline-none placeholder:text-ink-muted"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -320,14 +315,9 @@ export function Tree({ selected }: { selected?: string }) {
             onKeyDown={onSearchKey}
           />
           {query && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              className="absolute right-0 h-8 w-8 text-lg leading-none"
-              onClick={() => setQuery('')}
-            >
-              ✕
-            </button>
+            <IconButton label="Clear search" className="absolute -right-2" onClick={() => setQuery('')}>
+              <CloseIcon />
+            </IconButton>
           )}
         </div>
         {query && (
@@ -341,12 +331,18 @@ export function Tree({ selected }: { selected?: string }) {
               </IconButton>
             }
           >
-            <Button aria-pressed={searchTrash} onClick={() => prefs.set('searchTrash', !searchTrash)}>
-              Include trash
-            </Button>
-            <Button aria-pressed={searchChecked} onClick={() => prefs.set('searchChecked', !searchChecked)}>
-              Include checked lines
-            </Button>
+            <div className="flex w-64 flex-col">
+              <MenuItem icon={<TrashIcon />} aria-pressed={searchTrash} onClick={() => prefs.set('searchTrash', !searchTrash)}>
+                Include trash
+              </MenuItem>
+              <MenuItem
+                icon={<CheckedIcon />}
+                aria-pressed={searchChecked}
+                onClick={() => prefs.set('searchChecked', !searchChecked)}
+              >
+                Include checked tasks
+              </MenuItem>
+            </div>
           </Popover>
         )}
         {!picking && (dated.length > 0 || dueOpen) && (
@@ -419,7 +415,7 @@ export function Tree({ selected }: { selected?: string }) {
                         )
                       }
                     >
-                      <span aria-hidden>{dueCollapsed.includes(name) ? '▶' : '▼'}</span>
+                      {dueCollapsed.includes(name) ? <ChevronRightIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
                       {name}
                       <span>{[...notes.values()].flat().length}</span>
                     </button>
@@ -459,7 +455,7 @@ export function Tree({ selected }: { selected?: string }) {
           )
         ) : (
           <>
-            {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet. Tap New.</p>}
+            {roots.length === 0 && <p className="p-6 text-ink-muted">No notes yet.</p>}
             {roots.map((id) => (
               <Row key={id} id={id} depth={0} selected={selected} picked={picked} onPick={pick} mark={mark} />
             ))}
@@ -519,9 +515,6 @@ export function Tree({ selected }: { selected?: string }) {
           </IconButton>
         )}
         <SettingsDialog />
-        <IconButton label="Sign out" onClick={signOut}>
-          <LeaveIcon />
-        </IconButton>
       </footer>
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[aboveFinger]}>
@@ -555,12 +548,11 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
       >
         <NoteTitle id={id} active={active} />
       </button>
-      <button type="button" className="shrink-0 text-sm underline" onClick={() => restoreNote(id)}>
+      <Button className="text-sm" onClick={() => restoreNote(id)}>
         Restore
-      </button>
-      <button
-        type="button"
-        className="shrink-0 text-sm underline disabled:opacity-40"
+      </Button>
+      <Button
+        className="text-sm"
         disabled={!s.online}
         onClick={() => {
           void purgeNote(id)
@@ -568,7 +560,7 @@ function TrashRow({ id, selected }: { id: string; selected?: string }) {
         }}
       >
         {isMine(id) ? 'Delete forever' : 'Leave for good'}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -662,11 +654,11 @@ function Row({
         {kids.length > 0 ? (
           <button
             type="button"
-            className="h-11 w-7 shrink-0 text-xs"
+            className="flex h-11 w-7 shrink-0 items-center justify-center"
             onClick={() => toggleCollapsed(id)}
             aria-label={open ? 'Collapse' : 'Expand'}
           >
-            {open ? '▼' : '▶'}
+            {open ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
           </button>
         ) : (
           <span className="w-7 shrink-0" />
@@ -683,18 +675,16 @@ function Row({
         >
           <NoteTitle id={id} depth={depth} active={active} />
         </button>
-        <button
-          type="button"
-          className="h-11 w-10 shrink-0 text-xl leading-none"
-          aria-label="New note inside"
-          title="New note inside"
+        <IconButton
+          label="New note inside"
+          className="h-11"
           onClick={() => {
             expand(id)
             showNote(createNote(id))
           }}
         >
-          +
-        </button>
+          <PlusIcon className="size-4.5" />
+        </IconButton>
       </div>
       {open &&
         kids.map((kid) => (

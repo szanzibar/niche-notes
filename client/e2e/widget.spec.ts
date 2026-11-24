@@ -38,7 +38,7 @@ test('a widget reads its note as lines with the token from the hand-off, without
   phoneOnly()
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Groceries', 'milk')
-  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await page.getByRole('button', { name: 'Task list', exact: true }).click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('eggs')
   await page.getByRole('button', { name: 'Indent', exact: true }).click()
@@ -67,6 +67,7 @@ test('the notes widget gets all the notes as the tree shows them, with nothing t
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores')
   const chores = page.url().split('/n/')[1]
+  await page.getByRole('button', { name: 'More' }).click()
   await page.getByRole('button', { name: 'Pin', exact: true }).click()
   await newNote(page, 'Groceries')
   const groceries = page.url().split('/n/')[1]
@@ -89,7 +90,7 @@ test('a Due widget reads the dated lines with the app\'s sign-in, its box ticks 
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Milk')
   const chores = page.url().split('/n/')[1]
-  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await page.getByRole('button', { name: 'Task list', exact: true }).click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('pay rent today')
   await page.keyboard.press('Enter')

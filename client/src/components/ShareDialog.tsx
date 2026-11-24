@@ -5,7 +5,7 @@ import type { Link, User } from '../lib/types'
 import { useStore } from '../sync/hooks'
 import { refreshSharing } from '../sync/store'
 import { Button, IconButton } from './Button'
-import { CheckIcon, CloseIcon, EditIcon, ShareIcon, UnlinkIcon, UsersIcon, ViewIcon } from './icons'
+import { CheckIcon, CloseIcon, EditIcon, ShareIcon, UsersIcon, ViewIcon } from './icons'
 import { Info } from './Popover'
 
 const day = (at: string) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -134,14 +134,9 @@ export function ShareDialog({ id }: { id: string }) {
                     <IconButton label="Share this link" onClick={() => void send(link.token)}>
                       {copied === link.token ? <CheckIcon /> : <ShareIcon />}
                     </IconButton>
-                    <IconButton
-                      label="Turn off this link"
-                      className="-mr-2.5"
-                      disabled={!s.online}
-                      onClick={() => void turnOff(link.token)}
-                    >
-                      <UnlinkIcon />
-                    </IconButton>
+                    <Button disabled={!s.online} onClick={() => void turnOff(link.token)}>
+                      Turn off
+                    </Button>
                   </div>
                   <ul className="ml-8 flex flex-col text-sm text-ink-muted">
                     {link.visitors.length === 0 && <li>Nobody yet</li>}

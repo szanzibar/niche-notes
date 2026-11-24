@@ -70,21 +70,38 @@ docs/                          spec, data model, ADRs, todo
 docker-compose.restore-test.yml  runs a backup as an offline copy beside the app (README)
 ```
 
-## Design system
+## Design
 
-Neo-brutalist: bold and direct, not the rounded gray card look.
+The family is mostly not technical and mostly on phones, so every screen has to work at a glance and on a first visit. Steven uses it most, so it also has to stay quick for someone who knows it by heart. These rules keep both true, and they keep the app looking like one thing as features pile up.
 
+**Words and icons.**
+- A bar shows bare icons, since people see it every day and learn it once. The bars are the tree's header and footer, the note's header and the editor toolbar. Each icon still names itself in `aria-label` and `title` (`IconButton`), which a desktop shows on hover.
+- A menu shows an icon and its name on every row (`MenuItem`), because a phone has no hover, and a menu is where people look when they don't know an icon.
+- An action that deletes or signs out has a name in words and lives in a menu, a dialog or the trash, never as a bare icon on a bar. The toolbar's edits at the cursor are the exception, since Undo takes them back at once.
+- No helper text. A control's name says what it does, a status shows as a short fact ("Blocked on this device."), and a section's details sit behind an info icon beside its name (`Info`).
+- A setting with several answers is one choice among words, with the chosen one filled with the accent, like Appearance in Settings or Show · Hide · Delete for checked tasks. Two switches that can't both be on are one choice.
+
+**Words.** Everything a person reads, widgets, alerts and the calendar included, uses the app's nouns: a note, a task (a line with a checkbox), a task list, the trash. Where a menu holds more than one delete, each one names its object ("Delete note", "Delete checked"). Code and comments keep their own terms, such as `line` and `taskItem`.
+
+**One of each.** Before adding anything, find the nearest thing of its kind and reuse it. If nothing fits, ask before inventing a look.
+- A note wherever it is listed: `NoteTitle`, with its color stripe, title, pin, filled share icon and owner. The tree indents it under its parent, and search adds the matched text under it.
+- A section: a label of small grey capitals under a 2px rule, as Recent, Trash, the due list's days and the menu's Checked tasks are. One that folds adds a chevron and its count.
+- A word action: `Button`, underlined, with no box around it.
+- A choice: `Button` with `aria-pressed`.
+- A menu row: `MenuItem`.
+- A box a button opens: `Popover`, beside that button. It keeps focus in the note, so the phone's keyboard stays up.
+- An icon: an SVG in `icons.tsx` on its 24-unit grid and stroke, never a typed character such as ← or ✕.
+- A drag: the drop line with its square, and the note or line it goes into outlined.
+
+**Look.** Neo-brutalist: bold and direct, not the rounded gray card look.
 - Flat. Solid 2px `#111` borders frame the bars, dialogs, popovers and fields, and nothing casts a shadow.
 - Corners are square, or one small radius used everywhere.
 - Near-black `#111` text on a page and tree tinted with the theme's color, coral `#FF4F3B` unless the user picks another. The color fills the note header, and Dark mode flips the neutrals through `light-dark()` on the same tokens.
 - A fill of the color takes the theme's own text color (`text-on-accent`), and the color as text or a thin line on the page takes `text-accent-ink`, so pale themes stay readable.
-- Space Grotesk for type.
-- Icons over words. A button shows an icon, with its name as `aria-label` and `title` (`IconButton`). Words only where no icon reads clearly, such as Restore or Delete forever. A control has no box around it: a word button is underlined (`Button`), and among choices the chosen one is filled with the accent.
-- No explanations on screen. A control says what it does, and a section's details sit behind an info icon beside its name.
 - The accent marks what is on or chosen: a pinned or shared note, an active tool, the selection, a highlight. It never decorates, so a section gets no colored bar.
-- A note looks the same wherever it is listed (`NoteTitle`): its color stripe, title, pin, filled share icon and owner. The tree indents it under its parent, and search adds the matched text under it.
-- A section is a label of small grey capitals under a 2px rule, as Recent, Trash and the due list's days are. One that folds adds a chevron and its count.
-- Before styling something new, reuse the look of the nearest thing of its kind: a listed note, a section, a choice, a drop line.
-- No gradients, glass, transparency or skeleton loaders.
+- Space Grotesk for type.
+- No gradients, glass, transparency or skeleton loaders. The one exception is the dimmer behind a dialog.
 - Tokens are CSS variables in `client/src/index.css`, mapped to Tailwind classes (`bg-bg`, `bg-tint`, `text-ink`, `text-ink-muted`, `bg-accent`, `text-on-accent`, `text-accent-ink`, `border-border`).
 - Radix UI headless primitives, styled by hand. Not shadcn/ui.
+
+Before calling a UI change done, screenshot it at phone and desktop width beside its neighbors.

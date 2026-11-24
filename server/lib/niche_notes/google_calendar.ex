@@ -52,7 +52,7 @@ defmodule NicheNotes.GoogleCalendar do
              json: %{
                summary: "Niche Notes",
                description:
-                 "Dated checkbox lines from Niche Notes. Edit them there, since changes made here don't reach it.",
+                 "Dated tasks from Niche Notes. Edit them there, since changes made here don't reach it.",
                timeZone: time_zone
              }
            ) do

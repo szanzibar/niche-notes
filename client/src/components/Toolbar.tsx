@@ -228,7 +228,7 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
         >
           <Group>
             <Tool
-              label="Checklist"
+              label="Task list"
               disabled={inTable}
               active={list === 'taskList'}
               onClick={() => toggleList(editor, 'taskList')}
@@ -317,15 +317,15 @@ export function Toolbar({ editor }: { editor: Editor | null }) {
                 <Group className="[&>*]:flex-1">
                   {(
                     [
-                      ['Never', null],
-                      ['Week', { freq: 'WEEKLY', interval: 1, days: [weekday], weeks: [], monthDay: null }],
-                      ['Month', { freq: 'MONTHLY', interval: 1, days: [], weeks: [], monthDay: start.getDate() }],
-                      ['Year', { freq: 'YEARLY', interval: 1, days: [], weeks: [], monthDay: null }],
+                      ['Once', null],
+                      ['Weekly', { freq: 'WEEKLY', interval: 1, days: [weekday], weeks: [], monthDay: null }],
+                      ['Monthly', { freq: 'MONTHLY', interval: 1, days: [], weeks: [], monthDay: start.getDate() }],
+                      ['Yearly', { freq: 'YEARLY', interval: 1, days: [], weeks: [], monthDay: null }],
                     ] satisfies [string, Rule | null][]
                   ).map(([label, fresh]) => (
                     <Tool
                       key={label}
-                      label={label === 'Never' ? "Doesn't repeat" : `Every ${label.toLowerCase()}`}
+                      label={label}
                       active={(rule?.freq ?? null) === (fresh?.freq ?? null)}
                       onClick={() => (rule?.freq ?? null) !== (fresh?.freq ?? null) && setRule(fresh)}
                     >

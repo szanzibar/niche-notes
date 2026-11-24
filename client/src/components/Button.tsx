@@ -29,3 +29,23 @@ export function Button({ className = '', type = 'button', ...props }: ButtonHTML
     />
   )
 }
+
+// A row in a menu shows its icon and its name, since a menu is where people look when they don't know the icon.
+export function MenuItem({
+  icon,
+  className = '',
+  type = 'button',
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { icon: React.ReactNode }) {
+  return (
+    <button
+      type={type}
+      className={`flex h-10 w-full shrink-0 items-center gap-3 px-2 text-left font-bold not-aria-pressed:hover:bg-bg aria-pressed:bg-accent aria-pressed:text-on-accent disabled:opacity-50 ${className}`}
+      {...props}
+    >
+      {icon}
+      {children}
+    </button>
+  )
+}

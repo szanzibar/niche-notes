@@ -17,7 +17,7 @@ test('on a phone, Return fills a table cell by cell, adds a row at the end, and 
   await page.keyboard.press('Enter')
   await page.getByRole('button', { name: 'Table', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Add row' })).toBeInViewport()
-  await expect(page.getByRole('button', { name: 'Checklist' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Task list' })).toBeDisabled()
 
   for (const text of ['Date', 'Dose', 'Yield', 'Mon', '18g', '36g', 'Tue', '18g', '40g']) {
     await page.keyboard.type(text)
@@ -34,7 +34,7 @@ test('on a phone, Return fills a table cell by cell, adds a row at the end, and 
   await expect(page.getByRole('button', { name: 'Add row' })).toHaveCount(0)
 
   // Back in the table, its tools scroll into view from the start of the bar.
-  await page.getByRole('button', { name: 'Checklist' }).locator('xpath=../..').evaluate((bar) => (bar.scrollLeft = 0))
+  await page.getByRole('button', { name: 'Task list' }).locator('xpath=../..').evaluate((bar) => (bar.scrollLeft = 0))
   await page.locator('.editor-body td').filter({ hasText: '40g' }).click()
   await expect(page.getByRole('button', { name: 'Add row' })).toBeInViewport()
 })

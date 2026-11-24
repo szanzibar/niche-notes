@@ -2,7 +2,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useState } from 'react'
 import { alertState, turnOffAlerts, turnOnAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
-import { useY } from '../sync/hooks'
+import { useStore, useY } from '../sync/hooks'
+import { wipeLocal } from '../sync/store'
 import { settings } from '../sync/tree'
 import { Button, IconButton } from './Button'
 import { CloseIcon, SettingsIcon } from './icons'
@@ -29,6 +30,7 @@ const DENSITIES: [string, string | undefined][] = [
 export function SettingsDialog() {
   // The Android and desktop apps say which build they are. A build without a number is a local one.
   const app = (window as { nicheNotesApp?: { version: number } }).nicheNotesApp
+  const s = useStore()
   const prefs = settings()
   useY(prefs)
   const accent = (prefs.get('accent') as string | undefined) ?? THEMES[0].color
@@ -54,6 +56,14 @@ export function SettingsDialog() {
       .googleCalendar()
       .then(setGoogle)
       .catch(() => {})
+  }
+
+  const signOut = async () => {
+    await api.logout()
+    await wipeLocal()
+    // The app starts again signed out and goes to the login from there. A login that opens in another window,
+    // as the desktop app's does, would leave the notes on this page.
+    window.location.reload()
   }
 
   return (
@@ -158,7 +168,7 @@ export function SettingsDialog() {
           <div className="mb-2 mt-5 flex items-center">
             <p className="font-medium">Calendar</p>
             <Info label="About the calendar">
-              Dated checkbox lines go to a Niche Notes calendar in your Google Calendar, a minute after each change.
+              Dated tasks go to a Niche Notes calendar in your Google Calendar, a minute after each change.
               Edit them here, since changes made in Google Calendar don't come back.
             </Info>
           </div>
@@ -180,6 +190,9 @@ export function SettingsDialog() {
               Connect Google Calendar
             </Button>
           )}
+          <p className="mb-2 mt-5 font-medium">Account</p>
+          <p className="mb-2 text-sm text-ink-muted">{s.me!.name}</p>
+          <Button onClick={() => void signOut()}>Sign out</Button>
           <p className="mb-2 mt-5 font-medium">Version</p>
           <p className="text-sm text-ink-muted">
             Server {import.meta.env.VITE_BUILD || 'dev'}

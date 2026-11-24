@@ -41,6 +41,7 @@ test('a new pin goes below the other pins, and an unpinned note goes on top of t
   for (const title of ['Apple', 'Banana', 'Cherry', 'Date']) await newNote(page, title)
   const pin = async (title: string, name: 'Pin' | 'Unpin') => {
     await row(page, title).click()
+    await page.getByRole('button', { name: 'More' }).click()
     await page.getByRole('button', { name, exact: true }).click()
   }
   await pin('Banana', 'Pin')
@@ -107,7 +108,9 @@ test('a drop keeps a note pinned or not, and the line shows the end of its own g
   const page = await signIn(browser, `alice-${uid()}`)
   for (const title of ['Apple', 'Banana', 'Next', 'Top']) {
     await newNote(page, title)
-    if (title === 'Next' || title === 'Top') await page.getByRole('button', { name: 'Pin', exact: true }).click()
+    if (title !== 'Next' && title !== 'Top') continue
+    await page.getByRole('button', { name: 'More' }).click()
+    await page.getByRole('button', { name: 'Pin', exact: true }).click()
   }
   expect(await rowTitles(page)).toEqual(['Next', 'Top', 'Banana', 'Apple'])
   const line = (title: string) => row(page, title).locator('..').locator('[data-drop-line]')
@@ -117,8 +120,10 @@ test('a drop keeps a note pinned or not, and the line shows the end of its own g
   await drag(page, row(page, 'Apple'), row(page, 'Top'), 'top', () => expect(line('Banana')).toBeVisible())
   expect(await rowTitles(page)).toEqual(['Top', 'Next', 'Apple', 'Banana'])
   await row(page, 'Next').click()
+  await page.getByRole('button', { name: 'More' }).click()
   await expect(page.getByRole('button', { name: 'Unpin', exact: true })).toBeVisible()
   await row(page, 'Apple').click()
+  await page.getByRole('button', { name: 'More' }).click()
   await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
 })
 
@@ -216,9 +221,11 @@ test('a device that only opens the app writes nothing, so every note stays where
   await newNote(bob, 'Kids')
   await drag(bob, row(bob, 'Homework'), row(bob, 'Kids'))
   await row(bob, 'Recipes').click()
+  await bob.getByRole('button', { name: 'More' }).click()
   await bob.getByRole('button', { name: 'Pin', exact: true }).click()
   await row(bob, 'Old list').click()
-  await bob.getByRole('button', { name: 'Leave', exact: true }).click()
+  await bob.getByRole('button', { name: 'More' }).click()
+  await bob.getByRole('button', { name: 'Leave note' }).click()
   await expect(bob.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
   expect(await rowTitles(bob)).toEqual(['Recipes', 'Kids', 'Homework'])
 
@@ -307,7 +314,8 @@ test('a launch draws the tree with saved titles, without waiting for the notes',
   await newNote(page, 'Draft')
   await page.getByPlaceholder('Title').fill('Final')
   await newNote(page, 'Old')
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
   // Lets the saved titles land before the reload.
   await page.waitForTimeout(500)
   // The rows of the first draw, before any note has loaded.

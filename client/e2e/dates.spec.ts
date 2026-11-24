@@ -18,7 +18,7 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Rent')
   await expect(tool(page, 'Date')).toBeDisabled()
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('Bins')
 
@@ -70,7 +70,7 @@ test('on a phone, a tap right of a dated line puts the cursor at its end', async
   const page = await context.newPage()
   await page.goto(`/auth/login?as=alice-${uid()}`)
   await newNote(page, 'Chores', 'Rent')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('Bins')
   await page.locator('.editor-body p').getByText('Rent', { exact: true }).tap()
@@ -88,10 +88,10 @@ test('on a phone, a tap right of a dated line puts the cursor at its end', async
 test('ticking a repeating line moves it to its next date instead of checking it', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Bins')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await tool(page, 'Date').click()
   await tool(page, 'Today').click()
-  await tool(page, 'Every week').click()
+  await tool(page, 'Weekly').click()
   await expect(chip(page, 'Bins')).toHaveAttribute('data-label', '↻ Today')
   await expect(page.getByRole('button', { name: /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day$/ })).toHaveText([
     'M',
@@ -114,7 +114,7 @@ test('ticking a repeating line moves it to its next date instead of checking it'
 test("a calendar event's link opens its note with the cursor at the end of its line", async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Rent')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('Bins')
   const note = page.url()
@@ -139,9 +139,9 @@ test("a calendar event's link opens its note with the cursor at the end of its l
 test('a monthly repeat can be the nth or last weekday, several at once', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Clean filters')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await tool(page, 'Date').click()
-  await tool(page, 'Every month').click()
+  await tool(page, 'Monthly').click()
   const weekday = new Date().toLocaleDateString('en', { weekday: 'long' })
   const code = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date().getDay()]
   await expect(page.getByText(`Every month on the ${new Date().getDate()}`)).toBeVisible()
@@ -156,9 +156,9 @@ test('a monthly repeat can be the nth or last weekday, several at once', async (
 test('a monthly repeat on a day of the month moves to the day picked', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Pay rent')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await tool(page, 'Date').click()
-  await tool(page, 'Every month').click()
+  await tool(page, 'Monthly').click()
   await page.getByLabel('Day', { exact: true }).fill(inDays(1))
   const date = Number(inDays(1).slice(8))
   await expect(line(page, 'Pay rent')).toHaveAttribute('data-repeat', `FREQ=MONTHLY;BYMONTHDAY=${date}`)
@@ -192,7 +192,7 @@ test('repeat rules land on the right next day', () => {
 test('words typed as a date turn into the date of their line once it is left', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Milk')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   const typed = page.locator('.typed-words')
 
@@ -232,7 +232,7 @@ test('words typed as a date turn into the date of their line once it is left', a
 test('the chip or Escape keeps typed words as words, and Undo brings them back', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Dinner', 'Sunday roast')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   const typed = page.locator('.typed-words')
   // A line made into a checkbox line wasn't typed as one.
   await expect(typed).toHaveCount(0)
@@ -270,7 +270,7 @@ test('the chip or Escape keeps typed words as words, and Undo brings them back',
 test('typed words turn into the date when the note closes or the app goes to the background', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Garden', 'Rake')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('water plants tomorrow')
   await expect(page.locator('.typed-words')).toHaveText('tomorrow')
@@ -296,7 +296,7 @@ test('typed words turn into the date when the app goes to the background while t
   phoneOnly()
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Garden', 'Rake')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('feed cat today at ')
   // A phone's keyboard holds the last word open, and may write it again once it lets go, so it has to let go while
@@ -326,7 +326,7 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
 
   // The count is what needs doing by today, so a line due tomorrow shows the button without one.
   await newNote(page, 'Chores', 'Milk')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.press('Enter')
   await page.keyboard.type('book dentist tomorrow')
   await page.keyboard.press('Enter')
@@ -336,7 +336,7 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   await expect(due).toHaveText('1')
 
   await newNote(page, 'Garden', 'rake leaves')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await tool(page, 'Date').click()
   await page.getByLabel('Day', { exact: true }).fill(inDays(-2))
   await page.keyboard.press('Escape')
@@ -351,7 +351,7 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
 
   await due.click()
   const section = (name: string) => page.getByRole('list', { name, exact: true }).getByRole('listitem')
-  await expect(page.getByRole('button', { expanded: true })).toHaveText(['▼Past due1', '▼Today1', '▼Tomorrow1', '▼Later1'])
+  await expect(page.getByRole('button', { expanded: true })).toHaveText(['Past due1', 'Today1', 'Tomorrow1', 'Later1'])
   await expect(section('Past due')).toContainText('Garden')
   await expect(section('Past due')).toContainText('rake leaves')
   await expect(section('Today').getByRole('button')).toHaveText(['Chores', 'pay rentToday'])
@@ -386,7 +386,8 @@ test('the tree lists dated lines by when they are due, under their notes, and a 
   // A note in the trash has nothing due.
   await due.click()
   await row(page, 'Garden').click()
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
   await expect(due).toHaveAccessibleName('Due (0)')
   await expect(otherDue).toHaveAccessibleName('Due (0)')
 })
@@ -396,7 +397,7 @@ test('a launch without the server lists the dates another device gave a note ope
   const phone = await signIn(browser, name)
   const due = phone.getByRole('button', { name: /^Due \(/ })
   await newNote(phone, 'Chores', 'Milk')
-  await tool(phone, 'Checklist').click()
+  await tool(phone, 'Task list').click()
   await phone.keyboard.press('Enter')
   await phone.keyboard.type('pay rent today')
   await phone.keyboard.press('Enter')
@@ -424,7 +425,7 @@ test('a note opened at a line far down shows that line in the middle, and again 
 }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Long', 'line 1')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   for (let i = 2; i <= 40; i++) {
     await page.keyboard.press('Enter')
     await page.keyboard.type(i === 30 ? 'pay rent today' : `line ${i}`)
@@ -523,7 +524,7 @@ test('typed words read as the dates they say', () => {
 test('a dated line keeps its date beside its own text when a longer line is nested under it', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'Clean office')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await tool(page, 'Date').click()
   await tool(page, 'Tomorrow').click()
   const office = page.locator('.editor-body p').getByText('Clean office', { exact: true })

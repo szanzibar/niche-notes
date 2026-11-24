@@ -1,5 +1,5 @@
 import { expect, type Browser } from '@playwright/test'
-import { row, shareWith, test, uid } from './helpers'
+import { display, row, shareWith, test, uid } from './helpers'
 
 const phone = async (browser: Browser, name: string) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
@@ -9,112 +9,76 @@ const phone = async (browser: Browser, name: string) => {
   return page
 }
 
-test('on a phone the header keeps the title, and the dots reveal the usual actions', async ({ browser }) => {
+test('the header holds the title, Share and the dots, and the menu names each action', async ({ browser }) => {
   const page = await phone(browser, `alice-${uid()}`)
   await page.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
-  await page.keyboard.type('A rather long title for a phone screen')
+  await page.keyboard.type('Milk')
 
   await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeHidden()
-  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeHidden()
-  expect((await page.getByPlaceholder('Title').boundingBox())!.width).toBeGreaterThan(200)
-  await expect(page.getByRole('img', { name: 'Shared' })).toHaveCount(0)
-  // Share stays beside the dots, and only there.
   await expect(page.getByRole('button', { name: 'Share', exact: true })).toBeVisible()
+  expect((await page.getByPlaceholder('Title').boundingBox())!.width).toBeGreaterThan(200)
 
   await page.getByRole('button', { name: 'More' }).click()
-  await expect(page.getByRole('button', { name: 'Share', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toHaveText('Pin')
   await page.getByRole('button', { name: 'Pin', exact: true }).click()
+  await page.getByRole('button', { name: 'More' }).click()
   await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
   await expect(page.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
 })
 
-test('behind the dots, deleting a note with notes under it asks in a row of its own', async ({ browser }) => {
+test('deleting a note with notes under it asks whether they go too, and says how many', async ({ browser }) => {
   const page = await phone(browser, `alice-${uid()}`)
   await page.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
-  await page.keyboard.type('A rather long title for a phone screen')
+  await page.keyboard.type('Trips')
   await page.getByRole('button', { name: 'Back' }).click()
   await page.getByRole('button', { name: 'New note inside' }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
   await page.keyboard.type('Inside')
   await page.getByRole('button', { name: 'Back' }).click()
 
-  await row(page, 'A rather long title').click()
+  await row(page, 'Trips').click()
   await page.getByRole('button', { name: 'More' }).click()
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
-  await page.getByRole('button', { name: 'With its notes' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
+  await page.getByRole('button', { name: 'With its 1 note' }).click()
   await expect(page.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
   await expect(row(page, 'Inside')).toHaveCount(0)
 })
 
-test('a short title keeps the actions beside it until typing makes it too long', async ({ browser }) => {
+test('the offline cloud sits beside the dots, and the menu still sets what checked tasks do', async ({ browser }) => {
   const page = await phone(browser, `alice-${uid()}`)
   await page.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(page.getByPlaceholder('Title')).toBeFocused()
-  await page.keyboard.type('Milk')
-  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'More' })).toHaveCount(0)
-
-  await page.keyboard.type(' and everything else for the week')
-  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeHidden()
-  await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
-  await expect(page.getByPlaceholder('Title')).toBeFocused()
-})
-
-test('every action folds behind the dots at once, and the offline cloud stays beside them', async ({ browser }) => {
-  const page = await phone(browser, `alice-${uid()}`)
-  await page.getByRole('button', { name: 'New note', exact: true }).click()
-  await expect(page.getByPlaceholder('Title')).toBeFocused()
-  await page.keyboard.type('Groceries for the whole week')
+  await page.keyboard.type('Groceries')
   await page.keyboard.press('Enter')
-  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
+  await page.getByRole('button', { name: 'Task list', exact: true }).click()
   await page.keyboard.type('Eggs')
-  await expect(page.getByRole('button', { name: 'Checked lines' })).toBeHidden()
 
   await page.context().setOffline(true)
   await expect(page.locator('main').getByRole('img', { name: 'Offline' })).toBeVisible()
   await page.getByRole('button', { name: 'More' }).click()
-  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
-  await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
+  const hide = page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' })
+  await hide.click()
+  await expect(hide).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('a shared note keeps Share beside the dots for its owner, and an icon of its own for the other person', async ({
-  browser,
-}) => {
+test('a shared note keeps Share for its owner, and names the owner for the other person', async ({ browser }) => {
   const a = `alice-${uid()}`
   const b = `bob-${uid()}`
   const bob = await phone(browser, b)
   const alice = await phone(browser, a)
   await alice.getByRole('button', { name: 'New note', exact: true }).click()
   await expect(alice.getByPlaceholder('Title')).toBeFocused()
-  await alice.keyboard.type('Groceries for the whole week')
+  await alice.keyboard.type('Groceries')
   await shareWith(alice, b)
   await expect(alice.getByRole('button', { name: 'Shared with 1' })).toBeVisible()
-  await expect(alice.getByRole('img', { name: 'Shared' })).toHaveCount(0)
 
   await bob.getByRole('button', { name: 'Groceries' }).click()
-  await bob.getByRole('button', { name: /^Shared by/ }).click()
-  await expect(bob.getByText(/^Shared by/)).toBeVisible()
+  await expect(bob.locator('main').getByRole('img', { name: `Shared by ${display(a)}` })).toHaveText(display(a))
   await bob.getByRole('button', { name: 'More' }).click()
-  await expect(bob.getByRole('button', { name: 'Leave' })).toBeVisible()
-})
-
-test('actions too wide for the row fold behind the dots, instead of wrapping under a short title', async ({ browser }) => {
-  const page = await phone(browser, `alice-${uid()}`)
-  await page.getByRole('button', { name: 'New note', exact: true }).click()
-  await expect(page.getByPlaceholder('Title')).toBeFocused()
-  await page.keyboard.type('M')
-  await page.keyboard.press('Enter')
-  await page.getByRole('button', { name: 'Checklist', exact: true }).click()
-  await page.keyboard.type('Eggs')
-  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeVisible()
-
-  await page.setViewportSize({ width: 280, height: 844 })
-  await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Pin', exact: true })).toBeHidden()
+  await expect(bob.getByRole('button', { name: 'Leave note' })).toBeVisible()
 })
 
 test('back from a note goes to the list and back again leaves, also when a widget opened the note', async ({

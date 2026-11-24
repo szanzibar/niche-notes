@@ -7,7 +7,7 @@ const body = (page: Page) => page.locator('.editor-body')
 // Which list buttons the bar shows as on.
 async function pressed(page: Page) {
   const on: string[] = []
-  for (const name of ['Checklist', 'Bullet list', 'Numbered list']) {
+  for (const name of ['Task list', 'Bullet list', 'Numbered list']) {
     if ((await tool(page, name).getAttribute('aria-pressed')) === 'true') on.push(name)
   }
   return on
@@ -15,7 +15,7 @@ async function pressed(page: Page) {
 
 async function checklist(page: Page, first: string, ...rest: string[]) {
   await newNote(page, 'Lists', first)
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   for (const line of rest) {
     await page.keyboard.press('Enter')
     await page.keyboard.type(line)
@@ -26,7 +26,7 @@ test('a bullet under a checkbox shows its bullet, and the bar marks only the lin
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Parent', 'Child')
   await tool(page, 'Indent').click()
-  expect(await pressed(page)).toEqual(['Checklist'])
+  expect(await pressed(page)).toEqual(['Task list'])
 
   await tool(page, 'Bullet list').click()
   const bullet = body(page).locator('ul[data-type="taskList"] ul:not([data-type]) > li')
@@ -41,10 +41,10 @@ test('a bullet under a checkbox shows its bullet, and the bar marks only the lin
   expect(await pressed(page)).toEqual([])
 
   // And a checkbox of its own, nested under the parent, which still has its own.
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await expect(body(page).locator('ul[data-type="taskList"] ul[data-type="taskList"] > li p')).toHaveText('Child')
   await expect(body(page).locator('input[type="checkbox"]')).toHaveCount(2)
-  expect(await pressed(page)).toEqual(['Checklist'])
+  expect(await pressed(page)).toEqual(['Task list'])
 })
 
 test('switching list type converts the whole level and leaves nested lists alone', async ({ browser }) => {
@@ -78,8 +78,8 @@ test('a note set to hide checked lines hides each one a moment after it is check
   const page = await signIn(browser, name)
   await checklist(page, 'Milk', 'Eggs')
   const line = (text: string, on = page) => body(on).locator('li p').getByText(text, { exact: true })
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  const hide = page.getByRole('button', { name: 'Hide checked' })
+  await page.getByRole('button', { name: 'More' }).click()
+  const hide = page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' })
   await hide.click()
   await expect(hide).toHaveAttribute('aria-pressed', 'true')
 
@@ -97,8 +97,8 @@ test('a note set to hide checked lines hides each one a moment after it is check
   await expect(line('Milk and bread', other)).toBeVisible()
   expect(await line('Eggs', other).isVisible()).toBe(false)
 
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await hide.click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Show' }).click()
   await expect(line('Eggs')).toBeVisible()
 })
 
@@ -106,8 +106,8 @@ test('lines ticked in a row stay put until the note is still, then leave togethe
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Milk', 'Eggs', 'Bread')
   const shown = body(page).locator('li p:visible')
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
 
   await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
   await page.waitForTimeout(3000)
@@ -121,10 +121,10 @@ test('lines ticked in a row stay put until the note is still, then leave togethe
 test('a note set to delete checked lines hides them, then deletes them the next time it opens', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Milk', 'Eggs')
-  const hide = page.getByRole('button', { name: 'Hide checked' })
-  const remove = page.getByRole('button', { name: 'Delete when checked' })
-  // Both are offered as soon as the note has a checkbox, before anything is checked.
-  await page.getByRole('button', { name: 'Checked lines' }).click()
+  const hide = page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' })
+  const remove = page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Delete' })
+  // The choice is offered as soon as the note has a checkbox, before anything is checked.
+  await page.getByRole('button', { name: 'More' }).click()
   await hide.click()
   await remove.click()
   await expect(hide).toHaveAttribute('aria-pressed', 'false')
@@ -147,8 +147,8 @@ test('a checked line hides only once every line under it is checked, and only th
   await page.keyboard.type('Charger')
   const box = (text: string) => page.getByRole('checkbox', { name: `Task item checkbox for ${text}` })
   const shown = body(page).locator('li p:visible')
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
 
   await box('Trip').check()
   await expect(body(page).locator('[data-lingering]')).toHaveCount(0)
@@ -156,8 +156,8 @@ test('a checked line hides only once every line under it is checked, and only th
   await box('Socks').check()
   await expect(shown).toHaveText(['Trip', 'Charger'])
 
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Delete when checked' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Delete' }).click()
   await page.goBack()
   await row(page, 'Lists').click()
   await expect(body(page).locator('li p')).toHaveText(['Trip', 'Charger'])
@@ -168,17 +168,17 @@ test('a checked line hides only once every line under it is checked, and only th
   await expect(shown).toHaveCount(0)
 })
 
-test('the checked lines panel opens over the note and closes on a tap back in the note', async ({ browser }) => {
+test('the menu opens over the note and closes on a tap back in the note', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await checklist(page, 'Milk', 'Eggs')
   const top = async () => (await body(page).boundingBox())!.y
   const before = await top()
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await expect(page.getByRole('button', { name: 'Hide checked' })).toBeVisible()
+  await page.getByRole('button', { name: 'More' }).click()
+  await expect(page.getByRole('group', { name: 'Checked tasks' })).toBeVisible()
   expect(await top()).toBe(before)
 
   await body(page).locator('li p').getByText('Eggs', { exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Hide checked' })).toBeHidden()
+  await expect(page.getByRole('group', { name: 'Checked tasks' })).toBeHidden()
 })
 
 test('Uncheck all clears every box in one step that Undo takes back', async ({ browser }) => {
@@ -189,7 +189,7 @@ test('Uncheck all clears every box in one step that Undo takes back', async ({ b
   // Undo merges edits made within half a second of each other.
   await page.waitForTimeout(600)
 
-  await page.getByRole('button', { name: 'Checked lines' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
   await page.getByRole('button', { name: 'Uncheck all' }).click()
   await expect(checked).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Uncheck all' })).toBeHidden()
@@ -204,8 +204,8 @@ test('Delete checked shows hidden checked lines for a moment, then removes them 
   await checklist(page, 'Milk', 'Eggs', 'Bread')
   for (const item of ['Eggs', 'Bread']) await page.getByRole('checkbox', { name: `Task item checkbox for ${item}` }).check()
   const lines = body(page).locator('li p')
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' }).click()
   await expect(body(page).locator('li p:visible')).toHaveText(['Milk'])
   // Undo merges edits made within half a second of each other.
   await page.waitForTimeout(600)
@@ -213,15 +213,16 @@ test('Delete checked shows hidden checked lines for a moment, then removes them 
   await page.getByRole('button', { name: 'Delete checked' }).click()
   await expect(body(page).locator('li p:visible')).toHaveText(['Milk', 'Eggs', 'Bread'])
   await expect(lines).toHaveText(['Milk'])
-  await expect(page.getByRole('button', { name: 'Hide checked' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'More' }).click()
+  await expect(page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Hide' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('button', { name: 'Delete checked' })).toBeHidden()
   await tool(page, 'Undo').click()
   await expect(lines).toHaveText(['Milk', 'Eggs', 'Bread'])
 
   // With every line checked the list goes too, and the note still takes typing.
   await page.getByRole('checkbox', { name: 'Task item checkbox for Milk' }).check()
-  await page.getByRole('button', { name: 'Checked lines' }).click()
-  await page.getByRole('button', { name: 'Hide checked' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('group', { name: 'Checked tasks' }).getByRole('button', { name: 'Show' }).click()
   await page.getByRole('button', { name: 'Delete checked' }).click()
   await expect(body(page).locator('ul')).toHaveCount(0)
   await body(page).click()
@@ -249,7 +250,7 @@ test('deleting the blank line between two checklists makes them one list', async
   // The first Enter leaves the list and the second leaves a blank line.
   for (let i = 0; i < 3; i++) await page.keyboard.press('Enter')
   await page.keyboard.type('Bread')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await expect(body(page).locator('> ul')).toHaveCount(2)
 
   await page.keyboard.press(lineStart)

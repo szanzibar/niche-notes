@@ -75,7 +75,7 @@ test('checked items are crossed out, but not their children or the line typed af
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Shopping')
   await page.keyboard.press('Enter')
-  await page.getByRole('button', { name: 'Checklist' }).click()
+  await page.getByRole('button', { name: 'Task list' }).click()
   await page.keyboard.type('eggs')
   await page.keyboard.press('Enter')
   await page.keyboard.type('brown')
@@ -132,7 +132,9 @@ test('deleting a note with notes under it asks whether they go too, and notes de
 
   // Alone, the notes under it move up, newer than it, so above it once it is back.
   await row(page, 'Trip').click()
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
+  await expect(page.getByRole('button', { name: 'With its 2 notes' })).toBeVisible()
   await page.getByRole('button', { name: 'Just this note' }).click()
   await expect.poll(() => rowTitles(page)).toEqual(['Socks', 'Wool'])
   await page.getByRole('button', { name: 'Trash (1)' }).click()
@@ -141,8 +143,9 @@ test('deleting a note with notes under it asks whether they go too, and notes de
 
   // With its notes, they are one entry in the trash and come back where they were.
   await row(page, 'Socks').click()
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
-  await page.getByRole('button', { name: 'With its notes' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
+  await page.getByRole('button', { name: 'With its 1 note' }).click()
   await expect.poll(() => rowTitles(page)).toEqual(['Trip'])
   await expect(page.getByRole('button', { name: 'Trash (1)' })).toBeVisible()
   await page.locator('aside').getByRole('button', { name: 'Restore' }).click()
@@ -151,8 +154,9 @@ test('deleting a note with notes under it asks whether they go too, and notes de
   await expect(row(page, 'Wool')).toBeHidden()
 
   await row(page, 'Socks').click()
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
-  await page.getByRole('button', { name: 'With its notes' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
+  await page.getByRole('button', { name: 'With its 1 note' }).click()
   await page.locator('aside').getByRole('button', { name: 'Delete forever' }).click()
   await expect(page.getByRole('button', { name: /^Trash/ })).toHaveCount(0)
   await page.reload()
@@ -211,7 +215,8 @@ test('delete goes to the trash without asking; a trashed note is read-only until
 }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Doomed', 'keep me')
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
   await expect(row(page, 'Doomed')).toHaveCount(0)
   await expect(page.getByText('No notes yet')).toBeVisible()
 
@@ -220,7 +225,7 @@ test('delete goes to the trash without asking; a trashed note is read-only until
   await expect(page.getByRole('button', { name: 'Doomed' })).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('main').getByRole('button', { name: 'Restore' })).toBeVisible()
   await expect(page.locator('.editor-body')).toContainText('keep me')
-  await expect(page.getByRole('button', { name: 'Checklist' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Task list' })).toHaveCount(0)
   await page.locator('.editor-body').click()
   await page.keyboard.type('zzz')
   await expect(page.locator('.editor-body')).not.toContainText('zzz')
@@ -228,9 +233,10 @@ test('delete goes to the trash without asking; a trashed note is read-only until
   await page.locator('main').getByRole('button', { name: 'Restore' }).click()
   await expect(row(page, 'Doomed')).toBeVisible()
   await expect(page.getByPlaceholder('Title')).toHaveValue('Doomed')
-  await expect(page.getByRole('button', { name: 'Checklist' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Task list' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Delete note' }).click()
   await page.locator('aside').getByRole('button', { name: 'Delete forever' }).click()
   await expect(page.getByRole('button', { name: /^Trash/ })).toHaveCount(0)
   await page.reload()
@@ -245,7 +251,7 @@ test("beside the tree, the note's header and toolbar line up with the tree's hea
   const edges = () =>
     page.evaluate(() => {
       const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect()
-      const toolbar = document.querySelector('[aria-label="Checklist"]')!.closest('.border-t-2')!.getBoundingClientRect()
+      const toolbar = document.querySelector('[aria-label="Task list"]')!.closest('.border-t-2')!.getBoundingClientRect()
       return [box('header:not(.note-header)').bottom - box('.note-header').bottom, box('footer').top - toolbar.top]
     })
   for (const density of ['compact', 'default', 'large']) {
@@ -258,7 +264,7 @@ test("beside the tree, the note's header and toolbar line up with the tree's hea
   await expect(right).toBeHidden()
 
   await page.setViewportSize({ width: 800, height: 720 })
-  const tools = page.locator('.overflow-x-auto').filter({ has: page.getByLabel('Checklist') })
+  const tools = page.locator('.overflow-x-auto').filter({ has: page.getByLabel('Task list') })
   // Headless Chromium hides scrollbars, so a desktop one taking room only shows as the style.
   expect(await tools.evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe('none')
   expect(await edges()).toEqual([0, 0])

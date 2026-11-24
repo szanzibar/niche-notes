@@ -10,7 +10,7 @@ import {
   yCursorPluginKey,
   ySyncPluginKey,
 } from '@tiptap/y-tiptap'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
@@ -29,19 +29,15 @@ import {
   removeNote,
   restoreNote,
   setColor,
-  shareCount,
   titleOf,
   togglePin,
 } from '../sync/tree'
-import { Button, IconButton } from './Button'
+import { Button, IconButton, MenuItem } from './Button'
 import {
-  ArrowDownLeftIcon,
-  ArrowRightIcon,
-  CheckedIcon,
-  DeleteWhenCheckedIcon,
+  ChevronLeftIcon,
   GripIcon,
-  HideCheckedIcon,
   LeaveIcon,
+  MoreIcon,
   PaletteIcon,
   PinIcon,
   RemoveNoteIcon,
@@ -169,9 +165,8 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
       meta.set('hideChecked', on && mode === 'hideChecked')
       meta.set('deleteChecked', on && mode === 'deleteChecked')
     })
-  // One box opens under the title at a time: the folded actions, what to do with checked lines, whether the notes
-  // under this one go with it, the note's color, or who shared it.
-  const [panel, setPanel] = useState<'more' | 'checked' | 'remove' | 'color' | 'shared' | null>(null)
+  // The menu, opened on its own, on the note's colors, or on whether the notes under this one go with it.
+  const [panel, setPanel] = useState<'menu' | 'color' | 'remove' | null>(null)
 
   const editor = useEditor(
     {
@@ -305,26 +300,6 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     }
   }, [editor, id])
 
-  // The actions sit beside the title until it would be cut off. Then they fold behind the dots, which
-  // reveal them under the title. Each check lays them out beside it first, before anything is drawn.
-  const header = useRef<HTMLElement>(null)
-  const [folded, setFolded] = useState(false)
-  const [width, setWidth] = useState(window.innerWidth)
-  const title = meta.get('title')
-  useEffect(() => {
-    const resize = () => setWidth(window.innerWidth)
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [])
-  useLayoutEffect(() => setFolded(false), [title, width, tasks, deleted, s.online])
-  useLayoutEffect(() => {
-    const shown = header.current?.querySelector<HTMLElement>('[data-title]')
-    if (folded || !shown) return
-    // Actions too wide for the row wrap under the title, which then looks as if it had room.
-    const wrapped = (header.current!.lastElementChild as HTMLElement).offsetTop >= shown.offsetTop + shown.offsetHeight
-    if (wrapped || shown.scrollWidth > shown.clientWidth) setFolded(true)
-  }, [folded, title, width, tasks, deleted, s.online])
-
   if (!getDoc(id)) return <p className="m-auto text-ink-muted">This note is no longer shared with you.</p>
 
   const mine = isMine(id)
@@ -336,159 +311,54 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
   }
   // The list is always the page under a note.
   const leave = () => navigate(-1)
-  const pinLabel = isPinned(id) ? 'Unpin' : 'Pin'
-  const removeLabel = mine ? 'Delete' : 'Leave'
   const remove = (withNotes: boolean) => {
     void removeNote(id, withNotes)
     leave()
   }
-  const nested = children(id).length > 0
-  const removeChoices = (
-    <>
-      <IconButton label="Just this note" onClick={() => remove(false)}>
-        <RemoveNoteIcon />
-      </IconButton>
-      <IconButton label="With its notes" onClick={() => remove(true)}>
-        <RemoveWithNotesIcon />
-      </IconButton>
-    </>
-  )
+  const under = (parent: string): string[] => children(parent).flatMap((kid) => [kid, ...under(kid)])
+  const nested = under(id).length
   const back = !guest && (
-    <button type="button" className="px-2 py-1 text-xl md:hidden" onClick={leave} aria-label="Back">
-      ←
-    </button>
+    <IconButton label="Back" className="-ml-2 md:hidden" onClick={leave}>
+      <ChevronLeftIcon />
+    </IconButton>
   )
-
-  // The note's color for this person alone. Automatic follows the color scheme.
-  const picked = nodes().get(id)?.color
-  const colors = (
-    <div className="grid w-[min(calc(100vw-2rem),20rem)] grid-cols-8 gap-2 p-1">
-      <button
-        type="button"
-        aria-label="Automatic color"
-        aria-pressed={!picked}
-        title="Automatic color"
-        className={`row-span-2 border-2 border-border bg-surface text-ink ${picked ? '' : 'outline-2 outline-offset-2 outline-ink'}`}
-        onClick={() => setColor(id, undefined)}
-      >
-        <svg viewBox="0 0 10 10" preserveAspectRatio="none" className="h-full w-full" aria-hidden>
-          <path d="M0 10L10 0" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        </svg>
-      </button>
-      {THEMES.map(({ name, color }) => (
-        <button
-          key={color}
-          type="button"
-          aria-label={name}
-          aria-pressed={color === picked}
-          title={name}
-          className={`aspect-square border-2 border-border ${color === picked ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
-          style={{ background: color }}
-          onClick={() => setColor(id, color)}
-        />
-      ))}
-    </div>
-  )
-
-  // Someone else's note has this where the owner has Share.
-  const sharedBy = !mine && (
-    <Popover
-      side="bottom"
-      open={panel === 'shared'}
-      onOpenChange={(open) => setPanel(open ? 'shared' : null)}
-      trigger={
-        <IconButton label={`Shared by ${ownerName(id)}${reading ? ', view only' : ''}`} className="px-1">
-          {reading ? <ViewIcon /> : <UsersIcon filled />}
-          <ArrowDownLeftIcon className="h-4 w-4" />
-        </IconButton>
-      }
+  // Someone else's note names its owner where the owner has Share, as the tree does.
+  const owner = !guest && !mine && (
+    <span
+      role="img"
+      aria-label={`Shared by ${ownerName(id)}${reading ? ', view only' : ''}`}
+      title={`Shared by ${ownerName(id)}${reading ? ', view only' : ''}`}
+      className="flex shrink-0 items-center gap-1.5 font-bold"
     >
-      <span className="px-2 py-1 text-sm font-bold">
-        Shared by {ownerName(id)}
-        {reading && ', view only'}
-      </span>
-    </Popover>
+      {reading ? <ViewIcon /> : <UsersIcon filled />}
+      {ownerName(id)}
+    </span>
   )
-  // Every action folds at once, except Share or its stand-in, which stays beside the dots. Elsewhere a people icon
-  // stays there when the note is shared. Behind the dots, the checked-line options and the choice of what to delete
-  // get their own rows instead of a box inside the box.
-  const actions = (share: React.ReactNode, buttons: React.ReactNode, checked?: React.ReactNode, choices?: React.ReactNode) =>
-    guest ? null : folded ? (
-      <>
-        {share ||
-          sharedBy ||
-          (shareCount(id) > 0 && (
-            <span role="img" aria-label="Shared" title="Shared" className="shrink-0 text-ink-muted">
-              <UsersIcon filled />
-            </span>
-          ))}
-        <Popover
-          side="bottom"
-          open={panel === 'more' || panel === 'remove' || panel === 'color'}
-          onOpenChange={(open) => setPanel(open ? 'more' : null)}
-          trigger={
-            <button type="button" aria-label="More" className="h-10 w-10 shrink-0 text-2xl leading-none">
-              ⋯
-            </button>
-          }
-        >
-          <div className="flex flex-col items-end gap-2">
-            {checked && <div className="flex items-center gap-2">{checked}</div>}
-            <div className="flex items-center gap-2">{buttons}</div>
-            {(panel === 'remove' || panel === 'color') && <div className="flex items-center gap-2">{choices}</div>}
-          </div>
-        </Popover>
-      </>
-    ) : (
-      <div className="flex items-center justify-end gap-2">
-        {share}
-        {sharedBy}
-        {checked && (
-          <Popover
-            side="bottom"
-            open={panel === 'checked'}
-            onOpenChange={(open) => setPanel(open ? 'checked' : null)}
-            trigger={
-              <IconButton label="Checked lines">
-                <CheckedIcon />
-              </IconButton>
-            }
-          >
-            {checked}
-          </Popover>
-        )}
-        {buttons}
-      </div>
-    )
+  const title = (
+    <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
+      {titleOf(id)}
+    </span>
+  )
 
   if (deleted) {
-    const canAct = mine || hasLeft(id)
-    const final = mine ? 'Delete forever' : 'Leave for good'
     const purge = () => {
       void purgeNote(id)
       leave()
     }
     return (
       <>
-        <header
-          ref={header}
-          className="note-header flex flex-wrap items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent"
-        >
+        <header className="note-header flex items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent">
           {back}
-          <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
-            {titleOf(id)}
-          </span>
+          {title}
           {!guest && <OfflineIcon />}
-          {actions(
-            null,
-            canAct && (
-              <>
-                <Button onClick={() => restoreNote(id)}>Restore</Button>
-                <Button disabled={!s.online} onClick={purge}>
-                  {final}
-                </Button>
-              </>
-            ),
+          {owner}
+          {(mine || hasLeft(id)) && (
+            <>
+              <Button onClick={() => restoreNote(id)}>Restore</Button>
+              <Button disabled={!s.online} onClick={purge}>
+                {mine ? 'Delete forever' : 'Leave for good'}
+              </Button>
+            </>
           )}
         </header>
         {/* Sunken and muted: readable, clearly not for writing. */}
@@ -497,21 +367,119 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
     )
   }
 
+  // The note's color for this person alone. Automatic follows the color scheme.
+  const picked = nodes().get(id)?.color
+  const close = (act: () => void) => {
+    act()
+    setPanel(null)
+  }
+  const menu = (
+    <Popover
+      side="bottom"
+      open={panel != null}
+      onOpenChange={(open) => setPanel(open ? 'menu' : null)}
+      trigger={
+        <IconButton label="More" className="-mr-1">
+          <MoreIcon />
+        </IconButton>
+      }
+    >
+      <div className="flex w-64 flex-col">
+        <MenuItem icon={<PaletteIcon />} aria-expanded={panel === 'color'} onClick={() => setPanel(panel === 'color' ? 'menu' : 'color')}>
+          Color
+        </MenuItem>
+        {panel === 'color' && (
+          <div className="grid grid-cols-5 gap-2 p-2">
+            <button
+              type="button"
+              aria-label="Automatic color"
+              aria-pressed={!picked}
+              title="Automatic color"
+              className={`aspect-square border-2 border-border bg-surface text-ink ${picked ? '' : 'outline-2 outline-offset-2 outline-ink'}`}
+              onClick={() => setColor(id, undefined)}
+            >
+              <svg viewBox="0 0 10 10" preserveAspectRatio="none" className="h-full w-full" aria-hidden>
+                <path d="M0 10L10 0" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+              </svg>
+            </button>
+            {THEMES.map(({ name, color }) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={name}
+                aria-pressed={color === picked}
+                title={name}
+                className={`aspect-square border-2 border-border ${color === picked ? 'outline-2 outline-offset-2 outline-ink' : ''}`}
+                style={{ background: color }}
+                onClick={() => setColor(id, color)}
+              />
+            ))}
+          </div>
+        )}
+        <MenuItem icon={<PinIcon filled={isPinned(id)} />} onClick={() => close(() => togglePin(id))}>
+          {isPinned(id) ? 'Unpin' : 'Pin'}
+        </MenuItem>
+        {tasks?.any && editor && !reading && (
+          <section className="mt-1 border-t-2 border-border pt-2">
+            <p className="px-2 text-xs font-bold uppercase tracking-wide text-ink-muted">Checked tasks</p>
+            <div role="group" aria-label="Checked tasks" className="flex py-1 [&>*]:flex-1 [&>*]:justify-center">
+              <Button aria-pressed={!hiding} onClick={() => setMode('hideChecked', false)}>
+                Show
+              </Button>
+              <Button aria-pressed={hiding && !deleting} onClick={() => setMode('hideChecked', true)}>
+                Hide
+              </Button>
+              <Button aria-pressed={deleting} onClick={() => setMode('deleteChecked', true)}>
+                Delete
+              </Button>
+            </div>
+            {tasks.checked && (
+              <>
+                <MenuItem icon={<UncheckAllIcon />} onClick={() => close(() => uncheckAll(editor))}>
+                  Uncheck all
+                </MenuItem>
+                <MenuItem
+                  icon={<TrashIcon />}
+                  onClick={() => close(() => (hiding ? setClearing(true) : deleteChecked(editor)))}
+                >
+                  Delete checked
+                </MenuItem>
+              </>
+            )}
+          </section>
+        )}
+        <div className="mt-1 border-t-2 border-border pt-1">
+          <MenuItem
+            icon={mine ? <TrashIcon /> : <LeaveIcon />}
+            aria-expanded={nested > 0 ? panel === 'remove' : undefined}
+            onClick={() => (nested > 0 ? setPanel(panel === 'remove' ? 'menu' : 'remove') : remove(false))}
+          >
+            {mine ? 'Delete note' : 'Leave note'}
+          </MenuItem>
+          {panel === 'remove' && (
+            <>
+              <MenuItem icon={<RemoveNoteIcon />} className="pl-8" onClick={() => remove(false)}>
+                Just this note
+              </MenuItem>
+              <MenuItem icon={<RemoveWithNotesIcon />} className="pl-8" onClick={() => remove(true)}>
+                With its {nested} {nested === 1 ? 'note' : 'notes'}
+              </MenuItem>
+            </>
+          )}
+        </div>
+      </div>
+    </Popover>
+  )
+
   return (
     <>
-      <header
-        ref={header}
-        className="note-header flex flex-wrap items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent"
-      >
+      <header className="note-header flex items-center gap-2 border-b-2 border-border bg-accent px-3 py-2 text-on-accent">
         {back}
         {guest || reading ? (
-          <span data-title className="min-w-0 flex-1 truncate text-lg font-bold">
-            {titleOf(id)}
-          </span>
+          title
         ) : (
           <input
             ref={titleRef}
-            data-title
             className="min-w-0 flex-1 truncate bg-transparent text-lg font-bold outline-none placeholder:text-ink-muted"
             placeholder="Title"
             value={(meta.get('title') as string | undefined) ?? ''}
@@ -519,86 +487,12 @@ function Editor({ id, doc }: { id: string; doc: Y.Doc }) {
             onKeyDown={toBody}
           />
         )}
-        {!guest && <OfflineIcon />}
-        {actions(
-          mine && <ShareDialog id={id} />,
+        {!guest && (
           <>
-            {folded ? (
-              <IconButton label="Note color" onClick={() => setPanel(panel === 'color' ? 'more' : 'color')}>
-                <PaletteIcon />
-              </IconButton>
-            ) : (
-              <Popover
-                side="bottom"
-                open={panel === 'color'}
-                onOpenChange={(open) => setPanel(open ? 'color' : null)}
-                trigger={
-                  <IconButton label="Note color">
-                    <PaletteIcon />
-                  </IconButton>
-                }
-              >
-                {colors}
-              </Popover>
-            )}
-            <IconButton label={pinLabel} onClick={() => togglePin(id)}>
-              <PinIcon filled={isPinned(id)} className={`h-[22px] w-[22px] ${isPinned(id) ? 'text-accent-ink' : ''}`} />
-            </IconButton>
-            {nested && !folded ? (
-              <Popover
-                side="bottom"
-                open={panel === 'remove'}
-                onOpenChange={(open) => setPanel(open ? 'remove' : null)}
-                trigger={
-                  <IconButton label={removeLabel} className={panel === 'remove' ? 'text-accent-ink' : ''}>
-                    {mine ? <TrashIcon /> : <LeaveIcon />}
-                  </IconButton>
-                }
-              >
-                {removeChoices}
-              </Popover>
-            ) : (
-              <IconButton
-                label={removeLabel}
-                className={panel === 'remove' ? 'text-accent-ink' : ''}
-                onClick={() => (nested ? setPanel(panel === 'remove' ? 'more' : 'remove') : remove(false))}
-              >
-                {mine ? <TrashIcon /> : <LeaveIcon />}
-              </IconButton>
-            )}
-          </>,
-          tasks?.any && editor && !reading && (
-            <>
-              <IconButton
-                label="Hide checked"
-                aria-pressed={hiding && !deleting}
-                onClick={() => setMode('hideChecked', !(hiding && !deleting))}
-              >
-                <HideCheckedIcon className={`h-[22px] w-[22px] ${hiding && !deleting ? 'text-accent-ink' : ''}`} />
-              </IconButton>
-              <IconButton label="Delete when checked" aria-pressed={deleting} onClick={() => setMode('deleteChecked', !deleting)}>
-                <DeleteWhenCheckedIcon className={`h-[22px] w-[22px] ${deleting ? 'text-accent-ink' : ''}`} />
-              </IconButton>
-              {tasks.checked && (
-                <>
-                  <IconButton label="Uncheck all" onClick={() => uncheckAll(editor)}>
-                    <UncheckAllIcon />
-                  </IconButton>
-                  {/* Spelled out in icons, checked lines into the trash, so it can't be taken for Delete when checked. */}
-                  <IconButton
-                    label="Delete checked"
-                    className="px-1"
-                    onClick={() => (hiding ? setClearing(true) : deleteChecked(editor))}
-                  >
-                    <CheckedIcon />
-                    <ArrowRightIcon className="h-4 w-4" />
-                    <TrashIcon />
-                  </IconButton>
-                </>
-              )}
-            </>
-          ),
-          panel === 'color' ? colors : removeChoices,
+            <OfflineIcon />
+            {mine ? <ShareDialog id={id} /> : owner}
+            {menu}
+          </>
         )}
       </header>
       <EditorContent

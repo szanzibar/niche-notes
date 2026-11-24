@@ -12,7 +12,8 @@ async function scheme(page: Page, name: 'Default' | 'Confetti') {
 }
 
 async function pick(page: Page, color: string) {
-  await page.getByRole('button', { name: 'Note color' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Color', exact: true }).click()
   await page.getByRole('button', { name: color, exact: true }).click()
   await page.keyboard.press('Escape')
 }

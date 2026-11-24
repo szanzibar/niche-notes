@@ -10,7 +10,7 @@ const grip = (page: Page, text: string) =>
 
 async function checklist(page: Page, first: string, ...rest: string[]) {
   await newNote(page, 'Lists', first)
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   for (const text of rest) {
     await page.keyboard.press('Enter')
     await page.keyboard.type(text)
@@ -176,7 +176,7 @@ test('the floating handle shows for paragraphs and never over a list line', asyn
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Mixed', 'Plain words')
   await page.keyboard.press('Enter')
-  await tool(page, 'Checklist').click()
+  await tool(page, 'Task list').click()
   await page.keyboard.type('Task')
   const handle = page.locator('.drag-handle')
 
@@ -202,7 +202,7 @@ test('the floating handle shows for paragraphs and never over a list line', asyn
   await expect(body(touch)).toBeFocused()
   await touch.keyboard.type('Plain words')
   await touch.keyboard.press('Enter')
-  await tool(touch, 'Checklist').tap()
+  await tool(touch, 'Task list').tap()
   await touch.keyboard.type('Task')
   await body(touch).locator('p').getByText('Plain words').tap()
   await expect(touch.locator('.drag-handle')).toBeVisible()
