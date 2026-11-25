@@ -896,12 +896,13 @@ export const Assignees = (people: () => User[]) =>
   })
 
 // While someone types on a task line, the tasks checked in the note before that have a word starting with what the
-// line says, most recently checked first. Escape or a pick closes the box until the cursor leaves the line.
+// line says, most recently checked first. Escape or a pick closes the box until the line's text changes, so Tab
+// indents again.
 interface Suggesting {
   from: number
   to: number
   matches: string[]
-  // The one Enter picks, chosen with the arrows.
+  // The one the arrows chose, which Enter picks. Tab picks it or the first.
   chosen: number
   closed: boolean
 }
@@ -941,8 +942,8 @@ export function pickSuggestion(view: EditorView, text: string) {
 
 export const Suggestions = Extension.create({
   name: 'suggestions',
-  // Ahead of the list's Enter and the arrows.
-  priority: 101,
+  // Ahead of the list's Tab, Enter and arrows.
+  priority: 1001,
   addProseMirrorPlugins: () => [
     new Plugin<Suggesting | null>({
       key: suggestions,
@@ -955,7 +956,7 @@ export const Suggestions = Extension.create({
           const stayed = was != null && (tr.getMeta(ySyncPluginKey) != null || tr.mapping.map(was.from, -1) === $from.start())
           if (!stayed && !typedOn(tr, $from)) return null
           const meta = tr.getMeta(suggestions) as 'close' | number | undefined
-          const closed = meta === 'close' || (stayed && was!.closed)
+          const closed = meta === 'close' || (stayed && was!.closed && !typedOn(tr, $from))
           return {
             from: $from.start(),
             to: $from.end(),
@@ -970,11 +971,14 @@ export const Suggestions = Extension.create({
           if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return false
           const at = suggestions.getState(view.state)
           if (!at?.matches.length) return false
-          const send = (meta: 'close' | number) => view.dispatch(view.state.tr.setMeta(suggestions, meta))
-          if (e.key === 'Escape') send('close')
-          else if (e.key === 'ArrowDown') send(Math.min(at.chosen + 1, at.matches.length - 1))
-          else if (e.key === 'ArrowUp') send(Math.max(at.chosen - 1, -1))
+          const choose = (chosen: number) => view.dispatch(view.state.tr.setMeta(suggestions, chosen))
+          // The box only checks whether to show when the text or the cursor moves.
+          if (e.key === 'Escape')
+            view.dispatch(view.state.tr.setMeta(suggestions, 'close').setMeta('suggestionBox', 'hide'))
+          else if (e.key === 'ArrowDown') choose(Math.min(at.chosen + 1, at.matches.length - 1))
+          else if (e.key === 'ArrowUp') choose(Math.max(at.chosen - 1, -1))
           else if (e.key === 'Enter' && at.chosen >= 0) pickSuggestion(view, at.matches[at.chosen])
+          else if (e.key === 'Tab') pickSuggestion(view, at.matches[Math.max(at.chosen, 0)])
           else return false
           return true
         },

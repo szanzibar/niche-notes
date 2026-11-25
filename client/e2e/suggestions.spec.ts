@@ -48,13 +48,6 @@ test('typing on a task offers the ones checked before, and a pick makes the line
   await page.keyboard.press('Enter')
   await expect(body(page).locator('li p')).toHaveText(['Oat milk', 'Eggs', 'Oat milk, 1l', 'oa', 'Oat milk'])
 
-  // Escape closes the box until the cursor leaves the line.
-  await newLine(page, 'oa')
-  await page.keyboard.press('Escape')
-  await expect(box(page)).toBeHidden()
-  await page.keyboard.type('t')
-  await expect(box(page)).toBeHidden()
-
   // Picking a task whose words contain a date keeps them as words.
   await newLine(page, 'Sunday roast')
   await page.keyboard.press('Escape')
@@ -64,6 +57,39 @@ test('typing on a task offers the ones checked before, and a pick makes the line
   await page.keyboard.press('Enter')
   await expect(body(page).locator('li[data-due]')).toHaveCount(0)
   await expect(body(page).locator('li p').getByText('Sunday roast', { exact: true })).toHaveCount(2)
+})
+
+test('Tab takes the first suggestion or the one the arrows chose, and indents again after Escape', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await checklist(page, 'Oat milk', 'Oats', 'Oat bran')
+  await check(page, 'Oat milk')
+  await check(page, 'Oats')
+  await check(page, 'Oat bran')
+  const lines = body(page).locator('li p')
+  const nested = body(page).locator('li li p')
+
+  await newLine(page, 'oa')
+  await page.keyboard.press('Escape')
+  await expect(box(page)).toBeHidden()
+  await page.keyboard.press('Tab')
+  await expect(nested).toHaveText(['oa'])
+  await page.keyboard.type('t')
+  await expect(box(page).getByRole('button')).toHaveText(['Oat bran', 'Oats', 'Oat milk'])
+  await page.keyboard.press('Shift+Tab')
+  await expect(nested).toHaveCount(0)
+  await page.keyboard.press('Tab')
+  await expect(lines.last()).toHaveText('Oat bran')
+  await expect(nested).toHaveCount(0)
+  await expect(box(page)).toBeHidden()
+
+  await newLine(page, 'oa')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Tab')
+  await expect(lines).toHaveText(['Oat milk', 'Oats', 'Oat bran', 'Oat bran', 'Oat milk'])
+  await expect(nested).toHaveCount(0)
 })
 
 test('a task Delete checked removed is still offered, most recently checked first, and one still to do is not', async ({
