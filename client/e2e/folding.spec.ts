@@ -61,10 +61,9 @@ test('a line with lines nested under it folds them away with its chevron and bac
 
   await expect(item(page, 'Groceries list').locator('> .task-count')).toHaveAttribute('data-label', '1/2')
 
-  // Enter at its end starts a line below the lines it hides, which offers the tasks checked before.
+  // Enter at its end starts a line below the lines it hides.
   await page.keyboard.press('Enter')
   await page.keyboard.type('Mi')
-  await expect(page.getByRole('group', { name: 'Suggestions' }).getByRole('button')).toHaveText(['Milk'])
   await expect(line(page, 'Milk')).toBeHidden()
   await expect(body(page).locator('> ul > li > div > p')).toHaveText(['Groceries list', 'Mi', 'Hardware'])
 })

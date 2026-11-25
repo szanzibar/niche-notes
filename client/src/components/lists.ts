@@ -515,11 +515,13 @@ function typedIn($pos: ResolvedPos): TypedWords[] {
   }))
 }
 
-// The text of each task checked in the note, so typing can offer it again, keyed without case or extra spaces. It
-// only grows, which stays small for the few hundred different tasks a family's list checks over the years.
+// The text of each task deleted as checked from the note and how many times, so typing can offer one that keeps
+// coming back, keyed without case or extra spaces. It only grows, which stays small for the few hundred different
+// tasks a family's list checks over the years. An entry without a count is from before counting and has none.
 interface Checked {
   text: string
   at: number
+  count?: number
 }
 const checkedTasks = (state: EditorState) => ySyncPluginKey.getState(state)!.doc.getMap<Checked>('checked')
 const keyOf = (text: string) => text.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -699,8 +701,6 @@ export const TaskItem = TipTapTaskItem.extend({
               return true
             })
             .run()
-          const text = line.firstChild!.textContent.trim()
-          if (checked && !repeats && text) checkedTasks(editor.state).set(keyOf(text), { text, at: Date.now() })
           if (!repeats) return
           // A repeating line shows its tick for a moment, then moves to its next date, unticked.
           setTimeout(() => {
@@ -920,16 +920,19 @@ function suggest(doc: Node, record: Y.Map<Checked>, line: string) {
   }
   // Tasks still to do are on the list already, and so is the line itself.
   const open = new Set([typed])
-  const found = new Map<string, Checked>()
+  const found = new Map<string, Required<Checked>>()
+  for (const [key, { text, at, count = 0 }] of record) found.set(key, { text, at, count })
   doc.descendants((node) => {
     if (node.type.name !== 'taskItem') return
     const text = node.firstChild!.textContent.trim()
-    if (node.attrs.checked) found.set(keyOf(text), { text, at: 0 })
-    else open.add(keyOf(text))
+    const key = keyOf(text)
+    if (!node.attrs.checked) open.add(key)
+    else if (found.has(key)) found.get(key)!.count++
+    else found.set(key, { text, at: 0, count: 1 })
   })
-  for (const [key, checked] of record) found.set(key, checked)
+  // A task checked once is mostly a one-off, so only one that comes back is offered.
   return [...found]
-    .filter(([key]) => !open.has(key) && startsWord(key))
+    .filter(([key, { count }]) => count >= 2 && !open.has(key) && startsWord(key))
     .sort(([, a], [, b]) => b.at - a.at)
     .slice(0, 5)
     .map(([, { text }]) => text)
@@ -1317,8 +1320,8 @@ export const FoldLines = (note: string) =>
   })
 
 // One step, so Undo brings them all back. Going from the end keeps the earlier positions valid, and
-// deleteRange takes a list along with its last line. A task no device saw checked, such as one an alert ticked, is
-// remembered as checked now.
+// deleteRange takes a list along with its last line. Each task deleted adds one to its count in the record, which is
+// the only place that counts, so a tick from a widget or an alert counts too.
 export function deleteChecked(editor: Editor) {
   const lines: [number, number][] = []
   const texts: string[] = []
@@ -1334,7 +1337,7 @@ export function deleteChecked(editor: Editor) {
   const record = checkedTasks(editor.state)
   record.doc!.transact(() => {
     for (const text of texts) {
-      if (text && !record.has(keyOf(text))) record.set(keyOf(text), { text, at: Date.now() })
+      if (text) record.set(keyOf(text), { text, at: Date.now(), count: (record.get(keyOf(text))?.count ?? 0) + 1 })
     }
   })
   editor
