@@ -647,10 +647,13 @@ export const TaskItem = TipTapTaskItem.extend({
       })
       person.addEventListener('mousedown', (e) => e.preventDefault())
       person.addEventListener('click', () => openBox('assign'))
-      // A tap beside the line's text, such as after its date or below the text, lands on the line itself, and the
-      // browser would put the cursor between lines there. It goes to the nearest spot in the text instead.
-      li.addEventListener('click', (e) => {
-        if (e.target !== li || !editor.isEditable) return
+      // A press beside the line's text, such as after its count or below the text, lands on the line itself, where
+      // the browser and the editor would put the cursor on the line below first. It goes to the nearest spot in the
+      // text instead.
+      li.addEventListener('mousedown', (e) => {
+        if (e.target !== li || e.button !== 0 || !editor.isEditable) return
+        e.preventDefault()
+        e.stopPropagation()
         const p = li.querySelector(':scope > div > p')!
         const text = p.getBoundingClientRect()
         const row = parseFloat(getComputedStyle(p).lineHeight) / 2
@@ -659,7 +662,9 @@ export const TaskItem = TipTapTaskItem.extend({
           left: within(e.clientX, text.left + 1, text.right - 1),
           top: within(e.clientY, text.top + row, text.bottom - row),
         })
-        if (at) editor.commands.focus(at.pos)
+        if (!at) return
+        editor.view.dispatch(editor.state.tr.setSelection(TextSelection.near(editor.state.doc.resolve(at.pos))))
+        editor.view.focus()
       })
       // A line checked here or on another device lingers until the note is still. Lines checked before the
       // note opened don't.

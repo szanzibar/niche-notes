@@ -193,6 +193,21 @@ test('a click beside a line’s text, below it or after its date, puts the curso
   await tool(page, 'Date').click()
   await tool(page, 'Today').click()
   await page.keyboard.press('Escape')
+
+  // A line with lines under it shows their count, so the space right of its text belongs to the line, and every
+  // place the cursor goes on the way is that line's text, never the line below.
+  await body(page).evaluate((el) => {
+    const editor = (el as unknown as { editor: Editor }).editor
+    const seen: string[] = ((window as unknown as { seen: string[] }).seen = [])
+    editor.on('selectionUpdate', () => seen.push(editor.state.selection.$from.parent.textContent))
+    document.addEventListener('selectionchange', () => seen.push(getSelection()!.anchorNode?.textContent ?? ''))
+  })
+  const parent = (await line(page, 'Groceries').boundingBox())!
+  const row = (await item(page, 'Groceries').boundingBox())!
+  await page.mouse.click(row.x + row.width - 10, parent.y + parent.height / 2, { delay: 150 })
+  await expect.poll(() => caret(page)).toBe('Groceries@9')
+  expect(await page.evaluate(() => [...new Set((window as unknown as { seen: string[] }).seen)])).toEqual(['Groceries'])
+
   await chevron(page, 'Groceries').click()
   await expect(line(page, 'Milk')).toBeHidden()
 
