@@ -647,12 +647,18 @@ export const TaskItem = TipTapTaskItem.extend({
       })
       person.addEventListener('mousedown', (e) => e.preventDefault())
       person.addEventListener('click', () => openBox('assign'))
-      // The space after the date belongs to the line, not its text, and a phone puts the cursor on the next
-      // line for a tap there. It goes to the end of the tapped row instead.
+      // A tap beside the line's text, such as after its date or below the text, lands on the line itself, and the
+      // browser would put the cursor between lines there. It goes to the nearest spot in the text instead.
       li.addEventListener('click', (e) => {
         if (e.target !== li || !editor.isEditable) return
-        const text = li.querySelector(':scope > div > p')!.getBoundingClientRect()
-        const at = editor.view.posAtCoords({ left: text.right - 1, top: e.clientY })
+        const p = li.querySelector(':scope > div > p')!
+        const text = p.getBoundingClientRect()
+        const row = parseFloat(getComputedStyle(p).lineHeight) / 2
+        const within = (at: number, min: number, max: number) => Math.min(Math.max(at, min), max)
+        const at = editor.view.posAtCoords({
+          left: within(e.clientX, text.left + 1, text.right - 1),
+          top: within(e.clientY, text.top + row, text.bottom - row),
+        })
         if (at) editor.commands.focus(at.pos)
       })
       // A line checked here or on another device lingers until the note is still. Lines checked before the

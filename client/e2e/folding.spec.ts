@@ -185,6 +185,30 @@ for (const [width, height] of [
     await expect(line(page, 'Milk')).toBeVisible()
   })
 
+test('a click beside a line’s text, below it or after its date, puts the cursor in that text and keeps its fold', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await groceries(page)
+  await tool(page, 'Date').click()
+  await tool(page, 'Today').click()
+  await page.keyboard.press('Escape')
+  await chevron(page, 'Groceries').click()
+  await expect(line(page, 'Milk')).toBeHidden()
+
+  const text = (await line(page, 'Groceries').boundingBox())!
+  const folded = (await item(page, 'Groceries').boundingBox())!
+  await page.mouse.click(text.x + text.width / 2, folded.y + folded.height - 2)
+  await expect.poll(() => caret(page)).toMatch(/^Groceries@[1-8]$/)
+  await page.keyboard.type('!')
+  await expect(line(page, 'Milk')).toBeHidden()
+  await expect(body(page).locator('> ul > li > div > p').first()).toContainText('!')
+
+  const dated = (await item(page, 'Hardware').boundingBox())!
+  await page.mouse.click(dated.x + dated.width - 10, dated.y + 10)
+  await expect.poll(() => caret(page)).toBe('Hardware@8')
+})
+
 test('ticking a sibling below a folded line keeps it folded, and opening a folded line via Due unfolds it', async ({
   browser,
 }) => {
