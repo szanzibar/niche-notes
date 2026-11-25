@@ -52,7 +52,7 @@ test('a new pin goes below the other pins, and an unpinned note goes on top of t
   expect(await rowTitles(page)).toEqual(['Apple', 'Banana', 'Date', 'Cherry'])
 })
 
-test('on a touch screen every row has a grip on its left, like the lines of a note, that a finger drags once it holds it', async ({
+test('on a touch screen a finger drags a row once it holds it anywhere, and the row shows a grip on its left', async ({
   browser,
 }) => {
   phoneOnly()
@@ -65,10 +65,10 @@ test('on a touch screen every row has a grip on its left, like the lines of a no
     await page.keyboard.type(title)
     await page.getByRole('button', { name: 'Back' }).click()
   }
-  const grip = row(page, 'Banana').locator('..').locator('[data-handle]')
-  const from = (await grip.boundingBox())!
+  const grip = (await row(page, 'Banana').locator('..').locator('svg').first().boundingBox())!
+  const from = (await row(page, 'Banana').boundingBox())!
   const to = (await row(page, 'Apple').boundingBox())!
-  expect(from.x).toBeLessThan(to.x)
+  expect(grip.x).toBeLessThan(from.x)
 
   const cdp = await context.newCDPSession(page)
   const touch = (type: string, y = 0) =>
@@ -344,7 +344,7 @@ test('a finger dragging a note can still drop it inside another after the list s
     await page.getByRole('button', { name: 'Back' }).click()
   }
 
-  const grip = (await row(page, 'Note 12').locator('..').locator('[data-handle]').boundingBox())!
+  const grip = (await row(page, 'Note 12').boundingBox())!
   const x = grip.x + grip.width / 2
   const cdp = await context.newCDPSession(page)
   const touch = (type: string, y = 0) =>

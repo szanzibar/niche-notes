@@ -110,16 +110,6 @@ function markOf(ids: string[], { parent, index }: Spot): Mark {
 const aboveFinger: Modifier = ({ transform, activatorEvent }) =>
   activatorEvent && 'touches' in activatorEvent ? { ...transform, y: transform.y - 48 } : transform
 
-// On a touch screen a row drags by its grip once held, like a line in a note. A touch anywhere else taps or scrolls.
-class HandleSensor extends TouchSensor {
-  static activators = [
-    {
-      eventName: 'onTouchStart' as const,
-      handler: ({ nativeEvent }: React.TouchEvent) => (nativeEvent.target as Element).closest('[data-handle]') != null,
-    },
-  ]
-}
-
 // A note opens over the list, never over another note, so back always returns to the list. With a line, it opens
 // with the cursor at the end of that line.
 function useShowNote() {
@@ -271,7 +261,8 @@ export function Tree({ selected }: { selected?: string }) {
   }, [picking, navigate])
 
   const sensors = useSensors(
-    useSensor(HandleSensor, { activationConstraint: { delay: 300, tolerance: 10 } }),
+    // A finger lifts a row once it holds still on it, so one that moves at once scrolls.
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 10 } }),
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
   )
 
@@ -761,6 +752,7 @@ function Row({
     <>
       <div
         ref={dropRef}
+        {...listeners}
         className={`relative flex select-none items-center pr-1 ${active ? 'bg-accent text-on-accent' : 'hover:bg-bg'} ${isDragging ? 'opacity-40' : ''} ${into ? `outline-2 -outline-offset-2 ${active ? 'outline-ink' : 'outline-accent-ink'}` : ''}`}
         style={{ paddingLeft: 4 + depth * INDENT }}
         data-drop-into={into || undefined}
@@ -773,8 +765,6 @@ function Row({
           />
         )}
         <span
-          {...listeners}
-          data-handle
           aria-hidden
           className={`hidden h-11 w-7 shrink-0 items-center justify-center pointer-coarse:flex ${active ? 'text-on-accent/80' : 'text-ink-muted'}`}
         >
@@ -794,7 +784,6 @@ function Row({
         )}
         <button
           ref={dragRef}
-          {...listeners}
           {...attributes}
           type="button"
           aria-current={selected === id ? 'page' : undefined}
