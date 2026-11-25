@@ -1,0 +1,20 @@
+# Tauri's own launcher entry with a New note action, which the desktop's settings can give a shortcut.
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}}
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}
+Actions=new;
+
+[Desktop Action new]
+Name=New note
+Exec={{exec}} --new

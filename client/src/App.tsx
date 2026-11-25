@@ -19,7 +19,7 @@ declare global {
 }
 import { useStore, useY } from './sync/hooks'
 import { start, synced } from './sync/store'
-import { nodes, purgeExpired, settings } from './sync/tree'
+import { blankNote, nodes, purgeExpired, settings } from './sync/tree'
 
 export default function App() {
   const [me, setMe] = useState<User | null>(null)
@@ -65,15 +65,20 @@ function Shell() {
   useEffect(() => {
     const open = (link: string) => {
       const onNote = location.pathname.startsWith('/n/')
-      const note = notePath(link)
+      const { pathname, search, searchParams } = new URL(link, location.origin)
+      const note = searchParams.has('new') ? `/n/${blankNote()}` : notePath(link)
       if (note) return navigate(note, { replace: onNote })
-      const { pathname, search } = new URL(link, location.origin)
       // A note's share link signs in on the server.
       if (pathname.startsWith('/s/')) return location.assign(link)
       // Anything else, such as the widget picker, takes the list's place, so an open note closes first.
       if (!onNote) return navigate(pathname + search, { replace: true })
       addEventListener('popstate', () => navigate(pathname + search, { replace: true }), { once: true })
       navigate(-1)
+    }
+    // A page loaded on a new-note link puts the list under the note, as for a widget's link.
+    if (new URLSearchParams(location.search).has('new')) {
+      navigate('/', { replace: true })
+      open('/?new')
     }
     window.launchQueue?.setConsumer(({ targetURL }) => targetURL && open(targetURL))
     const message = ({ data }: MessageEvent<{ open?: string }>) => data.open && open(data.open)
@@ -127,7 +132,7 @@ function Shell() {
 // The editor is half the app's code, so it loads once the tree is up, or straight away when the app opens on a note.
 // Its arrival redraws this side, not the tree.
 const loadEditor = () => import('./components/NoteView')
-if (/^\/n\/|[?&]n=/.test(location.pathname + location.search)) void loadEditor()
+if (/^\/n\/|[?&](n=|new\b)/.test(location.pathname + location.search)) void loadEditor()
 
 function Note({ id }: { id?: string }) {
   const [editor, setEditor] = useState<Awaited<ReturnType<typeof loadEditor>>>()

@@ -149,7 +149,7 @@ All five held, so Android moved to Tauri (ADR 002 amendment, 2026-11-18):
 - [x] A widget's keyboard works on the note's text, from a closed app or a running one
 - [ ] The release APK installs over the TWA on Steven's phone, keeps the widgets, and updates itself from the next release
 
-- Later: Done and Snooze on a desktop alert, a global shortcut for a new note, and background sync on Android, which a webview of our own makes possible
+- Later: Done and Snooze on a desktop alert, and background sync on Android, which a webview of our own makes possible
 
 Linux, for Kathrin's Fedora KDE laptop and Steven's CachyOS one (2026-11-23):
 

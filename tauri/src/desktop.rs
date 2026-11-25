@@ -1,7 +1,7 @@
 //! A desktop app sits in the tray when its window closes, so alerts still arrive, and updates itself
 //! while no window is open.
 
-use crate::{alerts, show_window};
+use crate::{alerts, page, show_window};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -12,6 +12,8 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::webview::{DownloadEvent, PageLoadEvent};
 use tauri::{App, AppHandle, Builder, Manager, RunEvent, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_autostart::ManagerExt;
+#[cfg(not(target_os = "linux"))]
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
@@ -19,14 +21,17 @@ use tokio::sync::Notify;
 
 /// How the app starts at login, and again after it updated itself: in the tray, without a window.
 const IN_TRAY: &str = "--tray";
+/// How the launcher's New note action starts the app or hands over to it, since Wayland lets no app take a shortcut.
+const NEW_NOTE: &str = "--new";
 
 static WINDOW_CLOSED: Notify = Notify::const_new();
 
 pub fn plugins(builder: Builder<Wry>) -> Builder<Wry> {
-    builder
+    let builder = builder
         // A second launch brings the window forward, and on Windows carries a `nichenotes://` link here.
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            show_window(app, None)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            let new_note = args.iter().any(|arg| arg == NEW_NOTE);
+            show_window(app, new_note.then(|| page("/?new")))
         }))
         .plugin(tauri_plugin_autostart::Builder::new().arg(IN_TRAY).build())
         .plugin(tauri_plugin_notification::init())
@@ -35,7 +40,10 @@ pub fn plugins(builder: Builder<Wry>) -> Builder<Wry> {
             tauri_plugin_window_state::Builder::new()
                 .with_denylist(&[alerts::SESSION_WINDOW])
                 .build(),
-        )
+        );
+    #[cfg(not(target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    builder
 }
 
 pub fn window<'a>(
@@ -182,9 +190,17 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
 
     alerts::start(app.handle());
 
-    // A dev build would start at login too, and replace itself with the release.
+    // A dev build would start at login too, replace itself with the release and take its shortcut.
     if !cfg!(debug_assertions) {
         let _ = app.autolaunch().enable();
+        #[cfg(not(target_os = "linux"))]
+        let _ = app
+            .global_shortcut()
+            .on_shortcut("CommandOrControl+Alt+N", |app, _, key| {
+                if key.state == ShortcutState::Pressed {
+                    show_window(app, Some(page("/?new")))
+                }
+            });
         // pacman updates the Linux app.
         if !cfg!(target_os = "linux") {
             tauri::async_runtime::spawn(update(app.handle().clone()));
@@ -195,7 +211,8 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         #[cfg(target_os = "macos")]
         app.set_activation_policy(tauri::ActivationPolicy::Accessory);
     } else {
-        show_window(app.handle(), None);
+        let new_note = std::env::args().any(|arg| arg == NEW_NOTE);
+        show_window(app.handle(), new_note.then(|| page("/?new")));
     }
     Ok(())
 }

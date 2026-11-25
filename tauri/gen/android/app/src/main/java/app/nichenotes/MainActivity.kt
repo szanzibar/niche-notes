@@ -7,6 +7,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,6 +31,7 @@ class MainActivity : TauriActivity() {
   companion object {
     // The text of the line a widget tap was on, which the note opens at.
     const val LINE = "line"
+    const val NEW_NOTE = "/?new"
     private const val UPDATES = "updates"
     private const val OFFERED = "updateOffered"
     private const val OFFERED_VERSION = "updateOfferedVersion"
@@ -60,6 +64,15 @@ class MainActivity : TauriActivity() {
       requestPermissions(arrayOf(alerts), 0)
     }
     update()
+    // A long press on the app's icon offers a new note. Set from here, since a shortcut in the manifest restarts the
+    // app on every tap.
+    getSystemService(ShortcutManager::class.java).dynamicShortcuts = listOf(
+      ShortcutInfo.Builder(this, "new")
+        .setShortLabel(getString(R.string.new_note))
+        .setIcon(Icon.createWithResource(this, R.drawable.shortcut_new_note))
+        .setIntent(NoteWidget.inApp(this, NEW_NOTE))
+        .build()
+    )
   }
 
   // Each start looks for a newer release. One an earlier start downloaded waits in a quiet notification, and a tap
@@ -116,10 +129,12 @@ class MainActivity : TauriActivity() {
     raiseKeyboard(intent.data)
   }
 
-  // A note a widget opens wants the keyboard, which the page can't raise without a touch. The app can, once the
-  // page shows the note and has put the cursor in it. A running app takes a moment to swap the old page for the note.
+  // A note a widget or New note opens wants the keyboard, which the page can't raise without a touch. The app can,
+  // once the page shows the note and has put the cursor in it. A running app takes a moment to swap the old page for
+  // the note.
   private fun raiseKeyboard(link: Uri?, wait: Long = 400, tries: Int = 50) {
-    if (link?.getQueryParameter("n") == null) return
+    val asks = link?.queryParameterNames ?: return
+    if ("n" !in asks && "new" !in asks) return
     window.decorView.postDelayed({
       val view = webView
       view?.requestFocus()

@@ -1,6 +1,6 @@
 import type * as Y from 'yjs'
 import { api } from '../lib/api'
-import { acknowledged, getDoc, openDoc, purgeLocal, store, subscribe } from './store'
+import { acknowledged, getDoc, openDoc, purgeLocal, store, subscribe, textOf } from './store'
 
 export interface Node {
   parent: string | null
@@ -150,6 +150,19 @@ export function createNote(parent: string | null, order = Date.now()): string {
   store.owners.set(id, store.me!.id)
   nodes().set(id, { parent, order })
   void openDoc(id)
+  return id
+}
+
+// The note a new-note link opens: the one the last such link made while it is still blank, so a link opened twice
+// makes one note.
+export function blankNote(): string {
+  const last = localStorage.getItem('blankNote')
+  if (last && nodes().has(last) && !inTrash(last) && !store.meta.get(last)?.title) {
+    const { text, checked } = textOf(last)
+    if (!text && !checked) return last
+  }
+  const id = createNote(null)
+  localStorage.setItem('blankNote', id)
   return id
 }
 

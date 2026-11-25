@@ -109,8 +109,13 @@ pub fn show_window(app: &AppHandle, url: Option<Url>) {
                 }
             }
         });
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         let _ = window.build();
+        // A Mac opens a new window behind the app in front, as after the shortcut, until the app comes forward.
+        #[cfg(target_os = "macos")]
+        if let Ok(window) = window.build() {
+            let _ = window.set_focus();
+        }
         // WebKitGTK checks spelling only once the app turns it on and names the languages.
         #[cfg(target_os = "linux")]
         if let Ok(window) = window.build() {

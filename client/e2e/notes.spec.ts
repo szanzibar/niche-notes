@@ -293,3 +293,29 @@ test('Ctrl or ⌘ and N start a new note on top from inside another, with the cu
   await page.keyboard.type('Hardware')
   await expect.poll(() => rowTitles(page)).toEqual(['Hardware', 'Groceries'])
 })
+
+test('the new-note link starts a note on top in its title, and opens that note again while it is blank', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Groceries')
+  await page.goto('/?new')
+  await expect(page).toHaveURL(/\/n\/[\w-]+$/)
+  const blank = page.url()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await expect.poll(() => rowTitles(page)).toEqual(['Untitled', 'Groceries'])
+
+  await page.reload()
+  await page.goto('/?new')
+  await expect(page).toHaveURL(blank)
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await expect.poll(() => rowTitles(page)).toEqual(['Untitled', 'Groceries'])
+
+  await page.keyboard.type('Hardware')
+  await expect.poll(() => rowTitles(page)).toEqual(['Hardware', 'Groceries'])
+  await page.goto('/?new')
+  await expect(page).not.toHaveURL(blank)
+  await expect.poll(() => rowTitles(page)).toEqual(['Untitled', 'Hardware', 'Groceries'])
+  await page.goBack()
+  await expect(page.getByText('Pick a note, or make a new one.')).toBeVisible()
+})
