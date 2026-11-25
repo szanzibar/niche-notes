@@ -1124,12 +1124,18 @@ export const FoldLines = (note: string) =>
     addProseMirrorPlugins() {
       const { editor } = this
       const writeFolds = (ids: string[]) => (ids.length ? folds().set(note, ids) : folds().delete(note))
+      // A line that shares its id with another, as a copy of it does, gets its own first, so a fold never folds both.
       const toggle = (view: EditorView, at: number) => {
         const line = view.state.doc.nodeAt(at)!
-        const id = line.attrs.id ?? crypto.randomUUID()
-        if (!line.attrs.id) view.dispatch(view.state.tr.setNodeMarkup(at, undefined, { ...line.attrs, id }).setMeta('addToHistory', false))
+        let shared = false
+        view.state.doc.descendants((node, pos) => {
+          shared ||= pos !== at && line.attrs.id != null && node.attrs.id === line.attrs.id
+          return !shared
+        })
+        const id = line.attrs.id && !shared ? line.attrs.id : crypto.randomUUID()
+        if (id !== line.attrs.id) view.dispatch(view.state.tr.setNodeMarkup(at, undefined, { ...line.attrs, id }).setMeta('addToHistory', false))
         const folded = [...foldedLines.getState(view.state)!]
-        writeFolds(folded.includes(id) ? folded.filter((other) => other !== id) : [...folded, id])
+        writeFolds(folded.includes(line.attrs.id) ? folded.filter((other) => other !== id) : [...folded, id])
       }
       const chevron = (open: boolean) => (view: EditorView, getPos: () => number | undefined) => {
         const el = document.createElement('span')

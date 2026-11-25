@@ -185,6 +185,38 @@ for (const [width, height] of [
     await expect(line(page, 'Milk')).toBeVisible()
   })
 
+test('a line that shares its id with another, as a copy does, folds alone', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await groceries(page)
+  await line(page, 'Eggs').click()
+  await page.keyboard.press(lineEnd)
+  await expect.poll(() => caret(page)).toBe('Eggs@4')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('Brown')
+  await chevron(page, 'Eggs').click()
+  await expect(line(page, 'Brown')).toBeHidden()
+  await chevron(page, 'Eggs').click()
+  await expect(line(page, 'Brown')).toBeVisible()
+  // Groceries and Eggs get one id, as a copied tree's lines and their originals have.
+  await body(page).evaluate((el) => {
+    const { state, view } = (el as unknown as { editor: Editor }).editor
+    const tr = state.tr
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'taskItem' && ['Groceries', 'Eggs'].includes(node.firstChild!.textContent))
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: 'copied' })
+    })
+    view.dispatch(tr)
+  })
+
+  await chevron(page, 'Eggs').click()
+  await expect(line(page, 'Brown')).toBeHidden()
+  await expect(line(page, 'Milk')).toBeVisible()
+  await expect(chevron(page, 'Groceries')).toHaveAttribute('aria-label', 'Collapse')
+  await chevron(page, 'Eggs').click()
+  await expect(line(page, 'Brown')).toBeVisible()
+})
+
 test('a click beside a line’s text, below it or after its date, puts the cursor in that text and keeps its fold', async ({
   browser,
 }) => {
