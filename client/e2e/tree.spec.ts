@@ -80,10 +80,11 @@ test('on a touch screen a finger drags a row once it holds it anywhere, and the 
     for (let step = 1; step <= 8; step++) await touch('touchMove', y0 + ((y1 - y0) * step) / 8)
     await touch('touchEnd')
   }
-  // A finger that moves at once is scrolling.
+  // A finger that moves at once or after a short pause is scrolling.
   await drag(0)
+  await drag(300)
   expect(await rowTitles(page)).toEqual(['Banana', 'Apple'])
-  await drag(400)
+  await drag(600)
   expect(await rowTitles(page)).toEqual(['Apple', 'Banana'])
 })
 
@@ -350,7 +351,7 @@ test('a finger dragging a note can still drop it inside another after the list s
   const touch = (type: string, y = 0) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
   await touch('touchStart', grip.y + grip.height / 2)
-  await page.waitForTimeout(400)
+  await page.waitForTimeout(600)
   await touch('touchMove', grip.y + grip.height)
   await page.locator('nav').evaluate((nav) => nav.scrollBy(0, 200))
   const to = (await row(page, 'Note 2').boundingBox())!

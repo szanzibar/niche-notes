@@ -261,8 +261,8 @@ export function Tree({ selected }: { selected?: string }) {
   }, [picking, navigate])
 
   const sensors = useSensors(
-    // A finger lifts a row once it holds still on it, so one that moves at once scrolls.
-    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 10 } }),
+    // A finger lifts a row once it holds still on it. Dragging is rare, so a slow tap or scroll never should.
+    useSensor(TouchSensor, { activationConstraint: { delay: 500, tolerance: 10 } }),
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
   )
 
