@@ -1,4 +1,4 @@
-import { expect, type Browser } from '@playwright/test'
+import { expect, type Browser, type Locator } from '@playwright/test'
 import { display, row, shareWith, test, uid } from './helpers'
 
 const phone = async (browser: Browser, name: string) => {
@@ -206,4 +206,61 @@ test('on a phone, a tap on a link shows its box and a tap on the box opens the l
   const opened = page.context().waitForEvent('page')
   await page.getByTitle('Open link').tap()
   expect((await opened).url()).toBe('https://example.com/turkey')
+})
+
+test('on a phone, a fold chevron sits midway between its column and its grip dots, on every kind of line', async ({
+  browser,
+}) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Folds')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('# Plan')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('[] Groceries')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('Milk')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('Oat')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.type('Eggs')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('- Bullet')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('child')
+
+  // A heading's grip is the handle that floats beside it once the heading is touched.
+  await page.locator('.editor-body h1').tap()
+  const edge = (await page.locator('.editor-body').boundingBox())!.x
+  // The grip's dots are drawn from 7.9 on the svg's 24-unit grid: the left dots at 9, less half their round stroke.
+  const box = async (fold: Locator, grip: Locator) => {
+    const [f, svg, chevron] = await Promise.all([fold.boundingBox(), grip.boundingBox(), fold.locator('svg').boundingBox()])
+    return { f: f!, y: svg!.y + svg!.height / 2, dots: svg!.x + (svg!.width * 7.9) / 24, middle: chevron!.x + chevron!.width / 2 }
+  }
+  const lines = page.locator('.editor-body li', { has: page.locator('p:text-is("Groceries")') }).last()
+  const milk = page.locator('.editor-body li', { has: page.locator('p:text-is("Milk")') }).last()
+  const bullet = page.locator('.editor-body li', { has: page.locator('p:text-is("Bullet")') }).last()
+  const cases = [
+    await box(page.locator('.editor-body h1 .line-fold'), page.locator('.drag-handle svg')),
+    await box(lines.locator('.line-fold').first(), lines.locator('.line-grip svg').first()),
+    await box(milk.locator('.line-fold').first(), milk.locator('.line-grip svg').first()),
+    await box(bullet.locator('.line-fold').first(), bullet.locator('.line-grip svg').first()),
+  ]
+  // The chevron is midway between its column's left edge and the dots, and its box stops short of them.
+  for (const { f, y, dots, middle } of cases.slice(1)) {
+    expect(Math.abs(middle - (f.x + dots) / 2)).toBeLessThan(1)
+    // A finger on the dots reaches the grip, not the chevron.
+    expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.line-grip') != null, [dots + 1, y])).toBe(true)
+  }
+  expect(Math.abs(cases[0].middle - (cases[0].f.x + cases[0].dots) / 2)).toBeLessThan(1)
+  // The top-level ones start at the editor's left edge.
+  for (const i of [0, 1, 3]) expect(cases[i].f.x).toBeCloseTo(edge, 0)
 })

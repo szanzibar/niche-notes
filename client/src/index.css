@@ -143,7 +143,8 @@ body {
 :is(:has(> .line-drop:not([hidden])), :has(> .line-into:not([hidden]))) > :is(.prosemirror-dropcursor-block, .prosemirror-dropcursor-inline) { display: none; }
 /* A finger needs a wider grip, reaching left into the margin. */
 @media (pointer: coarse) {
-  .line-fold { opacity: 1; }
+  /* The chevron's tap area fills the margin from its left edge to the dots of the grip, with the chevron in the middle. */
+  .line-fold { opacity: 1; width: 1.78rem; }
   .line-grip { opacity: 1; left: -2.75rem; width: 2.75rem; justify-content: flex-end; padding-right: 0.125rem; }
   .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.75rem); }
   /* A thumb that lands beside a box, short of its line's text, still ticks it. */
