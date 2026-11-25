@@ -91,7 +91,16 @@ body {
 .editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > label { grid-area: 1 / 1; }
 .editor-body ul[data-type="taskList"] > li[data-count] > .task-count { grid-row: 1; }
 .editor-body ul[data-type="taskList"] > li:is([data-due], [data-typed], [data-assignee], [data-count]) > div > :not(p:first-of-type, .line-grip, .line-fold) { grid-column: 2 / -1; }
-.editor-body :is(.due-chip, .person-chip) { flex: none; margin-top: 0.15rem; border: 2px solid var(--border); padding: 0 0.3rem; font-size: 0.8rem; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; user-select: none; }
+.due-chip, .person-chip, .key-chip { border: 2px solid var(--border); padding: 0 0.3rem; font-size: 0.8rem; font-weight: 700; line-height: 1.4; white-space: nowrap; }
+.editor-body :is(.due-chip, .person-chip) { flex: none; margin-top: 0.15rem; cursor: pointer; user-select: none; }
+/* Shortcuts show while Ctrl or ⌘ is held. A chip hangs under its control in the header, and the box lists the rest. */
+.key-chip { display: none; position: absolute; z-index: 10; top: calc(100% + 4px); right: 0; background: var(--surface); color: var(--ink); font-family: inherit; pointer-events: none; }
+/* The search field's chip hangs from its left edge. */
+.key-start { left: 0; right: auto; }
+.key-box { display: none; pointer-events: none; }
+[data-keys] .key-chip { display: block; }
+[data-keys] .key-box { display: flex; }
+.key-box .key-chip { position: static; }
 .editor-body :is(.due-chip, .person-chip, .task-count)::after { content: attr(data-label); }
 .editor-body :is(.due-chip, .person-chip, .task-count):not([data-label]) { display: none; }
 /* The count sits on the chips' text line without their border, and a tap on it lands on the line. */

@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useState } from 'react'
 import { alertState, turnOffAlerts, turnOnAlerts } from '../lib/alerts'
 import { api } from '../lib/api'
+import { inAndroidApp } from '../lib/keys'
 import { useStore, useY } from '../sync/hooks'
 import { wipeLocal } from '../sync/store'
 import { settings } from '../sync/tree'
@@ -30,8 +31,6 @@ const DENSITIES: [string, string | undefined][] = [
 export function SettingsDialog({ onExportNote }: { onExportNote: () => void }) {
   // The Android and desktop apps say which build they are. A build without a number is a local one.
   const app = (window as { nicheNotesApp?: { version: number } }).nicheNotesApp
-  // Android's WebView drops downloads.
-  const androidApp = app && /Android/.test(navigator.userAgent)
   const s = useStore()
   const prefs = settings()
   useY(prefs)
@@ -195,7 +194,8 @@ export function SettingsDialog({ onExportNote }: { onExportNote: () => void }) {
           <p className="mb-2 mt-5 font-medium">Account</p>
           <p className="mb-2 text-sm text-ink-muted">{s.me!.name}</p>
           <Button onClick={() => void signOut()}>Sign out</Button>
-          {!androidApp && (
+          {/* Android's WebView drops downloads. */}
+          {!inAndroidApp() && (
             <>
               <p className="mb-2 mt-5 font-medium">Advanced</p>
               <div className="flex flex-wrap gap-x-3">

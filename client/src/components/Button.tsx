@@ -5,16 +5,30 @@ export function IconButton({
   label,
   className = '',
   type = 'button',
+  keys,
+  children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; keys?: string }) {
   return (
     <button
       type={type}
       aria-label={label}
       title={label}
-      className={`flex h-10 min-w-10 shrink-0 items-center justify-center gap-1 ${className}`}
+      className={`flex h-10 min-w-10 shrink-0 items-center justify-center gap-1 ${keys ? 'relative' : ''} ${className}`}
       {...props}
-    />
+    >
+      {children}
+      {keys && <KeyChip keys={keys} />}
+    </button>
+  )
+}
+
+// A shortcut shown beside its button while Ctrl or ⌘ is held, through `data-keys` on the page.
+export function KeyChip({ keys, className = '' }: { keys: string; className?: string }) {
+  return (
+    <kbd aria-hidden="true" className={`key-chip ${className}`}>
+      {keys}
+    </kbd>
   )
 }
 

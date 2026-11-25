@@ -3,6 +3,7 @@ import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus'
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enableAlerts } from '../lib/alerts'
+import { ALT, MOD, SHIFT } from '../lib/keys'
 import { notePath } from '../lib/links'
 import type { User } from '../lib/types'
 import { settings } from '../sync/tree'
@@ -43,6 +44,14 @@ import {
 import { assign, listPosition, pickSuggestion, suggestions, toggleList, typedPerson } from './lists'
 import { Popover } from './Popover'
 
+const HINTS: [string[], string][] = [
+  [[`${MOD}Z`, `${MOD}${SHIFT}Z`], 'Undo, Redo'],
+  [[`${MOD}B`, `${MOD}I`], 'Bold, Italic'],
+  [[`${MOD}F`], 'Find in note'],
+  [[`${MOD}Enter`], 'Tick the task'],
+  [[`${ALT}${SHIFT}↑`, `${ALT}${SHIFT}↓`], 'Move a line'],
+  [['Tab', `${SHIFT}Tab`], 'Indent, Outdent'],
+]
 const ICON = 'h-5 w-5'
 // The width of the scroll chevrons, w-6.
 const CHEVRON = 24
@@ -260,6 +269,16 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
         </div>
       </BubbleMenu>
       <div className="relative m-2">
+        <div aria-hidden="true" className="key-box absolute bottom-full right-0 mb-3 flex-col gap-1 border-2 border-border bg-surface p-1 font-bold">
+          {HINTS.map(([keys, action]) => (
+            <div key={action} className="flex items-center gap-2">
+              {keys.map((k) => (
+                <kbd key={k} className="key-chip">{k}</kbd>
+              ))}
+              <span>{action}</span>
+            </div>
+          ))}
+        </div>
         {moreLeft && (
           <button
             type="button"

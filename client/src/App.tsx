@@ -4,6 +4,7 @@ import { appTheme } from './components/themes'
 import { Tree } from './components/Tree'
 import { registerAlerts } from './lib/alerts'
 import { api } from './lib/api'
+import { useKeyHints } from './lib/keys'
 import { notePath } from './lib/links'
 import type { User } from './lib/types'
 
@@ -57,6 +58,7 @@ export default function App() {
 }
 
 function Shell() {
+  useKeyHints()
   const s = useStore()
   const noteId = useMatch('/n/:id')?.params.id
   const navigate = useNavigate()

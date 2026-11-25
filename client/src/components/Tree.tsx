@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMatch, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
+import { MOD } from '../lib/keys'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
 import { moveDue, store, textOf } from '../sync/store'
@@ -44,7 +45,7 @@ import {
   trashed,
   type Spot,
 } from '../sync/tree'
-import { Button, IconButton, MenuItem } from './Button'
+import { Button, IconButton, KeyChip, MenuItem } from './Button'
 import { dayOf, dueLabel, inDays, overdue } from './dates'
 import {
   CalendarIcon,
@@ -66,7 +67,6 @@ import { SettingsDialog } from './SettingsDialog'
 import { noteTheme } from './themes'
 
 const ROOT = 'root'
-const MOD = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+'
 const INDENT = 16
 const DUE_SECTIONS = ['Past due', 'Today', 'Tomorrow', 'Later']
 type Zone = 'before' | 'inside' | 'after'
@@ -303,6 +303,7 @@ export function Tree({ selected }: { selected?: string }) {
   const newNote = () => showNote(createNote(null))
   // Ctrl or ⌘ and K search, first leaving the open note as Back does where a narrow window hides the list under it.
   // A browser tab keeps Ctrl+N for itself, and that's accepted.
+  const ctrlN = 'nicheNotesApp' in window || matchMedia('(display-mode: standalone)').matches
   const searchField = useRef<HTMLInputElement>(null)
   const searching = useRef(false)
   useEffect(() => {
@@ -369,6 +370,7 @@ export function Tree({ selected }: { selected?: string }) {
       )}
       <RootDropZone active={hint?.id === ROOT}>
         <div className="relative flex min-w-0 flex-1 items-center">
+          <KeyChip keys={`${MOD}K`} className="key-start" />
           <input
             type="search"
             placeholder="Search notes"
@@ -430,7 +432,7 @@ export function Tree({ selected }: { selected?: string }) {
           </IconButton>
         )}
         <OfflineIcon />
-        <IconButton label="New note" title={`New note (${MOD}N)`} onClick={newNote}>
+        <IconButton label="New note" keys={ctrlN ? `${MOD}N` : undefined} title={`New note (${MOD}N)`} onClick={newNote}>
           <PlusIcon />
         </IconButton>
       </RootDropZone>
