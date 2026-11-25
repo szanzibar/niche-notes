@@ -170,6 +170,31 @@ test('on a phone, back from a search result marks that result, not the first one
   }
 })
 
+test('on a phone, back from a search result and clearing the search shows the last note open, highlighted', async ({
+  browser,
+}) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  for (const title of ['Target', ...Array.from({ length: 20 }, (_, i) => `Filler ${i}`)]) {
+    await page.getByRole('button', { name: 'New note', exact: true }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(title)
+    await page.getByRole('button', { name: 'Back' }).click()
+  }
+  await expect(row(page, 'Target')).not.toBeInViewport()
+  await page.getByPlaceholder('Search notes').fill('Target')
+  await page.getByRole('option').filter({ hasText: 'Target' }).tap()
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Target')
+  await page.getByRole('button', { name: 'Back' }).click()
+  await page.getByRole('button', { name: 'Clear search' }).tap()
+  await expect(row(page, 'Target')).toHaveAttribute('aria-current', 'page')
+  await expect(row(page, 'Target')).toBeInViewport()
+  await expect(page.getByRole('list', { name: 'Recent' })).toHaveCount(0)
+
+  // A desktop-width tree with no note open marks nothing.
+  await page.setViewportSize({ width: 1200, height: 844 })
+  await expect(page.locator('aside [aria-current="page"]')).toHaveCount(0)
+})
+
 test('on a phone, Recent under the list goes back to a note opened before, the last one first', async ({ browser }) => {
   const page = await phone(browser, `alice-${uid()}`)
   for (const title of ['Groceries', 'Chores']) {

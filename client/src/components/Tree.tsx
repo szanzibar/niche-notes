@@ -136,7 +136,7 @@ function useOpenNote() {
   return (id: string) => (widget ? handOff(widget, id) : showNote(id))
 }
 
-export function Tree({ selected }: { selected?: string }) {
+export function Tree({ open }: { open?: string }) {
   const s = useStore()
   const prefs = settings()
   useY(prefs)
@@ -158,9 +158,17 @@ export function Tree({ selected }: { selected?: string }) {
   const trash = trashed()
   const [trashOpen, setTrashOpen] = useState(false)
   // The notes last opened on this device, without the open one. Whether the list shows stays with the device too.
-  const recent = (JSON.parse(localStorage.getItem('recent') ?? '[]') as string[]).filter(
-    (id) => id !== selected && nodes().has(id) && !inTrash(id),
-  )
+  const opened = JSON.parse(localStorage.getItem('recent') ?? '[]') as string[]
+  const recent = opened.filter((id) => id !== open && nodes().has(id) && !inTrash(id))
+  // A phone shows the tree with no note open, so the last note opened stands in as the selected one, to find it again.
+  const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const media = matchMedia('(max-width: 767px)')
+    const change = () => setNarrow(media.matches)
+    media.addEventListener('change', change)
+    return () => media.removeEventListener('change', change)
+  }, [])
+  const selected = open ?? (narrow && nodes().has(opened[0]) && !inTrash(opened[0]) ? opened[0] : undefined)
   const [recentOpen, setRecentOpen] = useState(localStorage.getItem('recentOpen') === 'true')
   const [query, setQuery] = useState('')
   // The row arrow keys and Enter act on. Opening a result moves it there too, so the arrows go on from the open note.
@@ -244,6 +252,11 @@ export function Tree({ selected }: { selected?: string }) {
     if (!selected || inTrash(selected)) return
     for (let p = nodes().get(selected)?.parent; p; p = nodes().get(p)?.parent) expand(p)
   }, [selected])
+
+  // Back from a note, or clearing the search, finds the selected row, and nothing else scrolls the tree.
+  useEffect(() => {
+    if (!open && !query) document.querySelector('aside [aria-current="page"]')?.scrollIntoView({ block: 'nearest' })
+  }, [open, query])
 
   // A tree that is behind doesn't know every note under the one that goes.
   useEffect(() => {

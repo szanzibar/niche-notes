@@ -122,7 +122,7 @@ function Shell() {
       <aside
         className={`${noteId ? 'hidden md:flex' : 'flex'} h-full flex-col overflow-hidden border-border bg-tint md:border-r-2`}
       >
-        <Tree selected={noteId} />
+        <Tree open={noteId} />
       </aside>
       <main className={`${noteId ? 'flex' : 'hidden md:flex'} h-full flex-col overflow-hidden`}>
         <Note id={noteId} />
