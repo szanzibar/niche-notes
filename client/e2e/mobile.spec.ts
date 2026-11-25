@@ -264,3 +264,30 @@ test('on a phone, a fold chevron sits midway between its column and its grip dot
   // The top-level ones start at the editor's left edge.
   for (const i of [0, 1, 3]) expect(cases[i].f.x).toBeCloseTo(edge, 0)
 })
+
+test('on a phone, a list line shows its grip only while the selection is on it, and the hidden grip still ticks', async ({
+  browser,
+}) => {
+  const page = await phone(browser, `alice-${uid()}`)
+  await page.getByRole('button', { name: 'New note', exact: true }).click()
+  await expect(page.getByPlaceholder('Title')).toBeFocused()
+  await page.keyboard.type('Grips')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Task list', exact: true }).tap()
+  await page.keyboard.type('One')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Two')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Three')
+  const grips = page.locator('.editor-body .line-grip')
+  const shown = () => grips.evaluateAll((all) => all.map((g) => getComputedStyle(g).opacity))
+
+  await expect.poll(shown).toEqual(['0', '0', '1'])
+  await page.keyboard.press('ArrowUp')
+  await expect.poll(shown).toEqual(['0', '1', '0'])
+  await page.keyboard.press('Shift+ArrowUp')
+  await expect.poll(shown).toEqual(['1', '1', '0'])
+
+  await grips.last().tap()
+  await expect(page.getByRole('checkbox', { name: 'Task item checkbox for Three' })).toBeChecked()
+})

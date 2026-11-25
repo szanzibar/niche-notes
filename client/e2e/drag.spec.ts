@@ -212,13 +212,13 @@ test('the floating handle shows for paragraphs and never over a list line', asyn
   await expect(touch.locator('.drag-handle')).toBeVisible()
 })
 
-test('on a touch screen every list line shows its grip, and a finger moves a line down one or under another', async ({
+test('on a touch screen a finger moves a line by its hidden grip, down one or under another a line down one or under another', async ({
   browser,
 }) => {
   phoneOnly()
   const page = await phone(browser)
   await checklist(page, 'A', 'B', 'C')
-  await expect(grip(page, 'A')).toHaveCSS('opacity', '1')
+  await expect(grip(page, 'A')).toHaveCSS('opacity', '0')
 
   // The line rides as a box with its text, a row above the finger.
   const ghost = page.locator('.line-ghost')

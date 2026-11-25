@@ -432,6 +432,11 @@ export const LineGrips = Extension.create({
             const grips: Decoration[] = []
             state.doc.descendants((node, pos) => {
               if (!isLine(node)) return
+              // The line's own text holds the selection, whatever it hides below.
+              const { from, to } = state.selection
+              if (from < pos + 1 + node.firstChild!.nodeSize && to > pos + 1) {
+                grips.push(Decoration.node(pos, pos + node.nodeSize, { 'data-selected': '' }))
+              }
               grips.push(
                 Decoration.widget(pos + 1, grip, {
                   side: -1,

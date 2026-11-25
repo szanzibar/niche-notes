@@ -111,13 +111,15 @@ body {
 .editor-body .typed-words, .editor-body li > .due-chip[data-typed] { background: var(--accent); color: var(--on-accent); border-color: var(--border); }
 .editor-body input[type="checkbox"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--accent); }
 /* Each list line's grip sits in the margin left of its checkbox or bullet. It is always there, so pointing at the
-   margin beside a nested line finds that line, and it shows on a touch screen or for the line under the pointer.
-   The floating handle covers everything else. */
+   margin beside a nested line finds that line, and it shows for the line under the pointer, or on a touch screen
+   for the lines the selection is on. The floating handle covers everything else. */
 .editor-body li { position: relative; }
 .line-grip { position: absolute; top: 0; left: -1.5rem; width: 1.5rem; height: 1.6em; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); cursor: grab; opacity: 0; user-select: none; }
 .line-grip svg { width: 1.25rem; height: 1.25rem; }
 .line-grip:hover { color: var(--accent-ink); }
-.editor-body li:hover:not(:has(li:hover)) > :is(.line-grip, .line-fold), .editor-body li:hover:not(:has(li:hover)) > div > :is(.line-grip, .line-fold) { opacity: 1; }
+@media (hover: hover) {
+  .editor-body li:hover:not(:has(li:hover)) > :is(.line-grip, .line-fold), .editor-body li:hover:not(:has(li:hover)) > div > :is(.line-grip, .line-fold) { opacity: 1; }
+}
 .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 1.5rem); }
 .editor-body[contenteditable="false"] .line-grip { display: none; }
 /* A line's chevron sits left of its grip, over the part of the margin a finger's grip reaches into, so a thumb that
@@ -141,12 +143,14 @@ body {
 .editor-body:has(.line-held) ::selection { background: transparent; }
 /* The editor's own drop line knows only above and below, so it gives way to this one. */
 :is(:has(> .line-drop:not([hidden])), :has(> .line-into:not([hidden]))) > :is(.prosemirror-dropcursor-block, .prosemirror-dropcursor-inline) { display: none; }
-/* A finger needs a wider grip, reaching left into the margin. */
+/* A finger needs a wider grip, reaching left into the margin. It shows on the lines the selection is on, and works
+   hidden all the same. */
 @media (pointer: coarse) {
   /* The chevron's tap area fills the margin from its left edge to the dots of the grip, with the chevron in the middle. */
   .line-fold { opacity: 1; width: 1.78rem; }
-  .line-grip { opacity: 1; left: -2.75rem; width: 2.75rem; justify-content: flex-end; padding-right: 0.125rem; }
+  .line-grip { left: -2.75rem; width: 2.75rem; justify-content: flex-end; padding-right: 0.125rem; }
   .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-grip { left: calc(-1.5rem - 2.75rem); }
+  .editor-body li[data-selected] > .line-grip, .editor-body li[data-selected] > div > .line-grip { opacity: 1; }
   /* A thumb that lands beside a box, short of its line's text, still ticks it. */
   .editor-body ul[data-type="taskList"] > li > label::before { content: ''; position: absolute; top: 0; left: 0; width: calc(1.15rem + 0.6rem); height: calc(0.3rem + 1.6em); }
 }
