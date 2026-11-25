@@ -127,7 +127,11 @@ body {
 .line-fold:hover { color: var(--accent-ink); }
 .editor-body :is(ul:not([data-type="taskList"]), ol) > li > .line-fold { left: calc(-1.5rem - 2.75rem); }
 .editor-body li[data-folded] > .line-fold, .editor-body li[data-folded] > div > .line-fold { opacity: 1; }
-.editor-body li[data-folded] > :is(ul, ol), .editor-body li[data-folded] > div > :is(ul, ol) { display: none; }
+.editor-body li[data-folded] > :is(ul, ol), .editor-body li[data-folded] > div > :is(ul, ol), .editor-body [data-fold-hidden] { display: none; }
+/* A heading's chevron sits in the same column as a top-level line's, centered on the heading's first line. */
+.editor-body :is(h1, h2, h3) { position: relative; }
+.editor-body :is(h1, h2, h3) > .line-fold { height: 1.25em; }
+.editor-body :is(h1, h2, h3):hover > .line-fold, .editor-body :is(h1, h2, h3)[data-folded] > .line-fold { opacity: 1; }
 /* Where a dragged line will land, indented the way it will be, like the tree's drop line. */
 .line-drop { position: absolute; right: 0; height: 3px; margin-top: -2px; background: var(--accent-ink); pointer-events: none; z-index: 10; }
 .line-drop::before { content: ''; position: absolute; left: 0; top: -4px; width: 11px; height: 11px; background: var(--accent-ink); }

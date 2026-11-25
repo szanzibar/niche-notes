@@ -287,3 +287,210 @@ test('ticking a sibling below a folded line keeps it folded, and opening a folde
   await tool(page, 'Bullet list').click()
   await expect(line(page, 'Milk')).toBeHidden()
 })
+
+// Fruit holds Apples and Citrus, which holds Lemons, and Veg holds Kale.
+async function outline(page: Page) {
+  await newNote(page, 'Shop', '# Fruit')
+  for (const text of ['Apples', '## Citrus', 'Lemons', '# Veg', 'Kale']) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(text)
+  }
+}
+const heading = (page: Page, text: string) => body(page).locator('h1, h2', { hasText: text })
+const fold = (page: Page, text: string) => heading(page, text).locator('.line-fold')
+const para = (page: Page, text: string) => body(page).locator('> p').getByText(text, { exact: true })
+
+test('a heading folds everything down to the next heading of its level or higher, per person and per device', async ({
+  browser,
+}) => {
+  const name = `alice-${uid()}`
+  const bob = `bob-${uid()}`
+  const page = await signIn(browser, name)
+  const other = await signIn(browser, bob)
+  await outline(page)
+  await shareWith(page, bob)
+  await expect(body(page).locator('.line-fold')).toHaveCount(3)
+  await expect(fold(page, 'Veg')).toHaveCount(1)
+
+  await fold(page, 'Citrus').click()
+  await expect(para(page, 'Lemons')).toBeHidden()
+  await expect(para(page, 'Apples')).toBeVisible()
+  await expect(heading(page, 'Veg')).toBeVisible()
+  await expect(fold(page, 'Citrus')).toHaveAttribute('aria-label', 'Expand')
+  await fold(page, 'Fruit').click()
+  await expect(para(page, 'Apples')).toBeHidden()
+  await expect(heading(page, 'Citrus')).toBeHidden()
+  await expect(para(page, 'Kale')).toBeVisible()
+  // A folded heading shows its chevron without the pointer on it.
+  await page.mouse.move(0, 0)
+  await expect(fold(page, 'Fruit')).toHaveCSS('opacity', '1')
+
+  // The fold stays across a reload, and an H2 folded inside an H1 stays folded when the H1 opens.
+  await page.reload()
+  await expect(para(page, 'Kale')).toBeVisible()
+  await expect(para(page, 'Apples')).toBeHidden()
+  await fold(page, 'Fruit').click()
+  await expect(para(page, 'Apples')).toBeVisible()
+  await expect(heading(page, 'Citrus')).toBeVisible()
+  await expect(para(page, 'Lemons')).toBeHidden()
+
+  const second = await signIn(browser, name)
+  await row(second, 'Shop').click()
+  await expect(para(second, 'Kale')).toBeVisible()
+  await expect(para(second, 'Lemons')).toBeHidden()
+  await para(second, 'Kale').click()
+  await fold(second, 'Veg').click()
+  await expect(para(page, 'Kale')).toBeHidden()
+
+  await row(other, 'Shop').click()
+  await expect(para(other, 'Kale')).toBeVisible()
+  await expect(para(other, 'Lemons')).toBeVisible()
+})
+
+for (const [width, height] of [
+  [1280, 800],
+  [390, 844],
+])
+  test(`Enter, the arrows and Backspace work around a folded heading, ${width} wide`, async ({ browser }) => {
+    const page = await (await browser.newContext({ viewport: { width, height } })).newPage()
+    await page.goto(`/auth/login?as=alice-${uid()}`)
+    await outline(page)
+    await fold(page, 'Fruit').click()
+    await heading(page, 'Fruit').click()
+    await page.keyboard.press(lineEnd)
+    await expect.poll(() => caret(page)).toBe('Fruit@5')
+
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(() => caret(page)).toBe('Veg@3')
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(() => caret(page)).toBe('Fruit@5')
+    await page.keyboard.press('ArrowRight')
+    await expect.poll(() => caret(page)).toBe('Veg@0')
+    await page.keyboard.press('ArrowLeft')
+    await expect.poll(() => caret(page)).toBe('Fruit@5')
+
+    // Backspace at the start of Veg joins it to Lemons, which unfolds Fruit.
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press(lineStart)
+    await expect.poll(() => caret(page)).toBe('Veg@0')
+    await page.keyboard.press('Backspace')
+    await expect(para(page, 'LemonsVeg')).toBeVisible()
+    await expect(para(page, 'Apples')).toBeVisible()
+
+    // Enter at the end of a folded heading unfolds it and starts a line right under it.
+    await fold(page, 'Fruit').click()
+    await expect(para(page, 'Apples')).toBeHidden()
+    await heading(page, 'Fruit').click()
+    await page.keyboard.press(lineEnd)
+    await expect.poll(() => caret(page)).toBe('Fruit@5')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('Between')
+    await expect(para(page, 'Between')).toBeVisible()
+    await expect(para(page, 'Apples')).toBeVisible()
+    await expect(body(page).locator('> :is(h1, h2, p):not(:has(br.ProseMirror-trailingBreak:only-child))')).toHaveText([
+      'Fruit',
+      'Between',
+      'Apples',
+      'Citrus',
+      'LemonsVeg',
+      'Kale',
+    ])
+  })
+
+test('Find in note skips a folded heading’s section, and opening a note at a line inside it unfolds it', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await outline(page)
+  await para(page, 'Apples').click()
+  await tool(page, 'Task list').click()
+  await tool(page, 'Date').click()
+  await tool(page, 'Today').click()
+  await page.keyboard.press('Escape')
+  await fold(page, 'Fruit').click()
+  await expect(line(page, 'Apples')).toBeHidden()
+
+  await page.keyboard.press('ControlOrMeta+f')
+  await page.keyboard.type('lemons')
+  await expect(page.getByText('No matches.')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: /^Due \(/ }).click()
+  await page.getByRole('list', { name: 'Today', exact: true }).getByRole('button', { name: /Apples/ }).click()
+  await expect(line(page, 'Apples')).toBeVisible()
+  await expect(para(page, 'Lemons')).toBeVisible()
+  await expect(fold(page, 'Fruit')).toHaveAttribute('aria-label', 'Collapse')
+})
+
+const order = (page: Page) => body(page).locator('> :is(h1, h2, p):not(:has(br.ProseMirror-trailingBreak:only-child))')
+
+test('dragging a folded heading by its handle takes its section along and leaves it folded', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await outline(page)
+  await fold(page, 'Fruit').click()
+  await heading(page, 'Fruit').hover()
+  const handle = page.locator('.drag-handle')
+  await expect(handle).toBeVisible()
+  const from = (await handle.boundingBox())!
+  const to = (await para(page, 'Kale').boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 20, from.y + 20, { steps: 4 })
+  await page.mouse.move(to.x + 20, to.y + to.height + 8, { steps: 12 })
+  await page.mouse.up()
+
+  await expect(order(page)).toHaveText(['Veg', 'Kale', 'Fruit', 'Apples', 'Citrus', 'Lemons'])
+  await expect(fold(page, 'Fruit')).toHaveAttribute('aria-label', 'Expand')
+  await expect(para(page, 'Apples')).toBeHidden()
+  await expect(para(page, 'Kale')).toBeVisible()
+
+  // An unfolded heading drags alone.
+  await fold(page, 'Fruit').click()
+  await heading(page, 'Veg').hover()
+  const veg = (await handle.boundingBox())!
+  const end = (await para(page, 'Lemons').boundingBox())!
+  await page.mouse.move(veg.x + veg.width / 2, veg.y + veg.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(veg.x + 20, veg.y + 20, { steps: 4 })
+  await page.mouse.move(end.x + 20, end.y + end.height + 8, { steps: 12 })
+  await page.mouse.up()
+  await expect(order(page)).toHaveText(['Kale', 'Fruit', 'Apples', 'Citrus', 'Lemons', 'Veg'])
+})
+
+test('the shortcut folds the line or heading at the cursor, or the one it sits under, and unfolds it', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await groceries(page)
+  await line(page, 'Eggs').click()
+  await expect.poll(() => caret(page)).toMatch(/^Eggs@/)
+
+  // From a leaf line the parent folds, and the cursor ends at its end.
+  await page.keyboard.press('ControlOrMeta+Shift+[')
+  await expect(line(page, 'Eggs')).toBeHidden()
+  await expect.poll(() => caret(page)).toBe('Groceries@9')
+  await page.keyboard.press('ControlOrMeta+Shift+]')
+  await expect(line(page, 'Eggs')).toBeVisible()
+  // Nothing is folded, so Expand does nothing and leaves the key to the browser.
+  await page.keyboard.press('ControlOrMeta+Shift+]')
+  await expect(line(page, 'Eggs')).toBeVisible()
+  await line(page, 'Groceries').click()
+  await expect.poll(() => caret(page)).toMatch(/^Groceries@/)
+  await page.keyboard.press('ControlOrMeta+Shift+[')
+  await expect(line(page, 'Milk')).toBeHidden()
+  await page.keyboard.press('ControlOrMeta+Shift+]')
+  await expect(line(page, 'Milk')).toBeVisible()
+
+  await tool(page, 'Task list').click()
+  await outline(page)
+  await para(page, 'Lemons').click()
+  await expect.poll(() => caret(page)).toBe('Lemons@6')
+  await page.keyboard.press('ControlOrMeta+Shift+[')
+  await expect(para(page, 'Lemons')).toBeHidden()
+  await expect(para(page, 'Apples')).toBeVisible()
+  await expect.poll(() => caret(page)).toBe('Citrus@6')
+  await page.keyboard.press('ControlOrMeta+Shift+[')
+  await expect(para(page, 'Apples')).toBeHidden()
+  await expect.poll(() => caret(page)).toBe('Fruit@5')
+  await page.keyboard.press('ControlOrMeta+Shift+]')
+  await expect(para(page, 'Apples')).toBeVisible()
+  await expect(para(page, 'Lemons')).toBeHidden()
+})

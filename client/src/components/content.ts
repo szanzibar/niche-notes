@@ -21,13 +21,13 @@ export const contentExtensions = [
   TableRow,
   TableHeader.extend({ content: 'paragraph+' }),
   TableCell.extend({ content: 'paragraph+' }),
-  // A line gets an id once someone folds it, which their fold finds it by. A line split from it or pasted starts
-  // without one. A copy dragged with Alt or Ctrl keeps it and folds along with its original, which is accepted.
+  // A line or heading gets an id once someone folds it, which their fold finds it by. One split from it or pasted
+  // starts without one. A copy keeps its id until someone folds one of them, and then that one gets its own.
   Extension.create({
     name: 'lineId',
     addGlobalAttributes: () => [
       {
-        types: ['taskItem', 'listItem'],
+        types: ['taskItem', 'listItem', 'heading'],
         attributes: { id: { default: null, keepOnSplit: false, parseHTML: () => null, renderHTML: () => ({}) } },
       },
     ],

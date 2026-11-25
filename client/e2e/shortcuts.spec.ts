@@ -23,6 +23,7 @@ test('holding Ctrl or ⌘ shows each shortcut beside its button, and letting go 
   await expect(box).toContainText('Find in note')
   await expect(box).toContainText('Tick the task')
   await expect(box).toContainText('Move a line')
+  await expect(box).toContainText('Collapse, Expand')
   await expect(box).toContainText('Indent, Outdent')
   await page.keyboard.up(hold)
   await expect(box).toBeHidden()

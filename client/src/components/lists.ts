@@ -1,4 +1,5 @@
 import { TaskItem as TipTapTaskItem } from '@tiptap/extension-list'
+import { NodeRangeSelection } from '@tiptap/extension-node-range'
 import type { Node, ResolvedPos } from '@tiptap/pm/model'
 import { type EditorState, NodeSelection, Plugin, PluginKey, Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { Mapping } from '@tiptap/pm/transform'
@@ -1017,13 +1018,9 @@ function visibleFrom(state: EditorState, pos: number, dir: -1 | 1) {
       found = Selection.findFrom(state.doc.resolve(dir < 0 ? found.$from.before(doneAt) : found.$from.after(doneAt)), dir, true)
       continue
     }
-    const foldAt = folded ? foldsHolding(found.$from, folded)[0] : 0
-    if (!foldAt) return found
-    found = Selection.findFrom(
-      state.doc.resolve(dir < 0 ? found.$from.before(foldAt) + found.$from.node(foldAt).firstChild!.nodeSize : found.$from.after(foldAt)),
-      dir,
-      true,
-    )
+    const hold = folded && foldsHolding(found.$from, folded)[0]
+    if (!hold) return found
+    found = Selection.findFrom(state.doc.resolve(dir < 0 ? hold.from - 1 : hold.to), dir, true)
   }
   return null
 }
@@ -1077,70 +1074,144 @@ export const HideChecked = (hiding: () => boolean) =>
 // The ids of the lines folded in the open note.
 export const foldedLines = new PluginKey<Set<string>>('foldedLines')
 
-// The depths of the folded lines whose nested lines hold `$pos`, outermost first.
-export function foldsHolding($pos: ResolvedPos, folded: Set<string>) {
-  const depths: number[] = []
-  for (let depth = 1; depth < $pos.depth; depth++) {
-    const node = $pos.node(depth)
-    if (isLine(node) && folded.has(node.attrs.id) && $pos.node(depth + 1).type.name in ITEM) depths.push(depth)
-  }
-  return depths
-}
-
+const headingLevel = (node: Node) => (node.type.name === 'heading' ? (node.attrs.level as number) : 0)
 const hasNested = (node: Node) => node.content.content.some((child) => child.type.name in ITEM)
 
-// A list line with lines nested under it has a chevron in the margin beside its grip, which folds them away for
-// this person on every device of theirs. It shows like the grip, and always on a folded line. Folding a line first
-// gives it an id, so in a note this person can't edit, only a line that already has one folds.
+// A top-level heading hides every block after it down to the next heading of its level or higher.
+function sectionEnd(doc: Node, pos: number) {
+  const heading = doc.nodeAt(pos)!
+  let end = pos + heading.nodeSize
+  for (let i = doc.resolve(pos).index(0) + 1; i < doc.childCount; i++) {
+    const level = headingLevel(doc.child(i))
+    if (level && level <= headingLevel(heading)) break
+    end += doc.child(i).nodeSize
+  }
+  return end
+}
+
+// What the line or top-level heading at `pos` hides when folded, or null when there is nothing to hide.
+function hides(doc: Node, pos: number) {
+  const node = doc.nodeAt(pos)!
+  if (isLine(node)) {
+    // From its first nested list, so a second paragraph above that stays visible and the cursor can go there.
+    let from = pos + 1
+    for (const child of node.content.content) {
+      if (child.type.name in ITEM) return { from, to: pos + node.nodeSize }
+      from += child.nodeSize
+    }
+    return null
+  }
+  if (!headingLevel(node)) return null
+  const to = sectionEnd(doc, pos)
+  return to > pos + node.nodeSize ? { from: pos + node.nodeSize, to } : null
+}
+
+// The things the cursor is in or under that fold, innermost first, as their positions: lines with lines nested
+// under them, its own heading, then the headings whose sections hold it.
+function foldablesAt($pos: ResolvedPos) {
+  const found: number[] = []
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if (isLine($pos.node(depth)) && hasNested($pos.node(depth))) found.push($pos.before(depth))
+  }
+  if (!$pos.depth) return found
+  let level = headingLevel($pos.node(1)) || Infinity
+  if (level < Infinity && hides($pos.doc, $pos.before(1))) found.push($pos.before(1))
+  let at = $pos.before(1)
+  for (let i = $pos.index(0) - 1; i >= 0 && level > 1; i--) {
+    const node = $pos.doc.child(i)
+    at -= node.nodeSize
+    if (headingLevel(node) && headingLevel(node) < level) {
+      found.push(at)
+      level = headingLevel(node)
+    }
+  }
+  return found
+}
+
+// The folds that hide `$pos`, outermost first, each with the range it hides: a folded line whose nested lines hold
+// it, or a folded heading whose section does.
+export function foldsHolding($pos: ResolvedPos, folded: Set<string>) {
+  const holds: { id: string; from: number; to: number }[] = []
+  if (!folded.size) return holds
+  for (const at of foldablesAt($pos).reverse()) {
+    const id = $pos.doc.nodeAt(at)!.attrs.id
+    const range = folded.has(id) && hides($pos.doc, at)
+    if (range && range.from <= $pos.pos && $pos.pos < range.to) holds.push({ id, ...range })
+  }
+  return holds
+}
+
+const writeFolds = (note: string, ids: string[]) => (ids.length ? folds().set(note, ids) : folds().delete(note))
+
+// A line that shares its id with another, as a copy of it does, gets its own first, so a fold never folds both.
+const toggle = (note: string, view: EditorView, at: number) => {
+  const line = view.state.doc.nodeAt(at)!
+  let shared = false
+  view.state.doc.descendants((node, pos) => {
+    shared ||= pos !== at && line.attrs.id != null && node.attrs.id === line.attrs.id
+    return !shared
+  })
+  const id = line.attrs.id && !shared ? line.attrs.id : crypto.randomUUID()
+  if (id !== line.attrs.id) view.dispatch(view.state.tr.setNodeMarkup(at, undefined, { ...line.attrs, id }).setMeta('addToHistory', false))
+  const folded = [...foldedLines.getState(view.state)!]
+  writeFolds(note, folded.includes(line.attrs.id) ? folded.filter((other) => other !== id) : [...folded, id])
+}
+
+// A list line with lines nested under it, and a top-level heading with blocks in its section, has a chevron in the
+// margin, which folds what it hides away for this person on every device of theirs. It shows like the grip, and
+// always on a folded one. Folding gives it an id first, so in a note this person can't edit, only one that already
+// has an id folds.
 export const FoldLines = (note: string) =>
   Extension.create({
     name: 'foldLines',
-    // At the end of a folded line, Enter starts the next line below what it hides and ArrowRight steps over it
-    // (WebKit otherwise steps into the hidden nested list and snaps back).
     addKeyboardShortcuts() {
+      const { editor } = this
+      // The cursor at the end of a folded line or heading, with the end of what it hides.
       const atFoldedEnd = () => {
-        const { state } = this.editor
+        const { state } = editor
         const { $from, empty } = state.selection
-        if (!empty || $from.depth < 2 || $from.parentOffset < $from.parent.content.size || $from.index(-1) > 0) return null
-        const line = $from.node(-1)
-        if (!isLine(line) || !hasNested(line) || !foldedLines.getState(state)!.has(line.attrs.id)) return null
-        return { state, $from, line }
+        const depth = $from.depth === 1 ? 1 : $from.depth > 1 && $from.index(-1) === 0 ? $from.depth - 1 : 0
+        if (!empty || !depth || $from.parentOffset < $from.parent.content.size) return null
+        const block = $from.node(depth)
+        const range = foldedLines.getState(state)!.has(block.attrs.id) && hides(state.doc, $from.before(depth))
+        return range ? { state, block, to: range.to } : null
+      }
+      // Collapse folds the innermost thing at the cursor that isn't folded yet, and Expand the one that is.
+      const fold = (collapse: boolean) => () => {
+        const folded = foldedLines.getState(editor.state)!
+        const at = foldablesAt(editor.state.selection.$from).find((pos) => {
+          const { id } = editor.state.doc.nodeAt(pos)!.attrs
+          return folded.has(id) !== collapse && (editor.isEditable || id)
+        })
+        if (at == null) return false
+        toggle(note, editor.view, at)
+        return true
       }
       return {
+        // At the end of a folded line, Enter starts the next line below what it hides and ArrowRight steps over it
+        // (WebKit otherwise steps into the hidden nested list and snaps back). A heading's new line would join its
+        // section, so Enter there is left to unfold it.
         Enter: () => {
-          if (!this.editor.isEditable) return false
+          if (!editor.isEditable) return false
           const hit = atFoldedEnd()
-          if (!hit) return false
-          const after = hit.$from.after(-1)
-          const tr = hit.state.tr.insert(after, hit.line.type.create(null, hit.state.schema.nodes.paragraph.create()))
-          this.editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, after + 2)).scrollIntoView())
+          if (!hit || !isLine(hit.block)) return false
+          const tr = hit.state.tr.insert(hit.to, hit.block.type.create(null, hit.state.schema.nodes.paragraph.create()))
+          editor.view.dispatch(tr.setSelection(Selection.findFrom(tr.doc.resolve(hit.to), 1, true)!).scrollIntoView())
           return true
         },
         ArrowRight: () => {
           const hit = atFoldedEnd()
           if (!hit) return false
-          const next = Selection.findFrom(hit.state.doc.resolve(hit.$from.after(-1)), 1, true)
-          if (next) this.editor.view.dispatch(hit.state.tr.setSelection(next).scrollIntoView())
+          const next = Selection.findFrom(hit.state.doc.resolve(hit.to), 1, true)
+          if (next) editor.view.dispatch(hit.state.tr.setSelection(next).scrollIntoView())
           return true
         },
+        'Mod-Shift-[': fold(true),
+        'Mod-Shift-]': fold(false),
       }
     },
     addProseMirrorPlugins() {
       const { editor } = this
-      const writeFolds = (ids: string[]) => (ids.length ? folds().set(note, ids) : folds().delete(note))
-      // A line that shares its id with another, as a copy of it does, gets its own first, so a fold never folds both.
-      const toggle = (view: EditorView, at: number) => {
-        const line = view.state.doc.nodeAt(at)!
-        let shared = false
-        view.state.doc.descendants((node, pos) => {
-          shared ||= pos !== at && line.attrs.id != null && node.attrs.id === line.attrs.id
-          return !shared
-        })
-        const id = line.attrs.id && !shared ? line.attrs.id : crypto.randomUUID()
-        if (id !== line.attrs.id) view.dispatch(view.state.tr.setNodeMarkup(at, undefined, { ...line.attrs, id }).setMeta('addToHistory', false))
-        const folded = [...foldedLines.getState(view.state)!]
-        writeFolds(folded.includes(line.attrs.id) ? folded.filter((other) => other !== id) : [...folded, id])
-      }
       const chevron = (open: boolean) => (view: EditorView, getPos: () => number | undefined) => {
         const el = document.createElement('span')
         el.className = 'line-fold'
@@ -1153,7 +1224,7 @@ export const FoldLines = (note: string) =>
         el.addEventListener('mousedown', (e) => e.preventDefault())
         el.addEventListener('click', () => {
           const pos = getPos()
-          if (pos != null) toggle(view, pos - 1)
+          if (pos != null) toggle(note, view, pos - 1)
         })
         return el
       }
@@ -1171,43 +1242,67 @@ export const FoldLines = (note: string) =>
           // unfolds them. Anything else, such as a fold on another device, moves the cursor to the end of the folded line.
           appendTransaction: (transactions, _old, state) => {
             const folded = foldedLines.getState(state)!
-            const { $from } = state.selection
-            const depths = foldsHolding($from, folded)
-            if (!depths.length) return null
+            const holds = foldsHolding(state.selection.$from, folded)
+            if (!holds.length) return null
             if (transactions.some((tr) => (tr.docChanged && !tr.getMeta(ySyncPluginKey)) || tr.getMeta(foldedLines) === 'reveal')) {
-              const holding = depths.map((depth) => $from.node(depth).attrs.id)
-              const open = [...folded].filter((id) => !holding.includes(id))
+              const open = [...folded].filter((id) => !holds.some((hold) => hold.id === id))
               // Writing the tree now would redraw the note while this transaction is still being applied.
-              queueMicrotask(() => writeFolds(open))
+              queueMicrotask(() => writeFolds(note, open))
               return state.tr.setMeta(foldedLines, new Set(open))
             }
-            const [depth] = depths
-            return state.tr.setSelection(TextSelection.create(state.doc, $from.before(depth) + $from.node(depth).firstChild!.nodeSize))
+            return state.tr.setSelection(TextSelection.create(state.doc, holds[0].from - 1))
           },
           view: (view) => {
             const changed = ({ keysChanged }: { keysChanged: Set<string> }) => {
               if (keysChanged.has(note)) view.dispatch(view.state.tr.setMeta(foldedLines, new Set(folds().get(note))))
             }
             folds().observe(changed)
-            return { destroy: () => folds().unobserve(changed) }
+            // The floating handle has selected the heading by now, and a folded one takes its section along.
+            const dragSection = (e: DragEvent) => {
+              const { selection, doc } = view.state
+              const range = (e.target as Element).closest('.drag-handle') && hides(doc, selection.from)
+              if (!range || !foldedLines.getState(view.state)!.has(doc.nodeAt(selection.from)!.attrs.id)) return
+              const whole = NodeRangeSelection.create(doc, selection.from, range.to)
+              view.dragging = { slice: whole.content(), move: true }
+              view.dispatch(view.state.tr.setSelection(whole))
+            }
+            document.addEventListener('dragstart', dragSection)
+            return {
+              destroy: () => {
+                folds().unobserve(changed)
+                document.removeEventListener('dragstart', dragSection)
+              },
+            }
           },
           props: {
             decorations: (state) => {
               const folded = foldedLines.getState(state)!
               const found: Decoration[] = []
+              const widget = (pos: number, open: boolean) =>
+                Decoration.widget(pos + 1, chevron(open), {
+                  side: -2,
+                  key: open ? 'collapse' : 'expand',
+                  ignoreSelection: true,
+                  stopEvent: () => true,
+                })
               state.doc.descendants((node, pos) => {
                 if (!isLine(node) || !hasNested(node)) return
                 if (!node.attrs.id && !editor.isEditable) return
                 const open = !folded.has(node.attrs.id)
-                found.push(
-                  Decoration.widget(pos + 1, chevron(open), {
-                    side: -2,
-                    key: open ? 'collapse' : 'expand',
-                    ignoreSelection: true,
-                    stopEvent: () => true,
-                  }),
-                )
+                found.push(widget(pos, open))
                 if (!open) found.push(Decoration.node(pos, pos + node.nodeSize, { 'data-folded': '' }))
+              })
+              state.doc.forEach((node, pos) => {
+                const range = headingLevel(node) && hides(state.doc, pos)
+                if (!range || (!node.attrs.id && !editor.isEditable)) return
+                const open = !folded.has(node.attrs.id)
+                found.push(widget(pos, open))
+                if (open) return
+                found.push(Decoration.node(pos, pos + node.nodeSize, { 'data-folded': '' }))
+                state.doc.nodesBetween(range.from, range.to, (hidden, at) => {
+                  found.push(Decoration.node(at, at + hidden.nodeSize, { 'data-fold-hidden': '' }))
+                  return false
+                })
               })
               return DecorationSet.create(state.doc, found)
             },

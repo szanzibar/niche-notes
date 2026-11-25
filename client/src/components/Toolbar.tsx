@@ -50,6 +50,7 @@ const HINTS: [string[], string][] = [
   [[`${MOD}F`], 'Find in note'],
   [[`${MOD}Enter`], 'Tick the task'],
   [[`${ALT}${SHIFT}↑`, `${ALT}${SHIFT}↓`], 'Move a line'],
+  [[`${MOD}${SHIFT}[`, `${MOD}${SHIFT}]`], 'Collapse, Expand'],
   [['Tab', `${SHIFT}Tab`], 'Indent, Outdent'],
 ]
 const ICON = 'h-5 w-5'
