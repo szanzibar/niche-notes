@@ -1077,14 +1077,18 @@ export const foldedLines = new PluginKey<Set<string>>('foldedLines')
 const headingLevel = (node: Node) => (node.type.name === 'heading' ? (node.attrs.level as number) : 0)
 const hasNested = (node: Node) => node.content.content.some((child) => child.type.name in ITEM)
 
-// A top-level heading hides every block after it down to the next heading of its level or higher.
+// A top-level heading hides every block after it down to the next heading of its level or higher, apart from the
+// empty paragraphs at the end of its section.
 function sectionEnd(doc: Node, pos: number) {
   const heading = doc.nodeAt(pos)!
   let end = pos + heading.nodeSize
+  let reach = end
   for (let i = doc.resolve(pos).index(0) + 1; i < doc.childCount; i++) {
-    const level = headingLevel(doc.child(i))
+    const block = doc.child(i)
+    const level = headingLevel(block)
     if (level && level <= headingLevel(heading)) break
-    end += doc.child(i).nodeSize
+    reach += block.nodeSize
+    if (block.type.name !== 'paragraph' || block.content.size) end = reach
   }
   return end
 }

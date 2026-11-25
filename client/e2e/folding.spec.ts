@@ -151,6 +151,27 @@ const caret = (page: Page) =>
     return `${$from.parent.textContent}@${$from.parentOffset}`
   })
 
+test('a folded heading leaves the blank lines at the end of its section showing and hides the ones inside it', async ({
+  browser,
+}) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Shop', '# Fruit')
+  // One blank line between Apples and Lemons, two before Veg.
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Apples')
+  for (const key of ['Enter', 'Enter']) await page.keyboard.press(key)
+  await page.keyboard.type('Lemons')
+  for (const key of ['Enter', 'Enter', 'Enter']) await page.keyboard.press(key)
+  await page.keyboard.type('# Veg')
+  // The editor ends on a blank line of its own.
+  const blank = body(page).locator('> p:has(br.ProseMirror-trailingBreak:only-child)').locator('visible=true')
+  await expect(blank).toHaveCount(4)
+
+  await fold(page, 'Fruit').click()
+  await expect(para(page, 'Lemons')).toBeHidden()
+  await expect(blank).toHaveCount(3)
+})
+
 for (const [width, height] of [
   [1280, 800],
   [390, 844],
