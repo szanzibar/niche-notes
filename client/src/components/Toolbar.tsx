@@ -146,8 +146,8 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
   const { item, list, depth } = listPosition(editor)
   const listItem = item ?? 'listItem'
   const chain = () => editor.chain().focus()
-  // The link box's input holds focus, and TipTap only takes it back on the next frame, so the editor
-  // takes it before the box goes.
+  // The link box's input and the date box's fields hold focus, and TipTap only takes it back on the next frame, so
+  // the editor takes it before the box goes.
   const close = () => {
     editor.view.focus()
     setRow(null)
@@ -321,7 +321,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
             <Popover
               side="top"
               open={row === 'due'}
-              onOpenChange={(open) => setRow(open ? 'due' : null)}
+              onOpenChange={(open) => (open ? setRow('due') : close())}
               className="w-[min(calc(100vw-1rem),22rem)]"
               trigger={
                 <Tool label="Date" disabled={!line} active={row === 'due' || Boolean(due)}>

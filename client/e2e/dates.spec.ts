@@ -38,6 +38,8 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
   await expect(line(page, 'Rent')).toHaveAttribute('data-duration', '60')
   await page.keyboard.press('Escape')
   await expect(tool(page, 'Tomorrow')).toBeHidden()
+  // The cursor is back in the note, as it was before the time took it.
+  await expect(page.locator('.editor-body')).toBeFocused()
 
   // A line split from a dated one starts without a date.
   await page.locator('.editor-body p').getByText('Rent', { exact: true }).click()
