@@ -31,9 +31,11 @@ class Alerts : FirebaseMessagingService() {
     manager.createNotificationChannel(
       NotificationChannel(CHANNEL, getString(R.string.alerts), NotificationManager.IMPORTANCE_HIGH)
     )
-    val note = Uri.parse(getString(R.string.site)).buildUpon().path("/n/${alert["note"]}")
+    // A widget line's link, so a tap on a closed app also puts the cursor on the line and raises the keyboard. The
+    // line rides in the link, since two alerts for one note would otherwise share the first one's.
+    val note = Uri.Builder().appendQueryParameter("n", alert["note"])
     alert["text"]?.let { note.appendQueryParameter("line", it) }
-    val open = Intent(Intent.ACTION_VIEW, note.build(), this, MainActivity::class.java)
+    val open = NoteWidget.inApp(this, "/?${note.build().encodedQuery}")
     val notification = Notification.Builder(this, CHANNEL)
       .setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(alert["title"])
