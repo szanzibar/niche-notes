@@ -94,3 +94,22 @@ test('History opens a version at this device’s cursor, or at its end, and back
   await versions.last().click()
   await expect(line(page, 1)).toBeInViewport()
 })
+
+test('a wheel scrolls a long row of versions sideways', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Groceries', 'milk')
+  const history = `/api/docs/${page.url().split('/n/')[1]}/history`
+  await page.route(`**${history}`, async (route) => {
+    const response = await route.fetch()
+    const { rows } = await response.json()
+    const [seq, , update] = rows.at(-1)
+    const hours = Array.from({ length: 40 }, (_, i) => [seq, new Date(Date.now() - (40 - i) * 3_600_000).toISOString(), update])
+    await route.fulfill({ response, json: { rows: [...hours, ...rows] } })
+  })
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'History' }).click()
+  const versions = page.getByRole('group', { name: 'Versions' })
+  await versions.hover()
+  await page.mouse.wheel(0, 400)
+  await expect.poll(() => versions.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+})

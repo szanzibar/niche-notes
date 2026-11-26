@@ -130,7 +130,13 @@ export function History({
       </header>
       {rows ? (
         <>
-          <div role="group" aria-label="Versions" className="flex shrink-0 overflow-x-auto border-b-2 border-border bg-surface">
+          {/* A scrollbar would cover the versions, so the wheel scrolls them sideways instead. */}
+          <div
+            role="group"
+            aria-label="Versions"
+            onWheel={(e) => Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.currentTarget.scrollBy({ left: e.deltaY })}
+            className="flex shrink-0 overflow-x-auto border-b-2 border-border bg-surface [scrollbar-width:none]"
+          >
             {versions.map((v) => (
               <Button
                 key={v.seq}
