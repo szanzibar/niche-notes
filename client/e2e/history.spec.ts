@@ -95,7 +95,7 @@ test('History opens a version at this device’s cursor, or at its end, and back
   await expect(line(page, 1)).toBeInViewport()
 })
 
-test('a wheel scrolls a long row of versions sideways', async ({ browser }) => {
+test('a wheel or a chevron scrolls a long row of versions sideways', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Groceries', 'milk')
   const history = `/api/docs/${page.url().split('/n/')[1]}/history`
@@ -109,7 +109,13 @@ test('a wheel scrolls a long row of versions sideways', async ({ browser }) => {
   await page.getByRole('button', { name: 'More' }).click()
   await page.getByRole('button', { name: 'History' }).click()
   const versions = page.getByRole('group', { name: 'Versions' })
+  const left = page.getByRole('button', { name: 'Scroll versions left' })
+  await expect(left).toBeHidden()
+  await page.getByRole('button', { name: 'Scroll versions right' }).click()
+  await expect(left).toBeVisible()
+  const scrolled = await versions.evaluate((el) => el.scrollLeft)
+  expect(scrolled).toBeGreaterThan(0)
   await versions.hover()
   await page.mouse.wheel(0, 400)
-  await expect.poll(() => versions.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+  await expect.poll(() => versions.evaluate((el) => el.scrollLeft)).toBeGreaterThan(scrolled)
 })

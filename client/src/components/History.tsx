@@ -8,6 +8,7 @@ import { useStore } from '../sync/hooks'
 import { titleOf } from '../sync/tree'
 import { Button } from './Button'
 import { contentExtensions } from './content'
+import { ScrollRow } from './ScrollRow'
 
 function label(at: string | null) {
   if (!at) return 'Earlier'
@@ -130,13 +131,7 @@ export function History({
       </header>
       {rows ? (
         <>
-          {/* A scrollbar would cover the versions, so the wheel scrolls them sideways instead. */}
-          <div
-            role="group"
-            aria-label="Versions"
-            onWheel={(e) => Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.currentTarget.scrollBy({ left: e.deltaY })}
-            className="flex shrink-0 overflow-x-auto border-b-2 border-border bg-surface [scrollbar-width:none]"
-          >
+          <ScrollRow name="versions" role="group" aria-label="Versions" className="shrink-0 border-b-2 border-border bg-surface">
             {versions.map((v) => (
               <Button
                 key={v.seq}
@@ -149,7 +144,7 @@ export function History({
                 {label(v.at)}
               </Button>
             ))}
-          </div>
+          </ScrollRow>
           {/* Sunken and muted, as a note in the trash: readable, clearly not for writing. */}
           <EditorContent ref={scroller} editor={editor} className="flex-1 overflow-y-auto bg-sunken text-ink-muted" />
         </>

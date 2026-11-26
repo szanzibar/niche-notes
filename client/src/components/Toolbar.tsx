@@ -15,8 +15,6 @@ import {
   BulletListIcon,
   CalendarIcon,
   CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CodeBlockIcon,
   ChecklistIcon,
   CodeIcon,
@@ -43,6 +41,7 @@ import {
 } from './icons'
 import { assign, listPosition, pickSuggestion, suggestions, toggleList, typedPerson } from './lists'
 import { Popover } from './Popover'
+import { ScrollRow } from './ScrollRow'
 
 const HINTS: [string[], string][] = [
   [[`${MOD}Z`, `${MOD}${SHIFT}Z`], 'Undo, Redo'],
@@ -54,8 +53,6 @@ const HINTS: [string[], string][] = [
   [['Tab', `${SHIFT}Tab`], 'Indent, Outdent'],
 ]
 const ICON = 'h-5 w-5'
-// The width of the scroll chevrons, w-6.
-const CHEVRON = 24
 // How long a timed line lasts in the calendar. Half an hour unless set.
 const DURATIONS = [
   ['15m', '15 minutes', 15],
@@ -119,33 +116,6 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
   useEffect(() => {
     if (inTable) tableTools.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
   }, [inTable])
-  // A chevron shows at each end with more tools past it, since a bar can end exactly on a whole tool. It goes
-  // once less than its width is left, so the tool under it slides out instead of popping in.
-  const tools = useRef<HTMLDivElement>(null)
-  const [moreLeft, setMoreLeft] = useState(false)
-  const [moreRight, setMoreRight] = useState(false)
-  const measure = () => {
-    const el = tools.current
-    if (!el) return
-    setMoreLeft(el.scrollLeft > CHEVRON)
-    setMoreRight(el.scrollWidth - el.clientWidth - el.scrollLeft > CHEVRON)
-  }
-  useLayoutEffect(measure)
-  useEffect(() => {
-    if (!tools.current) return
-    const observer = new ResizeObserver(measure)
-    observer.observe(tools.current)
-    return () => observer.disconnect()
-  }, [editor])
-  // A smooth scroll restarts from where the last one got to, so a quick wheel notch adds to where it was headed.
-  const glide = useRef({ to: 0, at: 0 })
-  const scroll = (by: number) => {
-    const el = tools.current!
-    const at = performance.now()
-    const from = at - glide.current.at < 500 ? glide.current.to : el.scrollLeft
-    glide.current = { to: Math.max(0, Math.min(el.scrollWidth - el.clientWidth, from + by)), at }
-    el.scrollTo({ left: glide.current.to, behavior: 'smooth' })
-  }
   const link = editor?.getAttributes('link').href as string | undefined
   // The box places itself before its address is drawn in it, so it measures again once it is.
   useLayoutEffect(() => {
@@ -280,37 +250,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
             </div>
           ))}
         </div>
-        {moreLeft && (
-          <button
-            type="button"
-            aria-label="Scroll tools left"
-            title="Scroll tools left"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => scroll(-tools.current!.clientWidth / 2)}
-            className="absolute inset-y-0 left-0 z-10 flex w-6 items-center justify-center border-r-2 border-border bg-surface"
-          >
-            <ChevronLeftIcon className={ICON} />
-          </button>
-        )}
-        {moreRight && (
-          <button
-            type="button"
-            aria-label="Scroll tools right"
-            title="Scroll tools right"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => scroll(tools.current!.clientWidth / 2)}
-            className="absolute inset-y-0 right-0 z-10 flex w-6 items-center justify-center border-l-2 border-border bg-surface"
-          >
-            <ChevronRightIcon className={ICON} />
-          </button>
-        )}
-        {/* A scrollbar would make the bar taller than the tree's footer. */}
-        <div
-          ref={tools}
-          onScroll={measure}
-          onWheel={(e) => Math.abs(e.deltaY) > Math.abs(e.deltaX) && scroll(e.deltaY)}
-          className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2"
-        >
+        <ScrollRow name="tools" className="gap-2 [&>*+*]:border-l-2 [&>*+*]:border-border [&>*+*]:pl-2">
           <Group>
             <Tool
               label="Task list"
@@ -668,7 +608,7 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
               <HighlightIcon className={ICON} />
             </Tool>
           </Group>
-        </div>
+        </ScrollRow>
       </div>
     </div>
   )
