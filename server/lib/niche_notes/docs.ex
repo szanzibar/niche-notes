@@ -162,7 +162,7 @@ defmodule NicheNotes.Docs do
   def widget(user_id, user_id) do
     {nodes, _settings} = tree = tree(user_id)
     children = Enum.group_by(nodes, fn {_id, node} -> node["parent"] end)
-    rows = tree_rows(children, MapSet.new(note_ids(user_id)), nil, 0)
+    rows = tree_rows(children, MapSet.new(note_ids(user_id)), nil, 0, false)
     {:ok, Map.merge(%{title: "Notes", rows: rows}, theme(tree, nil))}
   end
 
@@ -232,12 +232,15 @@ defmodule NicheNotes.Docs do
      doc |> Yex.Doc.get_map("settings") |> Yex.Map.to_map()}
   end
 
-  # Pinned first, then newest, and nothing under a folded note. Each row loads its note for the title, about 0.15 ms,
-  # so 10,000 unfolded notes take a second or two.
-  defp tree_rows(children, notes, parent, depth) do
+  # Pinned first, then newest, and only the pinned notes under a folded note. Each row loads its note for the title,
+  # about 0.15 ms, so 10,000 unfolded notes take a second or two.
+  defp tree_rows(children, notes, parent, depth, folded) do
     children
     |> Map.get(parent, [])
-    |> Enum.filter(fn {id, node} -> MapSet.member?(notes, id) and node["leftAt"] == nil end)
+    |> Enum.filter(fn {id, node} ->
+      MapSet.member?(notes, id) and node["leftAt"] == nil and
+        (not folded or node["pinned"] == true)
+    end)
     |> Enum.sort_by(fn {_id, node} -> {node["pinned"] != true, -(node["order"] || 0)} end)
     |> Enum.flat_map(fn {id, node} ->
       case load(id) do
@@ -245,7 +248,7 @@ defmodule NicheNotes.Docs do
           []
 
         {_doc, title, _meta, _content} ->
-          under = if node["collapsed"], do: [], else: tree_rows(children, notes, id, depth + 1)
+          under = tree_rows(children, notes, id, depth + 1, node["collapsed"] == true)
           [%{line: title, depth: depth, note: id} | under]
       end
     end)

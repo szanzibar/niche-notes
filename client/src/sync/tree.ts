@@ -137,6 +137,11 @@ export function children(parent: string | null): string[] {
   return index.get(parent) ?? []
 }
 
+// A folded note still shows its pinned notes, so the ones seldom needed fold away under it.
+export function shownChildren(parent: string | null) {
+  return parent && isCollapsed(parent) ? children(parent).filter(isPinned) : children(parent)
+}
+
 export function descendants(id: string, acc = new Set<string>()): Set<string> {
   for (const child of children(id)) {
     acc.add(child)

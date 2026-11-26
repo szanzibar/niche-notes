@@ -52,6 +52,22 @@ test('a new pin goes below the other pins, and an unpinned note goes on top of t
   expect(await rowTitles(page)).toEqual(['Apple', 'Banana', 'Date', 'Cherry'])
 })
 
+test('a folded note still shows its pinned notes', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Archive')
+  for (const title of ['Old', 'Daily']) {
+    await row(page, 'Archive').locator('..').getByRole('button', { name: 'New note inside' }).click()
+    await expect(page.getByPlaceholder('Title')).toBeFocused()
+    await page.keyboard.type(title)
+  }
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Pin', exact: true }).click()
+  await page.getByRole('button', { name: 'Collapse' }).click()
+  await expect(row(page, 'Old')).toBeHidden()
+  expect(await rowTitles(page)).toEqual(['Archive', 'Daily'])
+  expect(await depth(page, 'Daily')).toBe(1)
+})
+
 test('on a touch screen a finger drags a row once it holds it anywhere, and the row shows a grip on its left', async ({
   browser,
 }) => {

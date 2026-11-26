@@ -40,6 +40,7 @@ import {
   restoreNote,
   settings,
   shareCount,
+  shownChildren,
   titleOf,
   toggleCollapsed,
   trashed,
@@ -102,7 +103,7 @@ function markOf(ids: string[], { parent, index }: Spot): Mark {
   if (index < kids.length) return { into: parent, line: { row: kids[index], edge: 'top', depth } }
   // At the end, the line goes under the last row of the last child's open subtree.
   let last = kids[kids.length - 1]
-  while (!isCollapsed(last) && children(last).length > 0) last = children(last).at(-1)!
+  while (shownChildren(last).length > 0) last = shownChildren(last).at(-1)!
   return { into: parent, line: { row: last, edge: 'bottom', depth } }
 }
 
@@ -229,7 +230,7 @@ export function Tree({ open }: { open?: string }) {
   const pick = (id: string, e: React.MouseEvent) => {
     if (e.shiftKey) {
       const shown = (parent: string | null): string[] =>
-        children(parent).flatMap((kid) => [kid, ...(isCollapsed(kid) ? [] : shown(kid))])
+        shownChildren(parent).flatMap((kid) => [kid, ...shown(kid)])
       const rows = shown(null)
       anchor.current ??= selected ?? id
       const to = rows.indexOf(id)
@@ -842,10 +843,9 @@ function Row({
           <PlusIcon className="size-4.5" />
         </IconButton>
       </div>
-      {open &&
-        kids.map((kid) => (
-          <Row key={kid} id={kid} depth={depth + 1} selected={selected} picked={picked} onPick={onPick} mark={mark} />
-        ))}
+      {shownChildren(id).map((kid) => (
+        <Row key={kid} id={kid} depth={depth + 1} selected={selected} picked={picked} onPick={onPick} mark={mark} />
+      ))}
     </>
   )
 }

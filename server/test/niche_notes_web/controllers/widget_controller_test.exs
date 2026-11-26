@@ -186,8 +186,8 @@ defmodule NicheNotesWeb.WidgetControllerTest do
 
     place = fn id, node -> edit!(me.id, &Yex.Map.set(Yex.Doc.get_map(&1, "nodes"), id, node)) end
 
-    [old, new, pinned, kid, folded, hidden] =
-      for t <- ~w(Old New Pinned Kid Folded Hidden), do: note.(t, me, [])
+    [old, new, pinned, kid, folded, hidden, kept] =
+      for t <- ~w(Old New Pinned Kid Folded Hidden Kept), do: note.(t, me, [])
 
     place.(old, %{"parent" => nil, "order" => 1})
     place.(new, %{"parent" => nil, "order" => 3})
@@ -195,6 +195,7 @@ defmodule NicheNotesWeb.WidgetControllerTest do
     place.(kid, %{"parent" => new, "order" => 1})
     place.(folded, %{"parent" => old, "order" => 1, "collapsed" => true})
     place.(hidden, %{"parent" => folded, "order" => 1})
+    place.(kept, %{"parent" => folded, "order" => 0, "pinned" => true})
     place.(note.("Deleted", me, [{"deleted", true}]), %{"parent" => nil, "order" => 4})
     place.(note.("Theirs", other, []), %{"parent" => nil, "order" => 5})
 
@@ -209,7 +210,8 @@ defmodule NicheNotesWeb.WidgetControllerTest do
              %{"line" => "New", "depth" => 0, "note" => new},
              %{"line" => "Kid", "depth" => 1, "note" => kid},
              %{"line" => "Old", "depth" => 0, "note" => old},
-             %{"line" => "Folded", "depth" => 1, "note" => folded}
+             %{"line" => "Folded", "depth" => 1, "note" => folded},
+             %{"line" => "Kept", "depth" => 2, "note" => kept}
            ]
   end
 
