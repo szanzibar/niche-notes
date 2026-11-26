@@ -261,10 +261,12 @@ export function Tree({ open }: { open?: string }) {
     if (widget && allNotes && s.online) handOff(widget, store.me!.id)
   }, [widget, allNotes, s.online])
 
-  // However a note was opened, its row shows in the tree, unfolded as if by hand.
+  // However a note was opened, its row shows in the tree, unfolded as if by hand where it was hidden.
   useEffect(() => {
     if (!selected || inTrash(selected)) return
-    for (let p = nodes().get(selected)?.parent; p; p = nodes().get(p)?.parent) expand(p)
+    for (let kid = selected, p = nodes().get(kid)?.parent; p; kid = p, p = nodes().get(p)?.parent) {
+      if (!shownChildren(p).includes(kid)) expand(p)
+    }
   }, [selected])
 
   // Back from a note, or clearing the search, finds the selected row, and nothing else scrolls the tree.

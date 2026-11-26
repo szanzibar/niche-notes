@@ -66,6 +66,12 @@ test('a folded note still shows its pinned notes', async ({ browser }) => {
   await expect(row(page, 'Old')).toBeHidden()
   expect(await rowTitles(page)).toEqual(['Archive', 'Daily'])
   expect(await depth(page, 'Daily')).toBe(1)
+  // Opening it leaves the fold alone, since its row already shows.
+  await row(page, 'Archive').click()
+  await row(page, 'Daily').click()
+  await expect(page.getByPlaceholder('Title')).toHaveValue('Daily')
+  await expect(page.getByRole('button', { name: 'Expand' })).toBeVisible()
+  await expect(row(page, 'Old')).toBeHidden()
 })
 
 test('on a touch screen a finger drags a row once it holds it anywhere, and the row shows a grip on its left', async ({
