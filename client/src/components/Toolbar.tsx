@@ -363,23 +363,24 @@ export function Toolbar({ editor, people }: { editor: Editor | null; people: Use
                     </Tool>
                   ))}
                 </Group>
+                {/* An empty field holds the value it shows in grey, so a change to one part of it saves the whole. */}
                 <div className="flex gap-1">
                   <label className={`${FIELD} flex flex-1 items-center gap-1 focus-within:border-accent-ink`}>
                     {day && <span className="shrink-0">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>}
                     <input
                       type="date"
                       aria-label="Day"
-                      value={day}
+                      value={day || inDays(0)}
                       onChange={(e) => setDue(e.target.value ? (time ? `${e.target.value}T${time}` : e.target.value) : null)}
-                      className="min-w-0 flex-1 bg-transparent outline-none"
+                      className={`min-w-0 flex-1 bg-transparent outline-none ${day ? '' : 'text-ink-muted'}`}
                     />
                   </label>
                   <input
                     type="time"
                     aria-label="Time"
-                    value={time}
+                    value={time || '12:30'}
                     onChange={(e) => setDue(e.target.value ? `${day || inDays(0)}T${e.target.value}` : day || null)}
-                    className={`${FIELD} w-28`}
+                    className={`${FIELD} w-28 ${time ? '' : 'text-ink-muted'}`}
                   />
                 </div>
                 {time && (

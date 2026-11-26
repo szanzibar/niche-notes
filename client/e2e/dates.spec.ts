@@ -66,6 +66,22 @@ test('a checkbox line takes a date from the Date box and shows it at its end', a
   await expect(line(page, 'Rent')).not.toHaveAttribute('data-duration')
 })
 
+test('a change to one part of the Day or the Time saves the whole date', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'Rent')
+  await tool(page, 'Task list').click()
+  await tool(page, 'Date').click()
+
+  await page.getByLabel('Day', { exact: true }).click({ position: { x: 12, y: 12 } })
+  await page.keyboard.type('12')
+  const december = `${new Date().getFullYear()}-12-${inDays(0).slice(8)}`
+  await expect(line(page, 'Rent')).toHaveAttribute('data-due', december)
+
+  await page.getByLabel('Time', { exact: true }).click({ position: { x: 12, y: 15 } })
+  await page.keyboard.type('1')
+  await expect(line(page, 'Rent')).toHaveAttribute('data-due', `${december}T13:30`)
+})
+
 test('on a phone, a tap right of a dated line puts the cursor at its end', async ({ browser }) => {
   phoneOnly()
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
