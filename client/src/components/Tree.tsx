@@ -20,7 +20,7 @@ import { api } from '../lib/api'
 import { MOD } from '../lib/keys'
 import { useStore, useY } from '../sync/hooks'
 import { search } from '../sync/search'
-import { moveDue, store, textOf } from '../sync/store'
+import { moveDue, store, textOf, tickDue } from '../sync/store'
 import {
   children,
   createNote,
@@ -209,6 +209,19 @@ export function Tree({ open }: { open?: string }) {
     notes.set(line.id, [...(notes.get(line.id) ?? []), line])
   }
   const dueCollapsed = (prefs.get('dueCollapsed') as string[] | undefined) ?? []
+  // Ticked lines stay until the ticking stops for two seconds, as in the Due widget, so a wrong tap can be taken back.
+  const [ticked, setTicked] = useState(new Map<string, string>())
+  const ticking = useRef<number>(undefined)
+  const tick = (id: string, item: string) => {
+    const next = new Map(ticked)
+    if (!next.delete(item)) next.set(item, id)
+    setTicked(next)
+    clearTimeout(ticking.current)
+    ticking.current = window.setTimeout(
+      () => void Promise.all([...next].map(([item, id]) => tickDue(id, [item]))).then(() => setTicked(new Map())),
+      2000,
+    )
+  }
   // Shift picks every row from the last one clicked to this one, and Ctrl or ⌘ picks or drops this one, so several
   // notes can be dragged together. A plain click opens the note and lets the rest go.
   const [picked, setPicked] = useState(new Set<string>())
@@ -546,18 +559,30 @@ export function Tree({ open }: { open?: string }) {
                             </button>
                             {lines.map((line) => (
                               <div key={line.item} className="flex flex-wrap items-center justify-end gap-x-3 pr-4 hover:bg-bg">
-                                <button
-                                  type="button"
-                                  className="flex min-w-0 flex-auto items-baseline gap-2 py-2 pl-8 text-left"
-                                  onClick={() => showNote(id, line.text)}
-                                >
-                                  <span className="min-w-0 flex-1 truncate">{line.text}</span>
-                                  <span
-                                    className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}
+                                <div className="flex min-w-0 flex-auto items-center">
+                                  <label className="flex self-stretch items-center pl-8 pr-3">
+                                    <input
+                                      type="checkbox"
+                                      aria-label={line.text}
+                                      disabled={readOnly(id)}
+                                      checked={ticked.has(line.item)}
+                                      onChange={() => tick(id, line.item)}
+                                      className="size-[1.15rem] accent-accent"
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="flex min-w-0 flex-1 items-baseline gap-2 py-2 text-left"
+                                    onClick={() => showNote(id, line.text)}
                                   >
-                                    {dueLabel(line.due)}
-                                  </span>
-                                </button>
+                                    <span className="min-w-0 flex-1 truncate">{line.text}</span>
+                                    <span
+                                      className={`shrink-0 text-xs font-bold ${overdue(line.due) ? 'text-accent-ink' : 'text-ink-muted'}`}
+                                    >
+                                      {dueLabel(line.due)}
+                                    </span>
+                                  </button>
+                                </div>
                                 {name === 'Past due' && !readOnly(id) && (
                                   <div className="flex gap-3">
                                     <Button className="text-sm" onClick={() => void moveDue(id, [line.item], today)}>

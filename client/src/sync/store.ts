@@ -2,7 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import { Socket, type Channel } from 'phoenix'
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness'
 import * as Y from 'yjs'
-import { ruleOn } from '../components/dates'
+import { nextDue, parseRule, ruleOn } from '../components/dates'
 import { api } from '../lib/api'
 import type { Share, User } from '../lib/types'
 
@@ -101,7 +101,7 @@ export interface Dated {
 // Search leaves out checked lines unless asked, so their text sits apart. The lines nested under one stay in.
 export type Text = { text: string; checked: string; dated: Dated[] }
 
-const itemOf = (line: Y.XmlElement) => `${line._item!.id.client}:${line._item!.id.clock}`
+const itemOf = (line: { _item: Y.Item | null }) => `${line._item!.id.client}:${line._item!.id.clock}`
 
 function plain(content: Y.XmlFragment): Text {
   const text: string[] = []
@@ -139,6 +139,21 @@ export async function moveDue(id: string, items: string[], day: string) {
       line.setAttribute('due', time ? `${day}T${time}` : day)
       const repeat = ruleOn(line.getAttribute('repeat') as string | undefined, day)
       if (repeat) line.setAttribute('repeat', repeat)
+    }
+  })
+  notify()
+}
+
+// Ticks dated lines as the editor does, so a repeating one moves to its next date instead.
+export async function tickDue(id: string, items: string[]) {
+  const doc = await openDoc(id)
+  doc.transact(() => {
+    for (const line of doc.getXmlFragment('content').querySelectorAll('taskItem') as Y.XmlElement<{ [key: string]: string | boolean }>[]) {
+      const due = line.getAttribute('due') as string | undefined
+      if (!due || line.getAttribute('checked') || !items.includes(itemOf(line))) continue
+      const repeat = line.getAttribute('repeat') as string | undefined
+      if (parseRule(repeat)) line.setAttribute('due', nextDue(due, repeat!))
+      else line.setAttribute('checked', true)
     }
   })
   notify()

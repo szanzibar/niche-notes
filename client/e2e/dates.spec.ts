@@ -528,6 +528,40 @@ test('Today and Tomorrow move a past due line without opening its note, keeping 
   await expect(page).not.toHaveURL(/line=/)
 })
 
+test('a box in Due ticks its line without opening its note, once the ticking stops', async ({ browser }) => {
+  const page = await signIn(browser, `alice-${uid()}`)
+  await newNote(page, 'Chores', 'pay rent')
+  await tool(page, 'Task list').click()
+  for (const text of ['book dentist', 'water plants']) {
+    await page.keyboard.press(lineEnd)
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(text)
+  }
+  for (const text of ['pay rent', 'book dentist', 'water plants']) {
+    await page.locator('.editor-body p').getByText(text, { exact: true }).click()
+    await tool(page, 'Date').click()
+    await tool(page, text === 'pay rent' ? 'Monthly' : 'Today').click()
+    await page.keyboard.press('Escape')
+  }
+
+  await page.getByRole('button', { name: /^Due \(/ }).click()
+  const today = page.getByRole('list', { name: 'Today', exact: true })
+  const box = (text: string) => today.getByRole('checkbox', { name: text, exact: true })
+  await box('book dentist').check()
+  // A wrong tap is taken back before the ticking stops.
+  await box('water plants').check()
+  await box('water plants').uncheck()
+  await box('pay rent').check()
+  await expect(today).not.toContainText('book dentist')
+  await expect(line(page, 'book dentist')).toHaveAttribute('data-checked', 'true')
+  await expect(box('water plants')).not.toBeChecked()
+  await expect(line(page, 'water plants')).toHaveAttribute('data-checked', 'false')
+  // A repeating line moves to its next date instead.
+  await expect(page.getByRole('list', { name: 'Later', exact: true })).toContainText('pay rent')
+  await expect(line(page, 'pay rent')).toHaveAttribute('data-checked', 'false')
+  await expect(page).not.toHaveURL(/line=/)
+})
+
 test('Move all to today moves every past due line, in every note', async ({ browser }) => {
   const page = await signIn(browser, `alice-${uid()}`)
   await newNote(page, 'Chores', 'pay rent')
